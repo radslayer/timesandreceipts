@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOTIF — Times &amp; Receipts</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1a1714;--gold:#b89a6a;--cream:#f7f3ee;--surface:#fff;--border:#e8e0d6;--muted:#8a7f74;--green:#4a7c59;--red:#8b3a3a;--amber:#b87a2a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
+h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bottom:16px}
+.hidden{display:none!important}
+.topbar{background:var(--ink);color:#fff;padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-brand{font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);letter-spacing:3px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.role-badge{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;background:var(--gold);color:#fff;padding:2px 8px;border-radius:4px}
+.username{font-size:13px;color:#aaa}
+.nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;padding:0 20px}
+.nav-tab{padding:12px 18px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.nav-tab.active{color:var(--ink);border-bottom-color:var(--gold)}
+.main{padding:24px 20px;max-width:860px;margin:0 auto}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--ink);background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;pointer-events:auto;touch-action:manipulation;-webkit-user-select:text;user-select:text}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold);background:#fff}
+.field textarea{resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.row2{grid-template-columns:1fr}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 20px;border-radius:8px;border:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-gold{background:var(--gold);color:#fff;width:100%;padding:13px;font-size:15px}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-outline{background:transparent;color:var(--ink);border:1.5px solid var(--border)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:6px}
+.btn-logout{background:transparent;color:#888;border:1px solid #444;font-size:12px;padding:5px 10px;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+.err{color:var(--red);font-size:13px;margin-top:8px}
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1714,#2c2520);padding:20px}
+.auth-card{background:var(--surface);border-radius:16px;padding:40px;width:100%;max-width:360px}.auth-card input{font-size:16px!important;-webkit-user-select:text!important;user-select:text!important;pointer-events:auto!important}
+.auth-logo{font-family:'DM Serif Display',serif;font-size:26px;color:var(--gold);letter-spacing:4px}
+.auth-sub{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:32px;margin-top:4px}
+.status-bar{display:flex;align-items:center;gap:10px;padding:16px;border-radius:10px;margin-bottom:16px;border:1.5px solid var(--border);background:var(--cream)}
+.status-bar.active{background:#f0f7f2;border-color:var(--green)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.dot.pulse{background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.geo-tag{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:20px}
+.geo-tag.onsite{background:#d4edd9;color:var(--green)}
+.geo-tag.offsite{background:#f5dada;color:var(--red)}
+.geo-tag.unknown{background:#e8e0d6;color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.tbl td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tag{display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-right:3px}
+.badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:20px}
+.badge.submitted{background:#fef3d4;color:var(--amber)}
+.badge.approved{background:#d4edd9;color:var(--green)}
+.badge.rejected{background:#f5dada;color:var(--red)}
+.badge.active-session{background:#d4edd9;color:var(--green)}
+.receipt-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.receipt-item:last-child{border-bottom:none}
+.receipt-thumb{width:56px;height:56px;border-radius:6px;object-fit:cover;background:var(--cream);border:1px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px}
+.receipt-amt{font-family:'DM Serif Display',serif;font-size:20px}
+.receipt-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.upload-zone{border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:all .2s}
+.upload-zone:hover{border-color:var(--gold);background:#faf6f0}
+.upload-preview{max-width:100%;max-height:180px;border-radius:8px;margin-top:12px;object-fit:contain}
+.modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:10px}
+.list-row:last-child{border-bottom:none}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:var(--gold);color:#fff;border:none;border-radius:20px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content;margin-bottom:20px}
+.seg-btn{padding:9px 18px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;background:transparent;border:none;font-family:'DM Sans',sans-serif}
+.seg-btn.on{background:var(--gold);color:#fff}
+.range-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.range-row .field{margin-bottom:0}
+select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;background:var(--cream)}
+.notice{background:#fef9ed;border:1px solid #f0d070;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div id="auth-screen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">MOTIF</div>
+    <div class="auth-sub">Times &amp; Receipts</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-password" autocomplete="current-password" placeholder="Password">
+    </div>
+    <div id="login-err" class="err"></div>
+    <button class="btn btn-gold" id="login-btn" style="margin-top:8px">Sign In</button>
+    <div style="text-align:center;margin-top:14px">
+      <a id="forgot-link" href="#" style="font-size:13px;color:var(--muted);text-decoration:none">Forgot password?</a>
+    </div>
+    <div id="forgot-success" class="hidden" style="text-align:center;margin-top:14px;font-size:13px;color:var(--green)">Reset email sent — check your inbox.</div>
+  </div>
+</div>
+
+<div id="main-screen" class="hidden">
+  <div class="topbar">
+    <div class="topbar-brand">MOTIF</div>
+    <div class="topbar-right">
+      <span class="role-badge" id="tb-role">user</span>
+      <span class="username" id="tb-name"></span>
+      <button class="btn-logout" id="logout-btn">Sign Out</button>
+    </div>
+  </div>
+  <div class="nav" id="nav-bar">
+    <div class="nav-tab active" data-tab="clock">&#9201; Time Clock</div>
+    <div class="nav-tab" data-tab="receipts">&#129534; Receipts</div>
+    <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
+    <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
+  </div>
+  <div class="main">
+
+    <div id="tab-clock">
+      <div id="clock-status-bar" class="status-bar">
+        <div class="dot" id="clock-dot"></div>
+        <div style="flex:1">
+          <div id="clock-status-label" style="font-weight:600;font-size:15px">Not Clocked In</div>
+          <div id="clock-status-sub" style="font-size:12px;color:var(--muted)"></div>
+        </div>
+        <span id="clock-elapsed" style="font-weight:600;color:var(--green)"></span>
+        <span id="geo-bar-tag" class="geo-tag unknown hidden"></span>
+      </div>
+      <div class="card" id="clock-in-form">
+        <h2>Clock In</h2>
+        <div class="field"><label>Project *</label><select id="ci-project"><option value="">Select project...</option></select></div>
+        <div class="row2">
+          <div class="field"><label>Scope *</label><select id="ci-scope"><option value="">Select scope...</option></select></div>
+          <div class="field"><label>Room *</label><select id="ci-room"><option value="">Select room...</option></select></div>
+        </div>
+        <div class="field"><label>Notes</label><textarea id="ci-notes" rows="2" placeholder="Optional..."></textarea></div>
+        <button class="btn btn-green" id="clock-in-btn" style="width:100%;padding:14px;font-size:15px">&#9654; Clock In</button>
+      </div>
+      <div class="card hidden" id="clock-out-form">
+        <h2>Active Session</h2>
+        <div id="active-session-info"></div>
+        <div class="divider"></div>
+        <button class="btn btn-red" id="clock-out-btn" style="width:100%;padding:14px;font-size:15px">&#9632; Clock Out</button>
+      </div>
+      <div class="card">
+        <h2>My Time Log</h2>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>Date</th><th>Project</th><th>Scope/Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th></tr></thead>
+            <tbody id="my-log-body"><tr><td colspan="7" class="empty">No entries yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-receipts" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="margin:0">Receipts</h2>
+        <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit</button>
+      </div>
+      <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
+    </div>
+
+    <div id="tab-reports" class="hidden">
+      <h2>Reports &amp; Export</h2>
+      <div class="seg">
+        <button class="seg-btn on" id="rpt-time-btn">Time Log</button>
+        <button class="seg-btn" id="rpt-rcpt-btn">Receipts</button>
+      </div>
+      <div class="card">
+        <div class="range-row">
+          <div class="field"><label>Project</label><select id="rpt-project" style="width:180px"><option value="">All Projects</option></select></div>
+          <div class="field"><label>From</label><input type="date" id="rpt-from" style="width:150px"></div>
+          <div class="field"><label>To</label><input type="date" id="rpt-to" style="width:150px"></div>
+          <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 18px">Run</button>
+        </div>
+        <div id="rpt-results"></div>
+      </div>
+    </div>
+
+    <div id="tab-admin" class="hidden">
+      <h2>Admin</h2>
+      <div class="seg">
+        <button class="seg-btn on" id="adm-proj-btn">Projects</button>
+        <button class="seg-btn" id="adm-users-btn">Users</button>
+      </div>
+      <div id="adm-projects-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <strong>Projects</strong>
+          <button class="btn btn-gold btn-sm" id="new-project-btn">+ New Project</button>
+        </div>
+        <div class="card"><div id="projects-list"><div class="empty">No projects.</div></div></div>
+      </div>
+      <div id="adm-users-panel" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <strong>Team Members</strong>
+          <button class="btn btn-gold btn-sm" id="new-user-btn">+ Add User</button>
+        </div>
+        <div class="card"><div id="users-list"><div class="empty">No users found.</div></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="receipt-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Submit Receipt</h2>
+    <div class="field"><label>Project *</label><select id="rm-project"><option value="">Select project...</option></select></div>
+    <div class="row2">
+      <div class="field"><label>Scope *</label><select id="rm-scope"><option value="">Select...</option></select></div>
+      <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="rm-amount" placeholder="0.00" inputmode="decimal"></div>
+      <div class="field"><label>Vendor</label><input type="text" id="rm-vendor" placeholder="Home Depot..."></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="rm-notes" rows="2" placeholder="What was purchased?"></textarea></div>
+    <div class="upload-zone" id="rm-upload-zone">
+      <div style="font-size:28px;margin-bottom:6px">&#128247;</div>
+      <div style="font-weight:500">Tap to photo or upload receipt</div>
+      <div style="font-size:12px;margin-top:4px">JPG or PNG</div>
+      <img id="rm-preview" class="hidden upload-preview" alt="preview">
+      <input type="file" id="rm-file" accept="image/*" capture="environment" style="display:none">
+    </div>
+    <div id="rm-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="rm-cancel">Cancel</button>
+      <button class="btn btn-gold" id="rm-submit" style="width:auto">Submit Receipt</button>
+    </div>
+  </div>
+</div>
+
+<div id="project-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2 id="pm-title">New Project</h2>
+    <div class="field"><label>Project Name *</label><input type="text" id="pm-name" placeholder="Jones Kitchen Remodel"></div>
+    <div class="field"><label>Job Site Address</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="pm-address" placeholder="123 Main St, Littleton CO" style="flex:1">
+        <button class="btn btn-outline btn-sm" id="pm-geocode-btn">Get Coords</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Latitude</label><input type="number" step="any" id="pm-lat" placeholder="39.6133"></div>
+      <div class="field"><label>Longitude</label><input type="number" step="any" id="pm-lng" placeholder="-105.0167"></div>
+    </div>
+    <div id="pm-geo-note" style="font-size:12px;color:var(--green);margin-top:-8px;margin-bottom:12px"></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Scopes (tap to remove)</div>
+    <div class="chip-wrap" id="pm-scopes"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input type="text" id="pm-new-scope" placeholder="Add scope..." style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif">
+      <button class="btn btn-outline btn-sm" id="pm-add-scope-btn">Add</button>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Rooms (tap to remove)</div>
+    <div class="chip-wrap" id="pm-rooms"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input type="text" id="pm-new-room" placeholder="Add room..." style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif">
+      <button class="btn btn-outline btn-sm" id="pm-add-room-btn">Add</button>
+    </div>
+    <div id="pm-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="pm-cancel">Cancel</button>
+      <button class="btn btn-gold" id="pm-save" style="width:auto">Save Project</button>
+    </div>
+  </div>
+</div>
+
+<div id="user-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Add Team Member</h2>
+    <div class="notice">Fill in the form and tap Send Invite. The new team member will receive an email with a link to set their password and log in.</div>
+    <div class="field"><label>Full Name *</label><input type="text" id="um-name" placeholder="Jane Smith" autocapitalize="words"></div>
+    <div class="field"><label>Email *</label><input type="email" id="um-email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="jane@example.com"></div>
+    <div class="field"><label>Role *</label>
+      <select id="um-role">
+        <option value="user">User (field crew)</option>
+        <option value="bookkeeper">Bookkeeper</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div id="um-err" class="err"></div>
+    <div id="um-success" class="hidden" style="color:var(--green);font-size:13px;margin-top:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="um-cancel">Cancel</button>
+      <button class="btn btn-gold" id="um-save" style="width:auto">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<div id="edit-receipt-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Edit Receipt</h2>
+    <div class="field"><label>Project *</label><select id="er-project"><option value="">Select project...</option></select></div>
+    <div class="row2">
+      <div class="field"><label>Scope *</label><select id="er-scope"><option value="">Select...</option></select></div>
+      <div class="field"><label>Room *</label><select id="er-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="er-amount" placeholder="0.00" inputmode="decimal"></div>
+      <div class="field"><label>Vendor</label><input type="text" id="er-vendor" placeholder="Home Depot..."></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="er-notes" rows="2"></textarea></div>
+    <div class="field"><label>Status</label><select id="er-status"><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+    <div id="er-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="er-cancel">Cancel</button>
+      <button class="btn btn-gold" id="er-save" style="width:auto">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="edit-time-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Edit Time Entry</h2>
+    <div class="field"><label>Project *</label><select id="et-project"><option value="">Select project...</option></select></div>
+    <div class="row2">
+      <div class="field"><label>Scope *</label><select id="et-scope"><option value="">Select...</option></select></div>
+      <div class="field"><label>Room *</label><select id="et-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Clock In</label><input type="datetime-local" id="et-clockin"></div>
+      <div class="field"><label>Clock Out</label><input type="datetime-local" id="et-clockout"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="et-notes" rows="2"></textarea></div>
+    <div id="et-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="et-cancel">Cancel</button>
+      <button class="btn btn-gold" id="et-save" style="width:auto">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="lightbox" class="modal-bg hidden" style="cursor:pointer">
+  <img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px" alt="receipt">
+</div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+
+const app=initializeApp({apiKey:"AIzaSyCfCholttfnLxgJwaxGwTu1-FDmO0Ob1hs",authDomain:"motif-times-and-receipts.firebaseapp.com",projectId:"motif-times-and-receipts",storageBucket:"motif-times-and-receipts.firebasestorage.app",messagingSenderId:"837311030358",appId:"1:837311030358:web:a7a391ecf6b2302d6a07f7"});
+const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app,'us-central1');
+
+const GEO_M=91.44;
+const DEF_SCOPES=['Demo / Rough-In','Framing','Electrical','Plumbing','HVAC','Insulation','Drywall','Tile / Stone','Carpentry / Millwork','Painting','Finish Work','General Admin','Miscellaneous'];
+const DEF_ROOMS=['Kitchen','Primary Bath','Primary Suite','Living Room','Dining Room','Powder Room','Laundry','Office','Basement','Exterior / Site','General / Whole Home'];
+
+let currentUser=null,userProfile=null,activeSession=null,elapsedTimer=null,currentPos=null;
+let allProjects=[],activeProjects=[],currentRptType='time';
+let pmScopes=[...DEF_SCOPES],pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
+
+const $=id=>document.getElementById(id);
+const show=id=>$(id).classList.remove('hidden');
+const hide=id=>$(id).classList.add('hidden');
+
+function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+function geoSt(pos,proj){if(!pos||!proj?.lat||!proj?.lng)return'unknown';return hav(pos.lat,pos.lng,proj.lat,proj.lng)<=GEO_M?'onsite':'offsite'}
+function fmtDur(ms){if(!ms)return'--';const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h>0?h+'h '+m+'m':m+'m'}
+function fmtTs(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+function fmtDate(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+function fmtTime(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+function ini(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+function isPriv(){return['admin','bookkeeper'].includes(userProfile?.role?.toLowerCase())}
+function isAdmin(){return userProfile?.role?.toLowerCase()==='admin'}
+
+if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};updateGeoBar()},()=>{},{enableHighAccuracy:true,timeout:10000});
+
+function updateGeoBar(){
+  const proj=activeProjects.find(p=>p.id===$('ci-project').value);
+  const st=geoSt(currentPos,proj);
+  if($('ci-project').value&&currentPos){
+    const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag');
+  }else hide('geo-bar-tag');
+}
+
+// AUTH
+$('login-btn').onclick=async()=>{
+  const e=$('login-email').value.trim(),p=$('login-password').value;
+  $('login-err').textContent='';$('login-btn').disabled=true;$('login-btn').textContent='Signing in...';
+  try{await signInWithEmailAndPassword(auth,e,p)}catch(err){$('login-err').textContent='Invalid email or password.';$('login-btn').disabled=false;$('login-btn').textContent='Sign In'}
+};
+$('login-email').onkeydown=$('login-password').onkeydown=e=>{if(e.key==='Enter')$('login-btn').click()};
+$('logout-btn').onclick=()=>{['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el)el.classList.add('hidden')});$('tab-clock').classList.remove('hidden');document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="clock"]').classList.add('active');signOut(auth);};
+$('forgot-link').onclick=async(e)=>{
+  e.preventDefault();
+  const email=$('login-email').value.trim();
+  if(!email){$('login-err').textContent='Enter your email address first.';return;}
+  try{
+    await sendPasswordResetEmail(auth,email);
+    $('forgot-success').classList.remove('hidden');
+    $('login-err').textContent='';
+  }catch(err){
+    $('login-err').textContent='Could not send reset email. Check the address and try again.';
+  }
+};
+
+onAuthStateChanged(auth,async u=>{
+  currentUser=u;
+  if(!u){show('auth-screen');hide('main-screen');$('login-btn').disabled=false;$('login-btn').textContent='Sign In';return}
+  hide('auth-screen');show('main-screen');
+  ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el)el.classList.add('hidden')});$('tab-clock').classList.remove('hidden');document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="clock"]').classList.add('active');
+  const uref=doc(db,'users',u.uid);
+  try{
+    const s=await getDoc(uref);
+    if(!s.exists()){
+      // Check if admin pre-staged a profile for this email
+      let name=u.displayName||u.email.split('@')[0], role='user';
+      try{
+        const pending=await getDoc(doc(db,'pendingUsers',u.email.toLowerCase()));
+        if(pending.exists()){name=pending.data().name||name;role=pending.data().role||'user';}
+      }catch(e){}
+      await setDoc(uref,{email:u.email,name,role,createdAt:serverTimestamp()});
+    }
+  }catch(e){console.warn(e)}
+  onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();
+});
+
+function applyProfile(){
+  if(!userProfile)return;
+  $('tb-name').textContent=userProfile.name||'';
+  $('tb-role').textContent=(userProfile.role||'user').toLowerCase();
+  // Show/hide nav tabs directly by ID to avoid timing issues
+  const priv=isPriv(), adm=isAdmin();
+  document.querySelectorAll('.priv-only').forEach(el=>priv?el.classList.remove('hidden'):el.classList.add('hidden'));
+  document.querySelectorAll('.admin-only').forEach(el=>adm?el.classList.remove('hidden'):el.classList.add('hidden'));
+  // Force nav tab visibility with inline style as backup
+  const rptTab=document.querySelector('[data-tab="reports"]');
+  const admTab=document.querySelector('[data-tab="admin"]');
+  if(rptTab){rptTab.style.display=priv?'block':'none';}
+  if(admTab){admTab.style.display=adm?'block':'none';}
+}
+
+// PROJECTS
+function loadProjects(){
+  onSnapshot(query(collection(db,'projects'),orderBy('name')),snap=>{
+    allProjects=snap.docs.map(d=>({id:d.id,...d.data()}));
+    activeProjects=allProjects.filter(p=>p.active!==false);
+    ['ci-project','rm-project'].forEach(id=>{const v=$(id).value;$(id).innerHTML='<option value="">Select project...</option>';activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$(id).appendChild(o)});$(id).value=v});
+    const rp=$('rpt-project');const rv=rp.value;rp.innerHTML='<option value="">All Projects</option>';allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;rp.appendChild(o)});rp.value=rv;
+    renderProjectsList();
+  });
+}
+function fillScopeRoom(sid,rid,proj){
+  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
+  $(sid).innerHTML='<option value="">Select scope...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$(sid).appendChild(o)});
+  $(rid).innerHTML='<option value="">Select room...</option>';rm.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;$(rid).appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$(rid).appendChild(na);
+}
+$('ci-project').onchange=()=>{fillScopeRoom('ci-scope','ci-room',activeProjects.find(p=>p.id===$('ci-project').value));updateGeoBar()};
+$('rm-project').onchange=()=>fillScopeRoom('rm-scope','rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
+
+// CLOCK
+function loadActiveSession(){
+  if(!currentUser)return;
+  onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)),snap=>{
+    activeSession=snap.empty?null:{id:snap.docs[0].id,...snap.docs[0].data()};
+    renderClockUI();
+  });
+}
+function renderClockUI(){
+  if(activeSession){
+    hide('clock-in-form');show('clock-out-form');
+    $('clock-dot').classList.add('pulse');$('clock-status-bar').classList.add('active');
+    $('clock-status-label').textContent='Clocked In - '+activeSession.projectName;
+    $('clock-status-sub').textContent=activeSession.scope+(activeSession.room?' - '+activeSession.room:'');
+    const proj=allProjects.find(p=>p.id===activeSession.projectId),st=geoSt(currentPos,proj);
+    const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag');
+    $('active-session-info').innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;font-size:14px"><div><span style="color:var(--muted)">Project: </span><strong>${activeSession.projectName}</strong></div><div><span style="color:var(--muted)">Scope: </span>${activeSession.scope}</div>${activeSession.room?'<div><span style="color:var(--muted)">Room: </span>'+activeSession.room+'</div>':''}<div><span style="color:var(--muted)">Started: </span>${fmtTs(activeSession.clockIn)}</div>${currentPos?'<div style="font-size:12px;color:var(--muted)">GPS: '+currentPos.lat.toFixed(5)+', '+currentPos.lng.toFixed(5)+'</div>':''}</div>`;
+    if(elapsedTimer)clearInterval(elapsedTimer);
+    elapsedTimer=setInterval(()=>{const s=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn);$('clock-elapsed').textContent=fmtDur(Date.now()-s.getTime())},1000);
+  }else{
+    show('clock-in-form');hide('clock-out-form');
+    $('clock-dot').classList.remove('pulse');$('clock-status-bar').classList.remove('active');
+    $('clock-status-label').textContent='Not Clocked In';$('clock-status-sub').textContent='';$('clock-elapsed').textContent='';hide('geo-bar-tag');
+    if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null}
+  }
+}
+$('clock-in-btn').onclick=async()=>{
+  const pid=$('ci-project').value,sc=$('ci-scope').value,rm=$('ci-room').value;
+  if(!pid||!sc||!rm){alert('Select a project, scope, and room.');return}
+  const proj=activeProjects.find(p=>p.id===pid);
+  $('clock-in-btn').disabled=true;$('clock-in-btn').textContent='Clocking in...';
+  await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('ci-room').value,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
+  $('ci-notes').value='';$('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
+};
+$('clock-out-btn').onclick=async()=>{
+  if(!activeSession)return;
+  $('clock-out-btn').disabled=true;$('clock-out-btn').textContent='Clocking out...';
+  const now=new Date(),start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn),proj=allProjects.find(p=>p.id===activeSession.projectId);
+  await updateDoc(doc(db,'timeLogs',activeSession.id),{clockOut:Timestamp.fromDate(now),clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockOutGeoStatus:geoSt(currentPos,proj),durationMs:now-start,status:'complete'});
+  $('clock-out-btn').disabled=false;$('clock-out-btn').textContent='Clock Out';
+};
+function loadMyLog(){
+  if(!currentUser)return;
+  onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(30)),snap=>{
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._allTimeLogs=rows;
+    const tb=$('my-log-body');
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">No entries yet.</td></tr>';return}
+    tb.innerHTML=rows.map(r=>`<tr><td>${fmtDate(r.clockIn)}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span>${r.room?'<span class="tag">'+r.room+'</span>':''}</td><td style="font-size:12px">${fmtTime(r.clockIn)}</td><td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td><td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td><td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>${isAdmin()?`<td><button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button></td>`:'<td></td>'}</tr>`).join('');
+  });
+}
+
+// RECEIPTS
+function loadReceipts(){
+  if(!currentUser)return;
+  const q=isPriv()?query(collection(db,'receipts'),limit(60)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(60));
+  onSnapshot(q,snap=>{
+    const list=snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._allReceipts=list;
+    const el=$('receipts-list');
+    if(!list.length){el.innerHTML='<div class="empty">No receipts yet.</div>';return}
+    el.innerHTML=list.map(r=>`<div class="receipt-item">${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:'<div class="receipt-thumb">&#129534;</div>'}<div style="flex:1"><div style="display:flex;align-items:center;gap:10px"><div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div><span class="badge ${r.status}">${r.status}</span></div><div class="receipt-meta">${r.vendor?r.vendor+' - ':''}${r.projectName||''} - ${fmtDate(r.submittedAt)}${r.submittedByName?' - '+r.submittedByName:''}</div><div style="margin-top:6px">${r.scope?'<span class="tag">'+r.scope+'</span>':''}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>${r.notes?'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+r.notes+'</div>':''}${isAdmin()?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>${r.status==='submitted'&&r.userId!==currentUser.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}</div>`:isPriv()&&r.status==='submitted'&&r.userId!==currentUser.uid?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button></div>`:r.status==='submitted'&&r.userId===currentUser.uid?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button></div>`:''}</div></div>`).join('');
+  });
+}
+window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
+window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
+$('lightbox').onclick=()=>hide('lightbox');
+
+// DELETE receipt
+window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
+
+// EDIT receipt
+let editingReceiptId=null;
+window._er=id=>{
+  const receipts=window._allReceipts||[];
+  const r=receipts.find(x=>x.id===id);if(!r)return;
+  editingReceiptId=id;
+  // populate project dropdown
+  const ep=$('er-project');ep.innerHTML='<option value="">Select project...</option>';activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
+  ep.value=r.projectId||'';
+  const proj=allProjects.find(p=>p.id===r.projectId);
+  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
+  $('er-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('er-scope').appendChild(o)});
+  $('er-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('er-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('er-room').appendChild(na);
+  $('er-scope').value=r.scope||'';$('er-room').value=r.room||'';
+  $('er-amount').value=r.amount||'';$('er-vendor').value=r.vendor||'';$('er-notes').value=r.notes||'';$('er-status').value=r.status||'submitted';
+  $('er-err').textContent='';show('edit-receipt-modal');
+};
+$('er-project').onchange=()=>{const proj=allProjects.find(p=>p.id===$('er-project').value);const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;$('er-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('er-scope').appendChild(o)});$('er-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('er-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('er-room').appendChild(na)};
+$('er-cancel').onclick=()=>hide('edit-receipt-modal');
+$('er-save').onclick=async()=>{
+  const pid=$('er-project').value,sc=$('er-scope').value,rm=$('er-room').value,amt=$('er-amount').value;
+  if(!pid||!sc||!rm||!amt){$('er-err').textContent='Project, scope, room and amount required.';return}
+  $('er-save').disabled=true;$('er-save').textContent='Saving...';
+  const proj=allProjects.find(p=>p.id===pid);
+  try{await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,scope:sc,room:rm,amount:parseFloat(amt),vendor:$('er-vendor').value,notes:$('er-notes').value,status:$('er-status').value,updatedAt:serverTimestamp()});hide('edit-receipt-modal')}catch(e){$('er-err').textContent='Save failed: '+e.message}
+  $('er-save').disabled=false;$('er-save').textContent='Save Changes';
+};
+
+// DELETE time log
+window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
+
+// EDIT time log
+let editingTimeId=null;
+window._et=id=>{
+  const rows=window._allTimeLogs||[];
+  const r=rows.find(x=>x.id===id);if(!r)return;
+  editingTimeId=id;
+  const ep=$('et-project');ep.innerHTML='<option value="">Select project...</option>';allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
+  ep.value=r.projectId||'';
+  const proj=allProjects.find(p=>p.id===r.projectId);
+  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
+  $('et-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('et-scope').appendChild(o)});
+  $('et-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('et-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('et-room').appendChild(na);
+  $('et-scope').value=r.scope||'';$('et-room').value=r.room||'';
+  const toLocal=ts=>{if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);const off=d.getTimezoneOffset()*60000;return new Date(d-off).toISOString().slice(0,16)};
+  $('et-clockin').value=toLocal(r.clockIn);$('et-clockout').value=r.clockOut?toLocal(r.clockOut):'';
+  $('et-notes').value=r.notes||'';$('et-err').textContent='';show('edit-time-modal');
+};
+$('et-project').onchange=()=>{const proj=allProjects.find(p=>p.id===$('et-project').value);const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;$('et-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('et-scope').appendChild(o)});$('et-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('et-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('et-room').appendChild(na)};
+$('et-cancel').onclick=()=>hide('edit-time-modal');
+$('et-save').onclick=async()=>{
+  const pid=$('et-project').value,sc=$('et-scope').value,rm=$('et-room').value,ci=$('et-clockin').value;
+  if(!pid||!sc||!rm||!ci){$('et-err').textContent='Project, scope, room and clock-in required.';return}
+  $('et-save').disabled=true;$('et-save').textContent='Saving...';
+  const proj=allProjects.find(p=>p.id===pid);
+  const ciDate=new Date($('et-clockin').value),coVal=$('et-clockout').value,coDate=coVal?new Date(coVal):null;
+  const durationMs=coDate?coDate-ciDate:null;
+  try{await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,scope:sc,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});hide('edit-time-modal')}catch(e){$('et-err').textContent='Save failed: '+e.message}
+  $('et-save').disabled=false;$('et-save').textContent='Save Changes';
+};
+
+$('new-receipt-btn').onclick=()=>show('receipt-modal');
+$('rm-cancel').onclick=()=>{hide('receipt-modal');resetRM()};
+$('rm-upload-zone').onclick=()=>$('rm-file').click();
+$('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview')};r.readAsDataURL(f)}};
+function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)});}
+$('rm-submit').onclick=async()=>{
+  const pid=$('rm-project').value,sc=$('rm-scope').value,amt=$('rm-amount').value,rm=$('rm-room').value;
+  if(!pid||!sc||!amt||!rm){$('rm-err').textContent='Project, scope, room, and amount required.';return}
+  $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
+  const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
+  if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
+  const autoApprove=isAdmin();await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('rm-room').value,amount:parseFloat(amt),vendor:$('rm-vendor').value,notes:$('rm-notes').value,imageUrl,status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
+};
+function resetRM(){['rm-project','rm-scope','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null}
+
+// REPORTS
+$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on')};
+$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on')};
+$('rpt-run-btn').onclick=async()=>{
+  $('rpt-run-btn').disabled=true;$('rpt-run-btn').textContent='Running...';$('rpt-results').innerHTML='<div class="empty">Loading...</div>';
+  const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value,col=currentRptType==='time'?'timeLogs':'receipts',tf=currentRptType==='time'?'clockIn':'submittedAt';
+  let c=[];
+  if(pid)c=[...c,where('projectId','==',pid)];
+  if(fr)c=[...c,where(tf,'>=',Timestamp.fromDate(new Date(fr)))];
+  if(to){const e=new Date(to);e.setDate(e.getDate()+1);c=[...c,where(tf,'<=',Timestamp.fromDate(e))]}
+  try{const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});renderReport(snap.docs.map(d=>({id:d.id,...d.data()})))}catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
+  $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run';
+};
+function renderReport(data){
+  if(!data.length){$('rpt-results').innerHTML='<div class="empty">No records found.</div>';return}
+  const it=currentRptType==='time';
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;color:var(--muted)">${data.length} records</span><button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button></div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
+  h+=it?'<th>Employee</th><th>Project</th><th>Scope</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th>':'<th>Date</th><th>By</th><th>Project</th><th>Scope</th><th>Amount</th><th>Vendor</th><th>Status</th>';
+  h+='</tr></thead><tbody>';
+  data.forEach(r=>{h+=it?`<tr><td>${r.userName||'--'}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span></td><td>${r.room||'--'}</td><td style="font-size:12px">${fmtTs(r.clockIn)}</td><td style="font-size:12px">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td><td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td><td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td></tr>`:`<tr><td style="font-size:12px">${fmtDate(r.submittedAt)}</td><td>${r.submittedByName||'--'}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span></td><td style="font-weight:600">$${parseFloat(r.amount||0).toFixed(2)}</td><td>${r.vendor||'--'}</td><td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td></tr>`});
+  h+='</tbody></table></div>';$('rpt-results').innerHTML=h;window._rptData=data;window._rptType=currentRptType;
+}
+window._csv=()=>{
+  const data=window._rptData||[],it=window._rptType==='time';
+  const headers=it?['Date','Employee','Project','Scope','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']:['Date','Submitted By','Project','Scope','Room','Amount','Vendor','Status','Reviewed By','Notes','Receipt URL'];
+  const rows=data.map(r=>it?[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,r.scope,r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'']:[r.submittedAt?.toDate?.()?.toLocaleDateString()||'',r.submittedByName,r.projectName,r.scope,r.room||'',r.amount,r.vendor||'',r.status,r.reviewedBy||'',r.notes||'',r.imageUrl||'']);
+  const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+};
+
+// ADMIN - PROJECTS
+function renderProjectsList(){
+  const el=$('projects-list');
+  if(!allProjects.length){el.innerHTML='<div class="empty">No projects.</div>';return}
+  el.innerHTML=allProjects.map(p=>`<div class="list-row"><div><div style="font-weight:600">${p.name}</div><div style="font-size:12px;color:var(--muted)">${p.address||''} - ${(p.scopes||[]).length} scopes, ${(p.rooms||[]).length} rooms</div></div><div style="display:flex;gap:8px;flex-shrink:0"><button class="btn btn-outline btn-sm" onclick="window._ep('${p.id}')">Edit</button><button class="btn btn-sm" style="background:${p.active!==false?'var(--cream)':'#d4edd9'};color:${p.active!==false?'var(--muted)':'var(--green)'};border:1px solid var(--border)" onclick="window._tp('${p.id}',${p.active!==false})">${p.active!==false?'Archive':'Activate'}</button><button class="btn btn-red btn-sm" onclick="window._dp('${p.id}')">Delete</button></div></div>`).join('');
+}
+window._tp=async(id,active)=>updateDoc(doc(db,'projects',id),{active:!active});
+window._dp=async(id)=>{if(!confirm('Delete this project permanently? This cannot be undone.'))return;try{await deleteDoc(doc(db,'projects',id))}catch(e){alert('Delete failed: '+e.message)}};
+window._ep=id=>{
+  const p=allProjects.find(x=>x.id===id);if(!p)return;
+  editingProjectId=id;$('pm-title').textContent='Edit Project';$('pm-name').value=p.name||'';$('pm-address').value=p.address||'';$('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
+  pmScopes=[...(p.scopes||DEF_SCOPES)];pmRooms=[...(p.rooms||DEF_ROOMS)];renderChips();updateGeoNote();show('project-modal');
+};
+$('new-project-btn').onclick=()=>{editingProjectId=null;$('pm-title').textContent='New Project';['pm-name','pm-address','pm-lat','pm-lng'].forEach(id=>$(id).value='');$('pm-err').textContent='';pmScopes=[...DEF_SCOPES];pmRooms=[...DEF_ROOMS];renderChips();updateGeoNote();show('project-modal')};
+$('pm-cancel').onclick=()=>hide('project-modal');
+$('pm-geocode-btn').onclick=async()=>{
+  const addr=$('pm-address').value;if(!addr)return;$('pm-geocode-btn').textContent='...';
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr));const d=await r.json();if(d[0]){$('pm-lat').value=parseFloat(d[0].lat).toFixed(6);$('pm-lng').value=parseFloat(d[0].lon).toFixed(6);updateGeoNote()}else alert('Address not found - enter coordinates manually.')}catch(e){alert('Geocoding failed - enter coordinates manually.')}
+  $('pm-geocode-btn').textContent='Get Coords';
+};
+function updateGeoNote(){const la=$('pm-lat').value,lo=$('pm-lng').value;$('pm-geo-note').textContent=la&&lo?'Geofence set - 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':''}
+$('pm-lat').oninput=$('pm-lng').oninput=updateGeoNote;
+function renderChips(){
+  $('pm-scopes').innerHTML=pmScopes.map((s,i)=>`<button class="chip" onclick="window._rs(${i})">${s} x</button>`).join('');
+  $('pm-rooms').innerHTML=pmRooms.map((r,i)=>`<button class="chip" onclick="window._rr(${i})">${r} x</button>`).join('');
+}
+window._rs=i=>{pmScopes.splice(i,1);renderChips()};
+window._rr=i=>{pmRooms.splice(i,1);renderChips()};
+$('pm-add-scope-btn').onclick=()=>{const v=$('pm-new-scope').value.trim();if(v){pmScopes.push(v);$('pm-new-scope').value='';renderChips()}};
+$('pm-add-room-btn').onclick=()=>{const v=$('pm-new-room').value.trim();if(v){pmRooms.push(v);$('pm-new-room').value='';renderChips()}};
+$('pm-save').onclick=async()=>{
+  const name=$('pm-name').value.trim();if(!name){$('pm-err').textContent='Project name required.';return}
+  $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
+  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,scopes:pmScopes,rooms:pmRooms,active:true,updatedAt:serverTimestamp()};
+  try{if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});hide('project-modal')}catch(e){$('pm-err').textContent='Save failed: '+e.message}
+  $('pm-save').disabled=false;$('pm-save').textContent='Save Project';
+};
+
+// ADMIN - USERS
+function loadUsers(){
+  onSnapshot(collection(db,'users'),snap=>{
+    const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const el=$('users-list');
+    if(!users.length){el.innerHTML='<div class="empty">No users found.</div>';return}
+    el.innerHTML=users.map(u=>`<div class="list-row"><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${ini(u.name)}</div><div><div style="font-weight:500">${u.name||'--'}</div><div style="font-size:12px;color:var(--muted)">${u.email||''}</div></div></div><div style="display:flex;align-items:center;gap:8px"><select class="role-sel" onchange="window._ur('${u.id}',this.value)"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="bookkeeper" ${u.role==='bookkeeper'?'selected':''}>Bookkeeper</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select><button class="btn btn-red btn-sm" onclick="window._du('${u.id}','${u.name}')">Delete</button></div></div>`).join('');
+  });
+}
+window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
+window._du=async(id,name)=>{if(!confirm('Delete user '+name+'? This removes their profile but does not delete their login. Use Firebase Console to remove their login if needed.'))return;try{await deleteDoc(doc(db,'users',id))}catch(e){alert('Delete failed: '+e.message)}};
+
+// ADD USER MODAL
+$('new-user-btn').onclick=()=>{
+  ['um-name','um-email'].forEach(id=>$(id).value='');
+  $('um-role').value='user';
+  $('um-err').textContent='';
+  hide('um-success');
+  show('user-modal');
+};
+$('um-cancel').onclick=()=>hide('user-modal');
+$('um-save').onclick=async()=>{
+  const name=$('um-name').value.trim();
+  const email=$('um-email').value.trim().toLowerCase();
+  const role=$('um-role').value;
+  if(!name||!email){$('um-err').textContent='Name and email are required.';return;}
+  if(!email.includes('@')){$('um-err').textContent='Enter a valid email address.';return;}
+  $('um-save').disabled=true;$('um-save').textContent='Sending invite...';
+  try{
+    const inviteUser=httpsCallable(functions,'inviteUser');
+    await inviteUser({name,email,role});
+    $('um-err').textContent='';
+    $('um-success').textContent='Invite sent to '+email+'. They will receive an email with a link to set their password.';
+    show('um-success');
+    $('um-name').value='';$('um-email').value='';
+  }catch(e){$('um-err').textContent='Invite failed: '+(e.message||'Unknown error');}
+  $('um-save').disabled=false;$('um-save').textContent='Send Invite';
+};
+
+// NAV
+document.querySelectorAll('.nav-tab').forEach(tab=>{
+  tab.onclick=()=>{
+    const t=tab.dataset.tab;
+    document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));
+    tab.classList.add('active');
+    ['clock','receipts','reports','admin'].forEach(x=>{const el=$(('tab-'+x));if(el){el.id==='tab-'+t?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    if(t==='admin')loadUsers();
+  }
+});
+$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel')};
+$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel')};
+</script>
+</body>
+</html>

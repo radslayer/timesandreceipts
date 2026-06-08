@@ -519,7 +519,7 @@ $('clock-out-btn').onclick=async()=>{
 function loadMyLog(){
   if(!currentUser)return;
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(30)),snap=>{
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a.clockIn?.toDate?.()?.getTime()||0,bt=b.clockIn?.toDate?.()?.getTime()||0;return bt-at});
     window._allTimeLogs=rows;
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">No entries yet.</td></tr>';return}
@@ -532,7 +532,7 @@ function loadReceipts(){
   if(!currentUser)return;
   const q=isPriv()?query(collection(db,'receipts'),limit(60)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(60));
   onSnapshot(q,snap=>{
-    const list=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a.submittedAt?.toDate?.()?.getTime()||0,bt=b.submittedAt?.toDate?.()?.getTime()||0;return bt-at});
     window._allReceipts=list;
     const el=$('receipts-list');
     if(!list.length){el.innerHTML='<div class="empty">No receipts yet.</div>';return}

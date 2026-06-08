@@ -633,7 +633,7 @@ $('rpt-run-btn').onclick=async()=>{
   if(pid)c=[...c,where('projectId','==',pid)];
   if(fr)c=[...c,where(tf,'>=',Timestamp.fromDate(new Date(fr)))];
   if(to){const e=new Date(to);e.setDate(e.getDate()+1);c=[...c,where(tf,'<=',Timestamp.fromDate(e))]}
-  try{const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});renderReport(snap.docs.map(d=>({id:d.id,...d.data()})))}catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
+  try{const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});const tf2=currentRptType==='time'?'clockIn':'submittedAt';const sorted=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a[tf2]?.toDate?.()?.getTime()||0,bt=b[tf2]?.toDate?.()?.getTime()||0;return bt-at});renderReport(sorted)}catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
   $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run';
 };
 function renderReport(data){
@@ -650,7 +650,13 @@ window._csv=()=>{
   const headers=it?['Date','Employee','Project','Scope','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']:['Date','Submitted By','Project','Scope','Room','Amount','Vendor','Status','Reviewed By','Notes','Receipt URL'];
   const rows=data.map(r=>it?[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,r.scope,r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'']:[r.submittedAt?.toDate?.()?.toLocaleDateString()||'',r.submittedByName,r.projectName,r.scope,r.room||'',r.amount,r.vendor||'',r.status,r.reviewedBy||'',r.notes||'',r.imageUrl||'']);
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  const fr2=$('rpt-from').value,to2=$('rpt-to').value;
+  let datePart='';
+  if(fr2&&to2)datePart=fr2+'_to_'+to2;
+  else if(fr2)datePart='from_'+fr2;
+  else if(to2)datePart='through_'+to2;
+  else datePart=new Date().toISOString().slice(0,10);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'timelog':'receipts')+'_'+datePart+'.csv';a.click();
 };
 
 // ADMIN - PROJECTS

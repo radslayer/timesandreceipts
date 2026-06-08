@@ -194,6 +194,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="seg">
         <button class="seg-btn on" id="adm-proj-btn">Projects</button>
         <button class="seg-btn" id="adm-users-btn">Users</button>
+        <button class="seg-btn" id="adm-vendors-btn">Vendors <span id="vendors-pending-badge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px">0</span></button>
       </div>
       <div id="adm-projects-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -208,6 +209,24 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button class="btn btn-gold btn-sm" id="new-user-btn">+ Add User</button>
         </div>
         <div class="card"><div id="users-list"><div class="empty">No users found.</div></div></div>
+      </div>
+      <div id="adm-vendors-panel" class="hidden">
+        <div style="margin-bottom:12px">
+          <strong>Approved Vendors</strong>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">These appear in the vendor dropdown on receipt submission.</div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div id="approved-vendors-list"><div class="empty">No vendors yet.</div></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <input type="text" id="new-vendor-input" placeholder="Add vendor name..." style="flex:1">
+            <button class="btn btn-gold btn-sm" id="add-vendor-btn">Add</button>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <strong>Pending Vendors</strong>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Submitted by field crew - approve to add to the dropdown.</div>
+        </div>
+        <div class="card"><div id="pending-vendors-list"><div class="empty">No pending vendors.</div></div></div>
       </div>
     </div>
 
@@ -224,7 +243,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="rm-amount" placeholder="0.00" inputmode="decimal"></div>
-      <div class="field"><label>Vendor</label><input type="text" id="rm-vendor" placeholder="Home Depot..."></div>
+      <div class="field"><label>Vendor *</label><select id="rm-vendor"><option value="">Select vendor...</option></select></div>
+      <div class="field hidden" id="new-vendor-field"><label>New Vendor Name *</label><input type="text" id="rm-new-vendor" placeholder="Enter vendor name..."></div>
     </div>
     <div class="field"><label>Notes</label><textarea id="rm-notes" rows="2" placeholder="What was purchased?"></textarea></div>
     <div class="upload-zone" id="rm-upload-zone">
@@ -430,7 +450,7 @@ onAuthStateChanged(auth,async u=>{
     }
   }catch(e){console.warn(e)}
   onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();
 });
 
 function applyProfile(){
@@ -614,14 +634,19 @@ $('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new F
 function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)});}
 $('rm-submit').onclick=async()=>{
   const pid=$('rm-project').value,sc=$('rm-scope').value,amt=$('rm-amount').value,rm=$('rm-room').value;
+  const vendorSel=$('rm-vendor').value,newVendorVal=$('rm-new-vendor').value.trim();
+  const vendorName=vendorSel==='__new__'?newVendorVal:vendorSel;
   if(!pid||!sc||!amt||!rm){$('rm-err').textContent='Project, scope, room, and amount required.';return}
+  if(!vendorName){$('rm-err').textContent='Please select a vendor or enter a new vendor name.';return}
   $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
   const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
   if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
-  const autoApprove=isAdmin();await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('rm-room').value,amount:parseFloat(amt),vendor:$('rm-vendor').value,notes:$('rm-notes').value,imageUrl,status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  const autoApprove=isAdmin();
+  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('rm-room').value,amount:parseFloat(amt),vendor:vendorName,notes:$('rm-notes').value,imageUrl,status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  if(vendorSel==='__new__'&&newVendorVal){const vref=doc(db,'settings','vendors');const vs=await getDoc(vref);const vdata=vs.data()||{};const pending=[...(vdata.pending||[])];if(!pending.includes(newVendorVal)&&!(vdata.approved||[]).includes(newVendorVal))pending.push(newVendorVal);await setDoc(vref,{...vdata,pending})}
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
-function resetRM(){['rm-project','rm-scope','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null}
+function resetRM(){['rm-project','rm-scope','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-new-vendor').value='';hide('new-vendor-field');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null}
 
 // REPORTS
 $('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on')};
@@ -746,8 +771,71 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     if(t==='admin')loadUsers();
   }
 });
-$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel')};
-$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel')};
+// VENDORS
+let approvedVendors=[];
+function loadVendors(){
+  onSnapshot(doc(db,'settings','vendors'),snap=>{
+    const data=snap.data()||{};
+    approvedVendors=(data.approved||[]).slice().sort((a,b)=>a.localeCompare(b));
+    const pending=data.pending||[];
+    // Update receipt vendor dropdown
+    const sel=$('rm-vendor');const cur=sel.value;
+    sel.innerHTML='<option value="">Select vendor...</option>';
+    approvedVendors.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o)});
+    const oth=document.createElement('option');oth.value='__new__';oth.textContent='Other / New Vendor...';sel.appendChild(oth);
+    sel.value=cur||'';
+    // Update approved vendors list in admin
+    const al=$('approved-vendors-list');
+    al.innerHTML=approvedVendors.length?approvedVendors.map(v=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><button class="btn btn-red btn-sm" onclick="window._dv('${v.replace(/'/g,\"\\'\")}')" style="flex-shrink:0">Remove</button></div>`).join(''):'<div class="empty">No vendors yet.</div>';
+    // Update pending vendors list
+    const pl=$('pending-vendors-list');
+    pl.innerHTML=pending.length?pending.map(v=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-green btn-sm" onclick="window._av('${v.replace(/'/g,\"\\'\")}')" >Approve</button><button class="btn btn-red btn-sm" onclick="window._pv('${v.replace(/'/g,\"\\'\")}')" >Decline</button></div></div>`).join(''):'<div class="empty">No pending vendors.</div>';
+    // Badge
+    const badge=$('vendors-pending-badge');
+    if(pending.length){badge.textContent=pending.length;badge.classList.remove('hidden')}else badge.classList.add('hidden');
+  });
+}
+$('rm-vendor').onchange=()=>{
+  if($('rm-vendor').value==='__new__'){show('new-vendor-field')}else{hide('new-vendor-field');$('rm-new-vendor').value=''}
+};
+window._dv=async(v)=>{
+  if(!confirm('Remove "'+v+'" from approved vendors?'))return;
+  const ref=doc(db,'settings','vendors');
+  const snap=await getDoc(ref);const data=snap.data()||{};
+  const updated=(data.approved||[]).filter(x=>x!==v);
+  await setDoc(ref,{...data,approved:updated});
+};
+window._av=async(v)=>{
+  const ref=doc(db,'settings','vendors');
+  const snap=await getDoc(ref);const data=snap.data()||{};
+  const approved=[...(data.approved||[]),v];
+  const pending=(data.pending||[]).filter(x=>x!==v);
+  await setDoc(ref,{...data,approved,pending});
+};
+window._pv=async(v)=>{
+  const ref=doc(db,'settings','vendors');
+  const snap=await getDoc(ref);const data=snap.data()||{};
+  const pending=(data.pending||[]).filter(x=>x!==v);
+  await setDoc(ref,{...data,pending});
+};
+$('add-vendor-btn').onclick=async()=>{
+  const v=$('new-vendor-input').value.trim();
+  if(!v)return;
+  const ref=doc(db,'settings','vendors');
+  const snap=await getDoc(ref);const data=snap.data()||{};
+  const approved=[...(data.approved||[])];
+  if(!approved.includes(v))approved.push(v);
+  await setDoc(ref,{...data,approved});
+  $('new-vendor-input').value='';
+};
+$('adm-vendors-btn').onclick=()=>{
+  ['adm-projects-panel','adm-users-panel'].forEach(x=>hide(x));show('adm-vendors-panel');
+  ['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));
+  $('adm-vendors-btn').classList.add('on');
+};
+
+$('adm-proj-btn').onclick=()=>{['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));$('adm-proj-btn').classList.add('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel')};
+$('adm-users-btn').onclick=()=>{['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));$('adm-users-btn').classList.add('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel')};
 </script>
 </body>
 </html>

@@ -476,6 +476,13 @@ function loadActiveSession(){
 }
 function renderClockUI(){
   if(activeSession){
+    const clockInVal=activeSession.clockIn?.toDate?.()||(activeSession.clockIn?new Date(activeSession.clockIn):null);
+    if(!clockInVal||isNaN(clockInVal.getTime())||clockInVal.getFullYear()<2020){
+      updateDoc(doc(db,'timeLogs',activeSession.id),{status:'complete',clockOut:serverTimestamp(),durationMs:0,notes:'Auto-closed: missing clock-in timestamp'});
+      activeSession=null;
+    }
+  }
+  if(activeSession){
     hide('clock-in-form');show('clock-out-form');
     $('clock-dot').classList.add('pulse');$('clock-status-bar').classList.add('active');
     $('clock-status-label').textContent='Clocked In - '+activeSession.projectName;
@@ -501,7 +508,9 @@ $('clock-in-btn').onclick=async()=>{
   $('ci-notes').value='';$('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
 };
 $('clock-out-btn').onclick=async()=>{
-  if(!activeSession)return;
+  if(!activeSession){alert('No active session found. Please clock in first.');return;}
+  const clockInVal=activeSession.clockIn?.toDate?.()||(activeSession.clockIn?new Date(activeSession.clockIn):null);
+  if(!clockInVal||isNaN(clockInVal.getTime())){alert('This session has no valid clock-in time and cannot be clocked out. Please contact your admin to delete this entry.');return;}
   $('clock-out-btn').disabled=true;$('clock-out-btn').textContent='Clocking out...';
   const now=new Date(),start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn),proj=allProjects.find(p=>p.id===activeSession.projectId);
   await updateDoc(doc(db,'timeLogs',activeSession.id),{clockOut:Timestamp.fromDate(now),clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockOutGeoStatus:geoSt(currentPos,proj),durationMs:now-start,status:'complete'});

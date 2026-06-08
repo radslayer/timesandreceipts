@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
 <title>MOTIF — Times &amp; Receipts</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -786,10 +787,10 @@ function loadVendors(){
     sel.value=cur||'';
     // Update approved vendors list in admin
     const al=$('approved-vendors-list');
-    al.innerHTML=approvedVendors.length?approvedVendors.map(v=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><button class="btn btn-red btn-sm" onclick="window._dv('${v.replace(/'/g,\"\\'\")}')" style="flex-shrink:0">Remove</button></div>`).join(''):'<div class="empty">No vendors yet.</div>';
+    al.innerHTML=approvedVendors.length?approvedVendors.map((v,i)=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><button class="btn btn-red btn-sm" onclick="window._dv(${i})" style="flex-shrink:0">Remove</button></div>`).join(''):'<div class="empty">No vendors yet.</div>';
     // Update pending vendors list
     const pl=$('pending-vendors-list');
-    pl.innerHTML=pending.length?pending.map(v=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-green btn-sm" onclick="window._av('${v.replace(/'/g,\"\\'\")}')" >Approve</button><button class="btn btn-red btn-sm" onclick="window._pv('${v.replace(/'/g,\"\\'\")}')" >Decline</button></div></div>`).join(''):'<div class="empty">No pending vendors.</div>';
+    pl.innerHTML=pending.length?pending.map((v,i)=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-green btn-sm" onclick="window._av(${i})">Approve</button><button class="btn btn-red btn-sm" onclick="window._pv(${i})">Decline</button></div></div>`).join(''):'<div class="empty">No pending vendors.</div>';
     // Badge
     const badge=$('vendors-pending-badge');
     if(pending.length){badge.textContent=pending.length;badge.classList.remove('hidden')}else badge.classList.add('hidden');
@@ -798,25 +799,28 @@ function loadVendors(){
 $('rm-vendor').onchange=()=>{
   if($('rm-vendor').value==='__new__'){show('new-vendor-field')}else{hide('new-vendor-field');$('rm-new-vendor').value=''}
 };
-window._dv=async(v)=>{
+window._dv=async(i)=>{
+  const v=approvedVendors[i];if(!v)return;
   if(!confirm('Remove "'+v+'" from approved vendors?'))return;
   const ref=doc(db,'settings','vendors');
   const snap=await getDoc(ref);const data=snap.data()||{};
   const updated=(data.approved||[]).filter(x=>x!==v);
   await setDoc(ref,{...data,approved:updated});
 };
-window._av=async(v)=>{
+window._av=async(i)=>{
   const ref=doc(db,'settings','vendors');
   const snap=await getDoc(ref);const data=snap.data()||{};
+  const pending=data.pending||[];const v=pending[i];if(!v)return;
   const approved=[...(data.approved||[]),v];
-  const pending=(data.pending||[]).filter(x=>x!==v);
-  await setDoc(ref,{...data,approved,pending});
+  const newPending=pending.filter(x=>x!==v);
+  await setDoc(ref,{...data,approved,pending:newPending});
 };
-window._pv=async(v)=>{
+window._pv=async(i)=>{
   const ref=doc(db,'settings','vendors');
   const snap=await getDoc(ref);const data=snap.data()||{};
-  const pending=(data.pending||[]).filter(x=>x!==v);
-  await setDoc(ref,{...data,pending});
+  const pending=data.pending||[];const v=pending[i];if(!v)return;
+  const newPending=pending.filter(x=>x!==v);
+  await setDoc(ref,{...data,pending:newPending});
 };
 $('add-vendor-btn').onclick=async()=>{
   const v=$('new-vendor-input').value.trim();

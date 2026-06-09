@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
 <title>MOTIF — Times &amp; Receipts</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -204,6 +205,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="seg">
         <button class="seg-btn on" id="adm-proj-btn">Projects</button>
         <button class="seg-btn" id="adm-users-btn">Users</button>
+        <button class="seg-btn" id="adm-vendors-btn">Vendors <span id="pending-vendor-badge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px">0</span></button>
       </div>
       <div id="adm-projects-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -219,6 +221,20 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div class="card"><div id="users-list"><div class="empty">No users found.</div></div></div>
       </div>
+      <div id="adm-vendors-panel" class="hidden">
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:12px">Approved Vendors</div>
+          <div class="chip-wrap" id="approved-vendors-chips"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <input type="text" id="new-vendor-input" placeholder="Add vendor..." style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif">
+            <button class="btn btn-gold btn-sm" id="add-vendor-btn">Add</button>
+          </div>
+        </div>
+        <div class="card" id="pending-vendors-card">
+          <div style="font-weight:600;margin-bottom:12px">Pending Approval</div>
+          <div id="pending-vendors-list"><div class="empty" style="padding:16px">No pending vendors.</div></div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -231,7 +247,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="field"><label>Project *</label><select id="rm-project"><option value="">Select project...</option></select></div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="rm-amount" placeholder="0.00" inputmode="decimal"></div>
-      <div class="field"><label>Vendor</label><input type="text" id="rm-vendor" placeholder="Home Depot..."></div>
+      <div class="field"><label>Vendor *</label>
+        <select id="rm-vendor-sel"><option value="">Select vendor...</option></select>
+        <input type="text" id="rm-vendor-new" class="hidden" placeholder="Enter new vendor name..." style="margin-top:6px">
+      </div>
     </div>
     <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
     <div class="field">
@@ -264,7 +283,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>Bill #</label><input type="text" id="bm-billnum" placeholder="Auto-assigned" readonly style="background:#f0ece6;color:var(--muted)"></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Pay To (Vendor) *</label><input type="text" id="bm-vendor" placeholder="Hercules Plumbing..."></div>
+      <div class="field"><label>Pay To (Vendor) *</label>
+        <select id="bm-vendor-sel"><option value="">Select vendor...</option></select>
+        <input type="text" id="bm-vendor-new" class="hidden" placeholder="Enter new vendor name..." style="margin-top:6px">
+      </div>
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="bm-amount" placeholder="0.00" inputmode="decimal"></div>
     </div>
     <div class="row2">
@@ -353,7 +375,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="field"><label>Project *</label><select id="er-project"><option value="">Select project...</option></select></div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="er-amount" placeholder="0.00" inputmode="decimal"></div>
-      <div class="field"><label>Vendor</label><input type="text" id="er-vendor" placeholder="Home Depot..."></div>
+      <div class="field"><label>Vendor</label>
+        <select id="er-vendor-sel"><option value="">Select vendor...</option></select>
+        <input type="text" id="er-vendor-new" class="hidden" placeholder="Enter new vendor name..." style="margin-top:6px">
+      </div>
     </div>
     <div class="row2">
       <div class="field"><label>Invoice Date</label><input type="date" id="er-invoicedate"></div>
@@ -560,6 +585,7 @@ let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
 let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
 let _rptRawData=[],_rptType='time';
+let approvedVendors=[],pendingVendors=[];
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id).classList.remove('hidden');
@@ -604,6 +630,94 @@ function updateGeoBar(){
   if($('ci-project').value&&currentPos){const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag')}else hide('geo-bar-tag');
 }
 
+// ── VENDORS ───────────────────────────────────────────────────────────────────
+function loadVendors(){
+  onSnapshot(doc(db,'settings','vendors'),snap=>{
+    const data=snap.exists()?snap.data():{};
+    approvedVendors=(data.approved||[]).sort();
+    pendingVendors=data.pending||[];
+    populateVendorDropdowns();
+    renderVendorAdminPanel();
+    // badge on admin tab
+    const badge=$('pending-vendor-badge');
+    if(pendingVendors.length){badge.textContent=pendingVendors.length;show('pending-vendor-badge')}
+    else hide('pending-vendor-badge');
+  });
+}
+function populateVendorDropdowns(){
+  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel'].forEach(id=>{
+    const el=$(id);if(!el)return;
+    const cur=el.value;
+    el.innerHTML='<option value="">Select vendor...</option>';
+    approvedVendors.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;el.appendChild(o)});
+    const other=document.createElement('option');other.value='__new__';other.textContent='Other / New Vendor...';el.appendChild(other);
+    if(cur)el.value=cur;
+  });
+}
+function vendorSelChange(selId,newId){
+  const v=$(selId).value;
+  if(v==='__new__')show(newId);else hide(newId);
+}
+function resolveVendor(selId,newId){
+  const sel=$(selId).value;
+  if(sel==='__new__')return $(newId).value.trim();
+  return sel;
+}
+async function submitNewVendor(name){
+  if(!name||approvedVendors.includes(name)||pendingVendors.includes(name))return;
+  const ref=doc(db,'settings','vendors');
+  const snap=await getDoc(ref);
+  const data=snap.exists()?snap.data():{approved:[],pending:[]};
+  data.pending=[...new Set([...(data.pending||[]),name])];
+  await setDoc(ref,data);
+}
+function renderVendorAdminPanel(){
+  // approved chips
+  const ac=$('approved-vendors-chips');
+  if(ac)ac.innerHTML=approvedVendors.map((v,i)=>`<button class="chip" onclick="window._removeVendor(${i})">${v} ×</button>`).join('')||'<span style="font-size:13px;color:var(--muted)">No vendors yet. Add one above.</span>';
+  // pending list
+  const pl=$('pending-vendors-list');
+  if(pl){
+    if(!pendingVendors.length){pl.innerHTML='<div class="empty" style="padding:16px">No pending vendors.</div>';return}
+    pl.innerHTML=pendingVendors.map((v,i)=>`<div class="list-row">
+      <span style="font-size:14px">${v}</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green btn-sm" onclick="window._approveVendor(${i})">Approve</button>
+        <button class="btn btn-red btn-sm" onclick="window._declineVendor(${i})">Decline</button>
+      </div>
+    </div>`).join('');
+  }
+}
+window._removeVendor=async i=>{
+  const updated=[...approvedVendors];updated.splice(i,1);
+  const snap=await getDoc(doc(db,'settings','vendors'));
+  const data=snap.exists()?snap.data():{};
+  await setDoc(doc(db,'settings','vendors'),{...data,approved:updated});
+};
+window._approveVendor=async i=>{
+  const name=pendingVendors[i];
+  const snap=await getDoc(doc(db,'settings','vendors'));
+  const data=snap.exists()?snap.data():{approved:[],pending:[]};
+  const newApproved=[...new Set([...(data.approved||[]),name])].sort();
+  const newPending=(data.pending||[]).filter(v=>v!==name);
+  await setDoc(doc(db,'settings','vendors'),{...data,approved:newApproved,pending:newPending});
+};
+window._declineVendor=async i=>{
+  const name=pendingVendors[i];
+  const snap=await getDoc(doc(db,'settings','vendors'));
+  const data=snap.exists()?snap.data():{approved:[],pending:[]};
+  const newPending=(data.pending||[]).filter(v=>v!==name);
+  await setDoc(doc(db,'settings','vendors'),{...data,pending:newPending});
+};
+$('add-vendor-btn').onclick=async()=>{
+  const v=$('new-vendor-input').value.trim();if(!v)return;
+  const snap=await getDoc(doc(db,'settings','vendors'));
+  const data=snap.exists()?snap.data():{approved:[],pending:[]};
+  const newApproved=[...new Set([...(data.approved||[]),v])].sort();
+  await setDoc(doc(db,'settings','vendors'),{...data,approved:newApproved});
+  $('new-vendor-input').value='';
+};
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 $('login-btn').onclick=async()=>{
   const e=$('login-email').value.trim(),p=$('login-password').value;
@@ -633,7 +747,7 @@ onAuthStateChanged(auth,async u=>{
     }
   }catch(e){console.warn(e)}
   onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();
 });
 
 function applyProfile(){
@@ -796,9 +910,10 @@ window._markEntry=async(id,type)=>{
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
-$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});show('receipt-modal')};
+$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');show('receipt-modal')};
 window._rmRemove=i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)};
 $('rm-project').onchange=()=>fillRoomDropdown('rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
+$('rm-vendor-sel').onchange=()=>vendorSelChange('rm-vendor-sel','rm-vendor-new');
 $('rm-code-pick').onchange=()=>{
   const v=$('rm-code-pick').value;if(!v)return;
   if(!rmSelectedCodes.includes(v)){rmSelectedCodes.push(v);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)}
@@ -810,16 +925,19 @@ $('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new F
 function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)})}
 $('rm-submit').onclick=async()=>{
   const pid=$('rm-project').value,amt=$('rm-amount').value,rm=$('rm-room').value;
+  const vendor=resolveVendor('rm-vendor-sel','rm-vendor-new');
   if(!pid||!amt||!rm){$('rm-err').textContent='Project, amount, and room are required.';return}
+  if(!vendor){$('rm-err').textContent='Select or enter a vendor.';return}
   if(!rmSelectedCodes.length){$('rm-err').textContent='Select at least one cost code.';return}
   $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
   const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
   if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
+  if($('rm-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const autoApprove=isAdmin();
-  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor:$('rm-vendor').value,notes:$('rm-notes').value,imageUrl,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('rm-notes').value,imageUrl,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
-function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
+function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
 
 // ── VENDOR BILL (bookkeeper/admin) ────────────────────────────────────────────
 fillAllCodesDropdown('bm-code-pick');
@@ -831,15 +949,16 @@ $('new-bill-btn').onclick=async()=>{
   $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';
   $('bm-billnum').value='';$('bm-err').textContent='';
   fillRoomDropdown('bm-room',null);
+  $('bm-vendor-sel').value='';hide('bm-vendor-new');
   show('bill-modal');
 };
 window._bmRemove=i=>{bmSelectedCodes.splice(i,1);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)};
+$('bm-vendor-sel').onchange=()=>vendorSelChange('bm-vendor-sel','bm-vendor-new');
 $('bm-project').onchange=async()=>{
   const pid=$('bm-project').value;
   const proj=activeProjects.find(p=>p.id===pid);
   fillRoomDropdown('bm-room',proj);
   if(!pid){$('bm-billnum').value='';return}
-  // auto-generate bill number
   const prefix=proj?.billPrefix||autoPrefix(proj?.name||'');
   const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid),where('billType','==','bill')));
   const next=String(snap.size+1).padStart(3,'0');
@@ -852,10 +971,12 @@ $('bm-code-pick').onchange=()=>{
 };
 $('bm-cancel').onclick=()=>hide('bill-modal');
 $('bm-save').onclick=async()=>{
-  const pid=$('bm-project').value,amt=$('bm-amount').value,vnd=$('bm-vendor').value,idate=$('bm-invoicedate').value;
+  const pid=$('bm-project').value,amt=$('bm-amount').value,idate=$('bm-invoicedate').value;
+  const vnd=resolveVendor('bm-vendor-sel','bm-vendor-new');
   if(!pid||!amt||!vnd||!idate){$('bm-err').textContent='Project, vendor, amount, and invoice date are required.';return}
   if(!bmSelectedCodes.length){$('bm-err').textContent='Select at least one cost code.';return}
   $('bm-save').disabled=true;$('bm-save').textContent='Saving...';
+  if($('bm-vendor-sel').value==='__new__')await submitNewVendor(vnd);
   const proj=activeProjects.find(p=>p.id===pid);
   try{
     await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
@@ -877,13 +998,20 @@ window._er=id=>{
   ep.value=r.projectId||'';
   fillRoomDropdown('er-room',allProjects.find(p=>p.id===r.projectId));
   $('er-room').value=r.room||'';
-  $('er-amount').value=r.amount||'';$('er-vendor').value=r.vendor||'';$('er-notes').value=r.notes||'';
+  $('er-amount').value=r.amount||'';
+  // set vendor dropdown — if vendor exists in approved list select it, otherwise show as new
+  const existingVendor=r.vendor||'';
+  if(approvedVendors.includes(existingVendor)){$('er-vendor-sel').value=existingVendor;hide('er-vendor-new')}
+  else if(existingVendor){$('er-vendor-sel').value='__new__';$('er-vendor-new').value=existingVendor;show('er-vendor-new')}
+  else{$('er-vendor-sel').value='';hide('er-vendor-new')}
+  $('er-notes').value=r.notes||'';
   $('er-status').value=r.status||'submitted';$('er-invoicedate').value=r.invoiceDate||'';
   $('er-qbdate').value=r.qbEntryDate||'';$('er-dbdate').value=r.dbEntryDate||'';
   renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove);
   $('er-err').textContent='';show('edit-receipt-modal');
 };
 window._erRemove=i=>{erSelectedCodes.splice(i,1);renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove)};
+$('er-vendor-sel').onchange=()=>vendorSelChange('er-vendor-sel','er-vendor-new');
 $('er-code-pick').onchange=()=>{
   const v=$('er-code-pick').value;if(!v)return;
   if(!erSelectedCodes.includes(v)){erSelectedCodes.push(v);renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove)}
@@ -893,11 +1021,13 @@ $('er-project').onchange=()=>fillRoomDropdown('er-room',allProjects.find(p=>p.id
 $('er-cancel').onclick=()=>hide('edit-receipt-modal');
 $('er-save').onclick=async()=>{
   const pid=$('er-project').value,rm=$('er-room').value,amt=$('er-amount').value;
+  const vendor=resolveVendor('er-vendor-sel','er-vendor-new');
   if(!pid||!amt){$('er-err').textContent='Project and amount required.';return}
   $('er-save').disabled=true;$('er-save').textContent='Saving...';
+  if($('er-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const proj=allProjects.find(p=>p.id===pid);
   try{
-    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor:$('er-vendor').value,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,updatedAt:serverTimestamp()});
+    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,updatedAt:serverTimestamp()});
     hide('edit-receipt-modal');
   }catch(e){$('er-err').textContent='Save failed: '+e.message}
   $('er-save').disabled=false;$('er-save').textContent='Save Changes';
@@ -1160,8 +1290,9 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     if(t==='admin')loadUsers();
   }
 });
-$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel')};
-$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel')};
+$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel')};
+$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel')};
+$('adm-vendors-btn').onclick=()=>{$('adm-vendors-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');show('adm-vendors-panel')};
 </script>
 </body>
 </html>

@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
 <title>MOTIF — Times &amp; Receipts</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -20,14 +19,15 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;padding:0 20px}
 .nav-tab{padding:12px 18px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 .nav-tab.active{color:var(--ink);border-bottom-color:var(--gold)}
-.main{padding:24px 20px;max-width:860px;margin:0 auto}
+.main{padding:24px 20px;max-width:960px;margin:0 auto}
 .field{margin-bottom:16px}
 .field label{display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .field input,.field select,.field textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--ink);background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;pointer-events:auto;touch-action:manipulation;-webkit-user-select:text;user-select:text}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold);background:#fff}
 .field textarea{resize:vertical}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:500px){.row2{grid-template-columns:1fr}}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:600px){.row2,.row3{grid-template-columns:1fr}}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 20px;border-radius:8px;border:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-gold{background:var(--gold);color:#fff;width:100%;padding:13px;font-size:15px}
@@ -57,12 +57,13 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
 .tbl td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
 .tbl tr:last-child td{border-bottom:none}
-.tag{display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-right:3px}
+.tag{display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-right:3px;margin-bottom:2px}
 .badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:20px}
 .badge.submitted{background:#fef3d4;color:var(--amber)}
 .badge.approved{background:#d4edd9;color:var(--green)}
 .badge.rejected{background:#f5dada;color:var(--red)}
 .badge.active-session{background:#d4edd9;color:var(--green)}
+.badge.bill{background:#e8e0f5;color:#5a3a8a}
 .receipt-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);align-items:flex-start}
 .receipt-item:last-child{border-bottom:none}
 .receipt-thumb{width:56px;height:56px;border-radius:6px;object-fit:cover;background:var(--cream);border:1px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px}
@@ -72,20 +73,24 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .upload-zone:hover{border-color:var(--gold);background:#faf6f0}
 .upload-preview{max-width:100%;max-height:180px;border-radius:8px;margin-top:12px;object-fit:contain}
 .modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
-.modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:10px}
 .list-row:last-child{border-bottom:none}
 .avatar{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0}
 .chip-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .chip{background:var(--gold);color:#fff;border:none;border-radius:20px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.chip-code{background:var(--ink);color:#fff;border:none;border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px}
 .seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content;margin-bottom:20px}
 .seg-btn{padding:9px 18px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;background:transparent;border:none;font-family:'DM Sans',sans-serif}
 .seg-btn.on{background:var(--gold);color:#fff}
-.range-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
-.range-row .field{margin-bottom:0}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:16px;background:var(--cream);border-radius:10px;border:1px solid var(--border)}
+.filter-row .field{margin-bottom:0;min-width:140px;flex:1}
 select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;background:var(--cream)}
 .notice{background:#fef9ed;border:1px solid #f0d070;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px}
+.bill-num{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px}
+.entry-date{font-size:11px;color:var(--green);font-weight:600}
+.entry-pending{font-size:11px;color:var(--amber);cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -94,19 +99,11 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   <div class="auth-card">
     <div class="auth-logo">MOTIF</div>
     <div class="auth-sub">Times &amp; Receipts</div>
-    <div class="field">
-      <label>Email</label>
-      <input type="email" id="login-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com">
-    </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="login-password" autocomplete="current-password" placeholder="Password">
-    </div>
+    <div class="field"><label>Email</label><input type="email" id="login-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com"></div>
+    <div class="field"><label>Password</label><input type="password" id="login-password" autocomplete="current-password" placeholder="Password"></div>
     <div id="login-err" class="err"></div>
     <button class="btn btn-gold" id="login-btn" style="margin-top:8px">Sign In</button>
-    <div style="text-align:center;margin-top:14px">
-      <a id="forgot-link" href="#" style="font-size:13px;color:var(--muted);text-decoration:none">Forgot password?</a>
-    </div>
+    <div style="text-align:center;margin-top:14px"><a id="forgot-link" href="#" style="font-size:13px;color:var(--muted);text-decoration:none">Forgot password?</a></div>
     <div id="forgot-success" class="hidden" style="text-align:center;margin-top:14px;font-size:13px;color:var(--green)">Reset email sent — check your inbox.</div>
   </div>
 </div>
@@ -128,6 +125,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
   <div class="main">
 
+    <!-- TIME CLOCK TAB -->
     <div id="tab-clock">
       <div id="clock-status-bar" class="status-bar">
         <div class="dot" id="clock-dot"></div>
@@ -142,9 +140,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <h2>Clock In</h2>
         <div class="field"><label>Project *</label><select id="ci-project"><option value="">Select project...</option></select></div>
         <div class="row2">
-          <div class="field"><label>Scope *</label><select id="ci-scope"><option value="">Select scope...</option></select></div>
-          <div class="field"><label>Room *</label><select id="ci-room"><option value="">Select room...</option></select></div>
+          <div class="field"><label>Cost Category *</label><select id="ci-cat"><option value="">Select category...</option></select></div>
+          <div class="field"><label>Cost Code *</label><select id="ci-code"><option value="">Select code...</option></select></div>
         </div>
+        <div class="field"><label>Room *</label><select id="ci-room"><option value="">Select room...</option></select></div>
         <div class="field"><label>Notes</label><textarea id="ci-notes" rows="2" placeholder="Optional..."></textarea></div>
         <button class="btn btn-green" id="clock-in-btn" style="width:100%;padding:14px;font-size:15px">&#9654; Clock In</button>
       </div>
@@ -158,44 +157,53 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <h2>My Time Log</h2>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>Date</th><th>Project</th><th>Scope/Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th></tr></thead>
-            <tbody id="my-log-body"><tr><td colspan="7" class="empty">No entries yet.</td></tr></tbody>
+            <thead><tr><th>Date</th><th>Project</th><th>Cost Code</th><th>Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th><th></th></tr></thead>
+            <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
+    <!-- RECEIPTS TAB -->
     <div id="tab-receipts" class="hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h2 style="margin:0">Receipts</h2>
-        <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <h2 style="margin:0">Receipts &amp; Bills</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline priv-only hidden" id="new-bill-btn" style="width:auto;padding:10px 18px">+ Add Bill</button>
+          <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
+        </div>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
     </div>
 
+    <!-- REPORTS TAB -->
     <div id="tab-reports" class="hidden">
       <h2>Reports &amp; Export</h2>
       <div class="seg">
         <button class="seg-btn on" id="rpt-time-btn">Time Log</button>
-        <button class="seg-btn" id="rpt-rcpt-btn">Receipts</button>
+        <button class="seg-btn" id="rpt-rcpt-btn">Receipts &amp; Bills</button>
       </div>
       <div class="card">
-        <div class="range-row">
-          <div class="field"><label>Project</label><select id="rpt-project" style="width:180px"><option value="">All Projects</option></select></div>
-          <div class="field"><label>From</label><input type="date" id="rpt-from" style="width:150px"></div>
-          <div class="field"><label>To</label><input type="date" id="rpt-to" style="width:150px"></div>
-          <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 18px">Run</button>
+        <div class="filter-row">
+          <div class="field"><label>Project</label><select id="rpt-project" style="min-width:160px"><option value="">All Projects</option></select></div>
+          <div class="field"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
+          <div class="field" id="rpt-cat-wrap"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
+          <div class="field"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
+          <div class="field"><label>From</label><input type="date" id="rpt-from"></div>
+          <div class="field"><label>To</label><input type="date" id="rpt-to"></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 20px;white-space:nowrap">Run Report</button></div>
         </div>
+        <div id="rpt-active-filters" style="margin-bottom:12px;font-size:12px;color:var(--muted)"></div>
         <div id="rpt-results"></div>
       </div>
     </div>
 
+    <!-- ADMIN TAB -->
     <div id="tab-admin" class="hidden">
       <h2>Admin</h2>
       <div class="seg">
         <button class="seg-btn on" id="adm-proj-btn">Projects</button>
         <button class="seg-btn" id="adm-users-btn">Users</button>
-        <button class="seg-btn" id="adm-vendors-btn">Vendors <span id="vendors-pending-badge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px">0</span></button>
       </div>
       <div id="adm-projects-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -211,41 +219,25 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div class="card"><div id="users-list"><div class="empty">No users found.</div></div></div>
       </div>
-      <div id="adm-vendors-panel" class="hidden">
-        <div style="margin-bottom:12px">
-          <strong>Approved Vendors</strong>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">These appear in the vendor dropdown on receipt submission.</div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div id="approved-vendors-list"><div class="empty">No vendors yet.</div></div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <input type="text" id="new-vendor-input" placeholder="Add vendor name..." style="flex:1">
-            <button class="btn btn-gold btn-sm" id="add-vendor-btn">Add</button>
-          </div>
-        </div>
-        <div style="margin-bottom:12px">
-          <strong>Pending Vendors</strong>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">Submitted by field crew - approve to add to the dropdown.</div>
-        </div>
-        <div class="card"><div id="pending-vendors-list"><div class="empty">No pending vendors.</div></div></div>
-      </div>
     </div>
 
   </div>
 </div>
 
+<!-- RECEIPT SUBMIT MODAL (field crew) -->
 <div id="receipt-modal" class="modal-bg hidden">
   <div class="modal">
     <h2>Submit Receipt</h2>
     <div class="field"><label>Project *</label><select id="rm-project"><option value="">Select project...</option></select></div>
     <div class="row2">
-      <div class="field"><label>Scope *</label><select id="rm-scope"><option value="">Select...</option></select></div>
-      <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
-    </div>
-    <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="rm-amount" placeholder="0.00" inputmode="decimal"></div>
-      <div class="field"><label>Vendor *</label><select id="rm-vendor"><option value="">Select vendor...</option></select></div>
-      <div class="field hidden" id="new-vendor-field"><label>New Vendor Name *</label><input type="text" id="rm-new-vendor" placeholder="Enter vendor name..."></div>
+      <div class="field"><label>Vendor</label><input type="text" id="rm-vendor" placeholder="Home Depot..."></div>
+    </div>
+    <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
+    <div class="field">
+      <label>Cost Codes *</label>
+      <select id="rm-code-pick"><option value="">Search / select cost code...</option></select>
+      <div class="chip-wrap" id="rm-codes-chips" style="margin-top:8px"></div>
     </div>
     <div class="field"><label>Notes</label><textarea id="rm-notes" rows="2" placeholder="What was purchased?"></textarea></div>
     <div class="upload-zone" id="rm-upload-zone">
@@ -263,10 +255,48 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- VENDOR BILL MODAL (bookkeeper/admin only) -->
+<div id="bill-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Add Vendor Bill</h2>
+    <div class="row2">
+      <div class="field"><label>Project *</label><select id="bm-project"><option value="">Select project...</option></select></div>
+      <div class="field"><label>Bill #</label><input type="text" id="bm-billnum" placeholder="Auto-assigned" readonly style="background:#f0ece6;color:var(--muted)"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Pay To (Vendor) *</label><input type="text" id="bm-vendor" placeholder="Hercules Plumbing..."></div>
+      <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="bm-amount" placeholder="0.00" inputmode="decimal"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Invoice Date *</label><input type="date" id="bm-invoicedate"></div>
+      <div class="field"><label>Room</label><select id="bm-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="field">
+      <label>Cost Codes *</label>
+      <select id="bm-code-pick"><option value="">Search / select cost code...</option></select>
+      <div class="chip-wrap" id="bm-codes-chips" style="margin-top:8px"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="bm-notes" rows="2" placeholder="Optional notes..."></textarea></div>
+    <div class="row2">
+      <div class="field"><label>QB Entry Date</label><input type="date" id="bm-qbdate" placeholder="Mark when entered in QB"></div>
+      <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
+    </div>
+    <div id="bm-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="bm-cancel">Cancel</button>
+      <button class="btn btn-gold" id="bm-save" style="width:auto">Save Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECT MODAL -->
 <div id="project-modal" class="modal-bg hidden">
   <div class="modal">
     <h2 id="pm-title">New Project</h2>
-    <div class="field"><label>Project Name *</label><input type="text" id="pm-name" placeholder="Jones Kitchen Remodel"></div>
+    <div class="row2">
+      <div class="field"><label>Project Name *</label><input type="text" id="pm-name" placeholder="Jones Kitchen Remodel"></div>
+      <div class="field"><label>Bill Prefix (auto)</label><input type="text" id="pm-prefix" placeholder="JON" style="text-transform:uppercase" maxlength="6"></div>
+    </div>
     <div class="field"><label>Job Site Address</label>
       <div style="display:flex;gap:8px">
         <input type="text" id="pm-address" placeholder="123 Main St, Littleton CO" style="flex:1">
@@ -278,13 +308,6 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>Longitude</label><input type="number" step="any" id="pm-lng" placeholder="-105.0167"></div>
     </div>
     <div id="pm-geo-note" style="font-size:12px;color:var(--green);margin-top:-8px;margin-bottom:12px"></div>
-    <div class="divider"></div>
-    <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Scopes (tap to remove)</div>
-    <div class="chip-wrap" id="pm-scopes"></div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <input type="text" id="pm-new-scope" placeholder="Add scope..." style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif">
-      <button class="btn btn-outline btn-sm" id="pm-add-scope-btn">Add</button>
-    </div>
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Rooms (tap to remove)</div>
     <div class="chip-wrap" id="pm-rooms"></div>
@@ -300,6 +323,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- USER MODAL -->
 <div id="user-modal" class="modal-bg hidden">
   <div class="modal">
     <h2>Add Team Member</h2>
@@ -322,20 +346,30 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- EDIT RECEIPT MODAL -->
 <div id="edit-receipt-modal" class="modal-bg hidden">
   <div class="modal">
-    <h2>Edit Receipt</h2>
+    <h2>Edit Receipt / Bill</h2>
     <div class="field"><label>Project *</label><select id="er-project"><option value="">Select project...</option></select></div>
-    <div class="row2">
-      <div class="field"><label>Scope *</label><select id="er-scope"><option value="">Select...</option></select></div>
-      <div class="field"><label>Room *</label><select id="er-room"><option value="">Select...</option></select></div>
-    </div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="er-amount" placeholder="0.00" inputmode="decimal"></div>
       <div class="field"><label>Vendor</label><input type="text" id="er-vendor" placeholder="Home Depot..."></div>
     </div>
+    <div class="row2">
+      <div class="field"><label>Invoice Date</label><input type="date" id="er-invoicedate"></div>
+      <div class="field"><label>Room</label><select id="er-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="field">
+      <label>Cost Codes</label>
+      <select id="er-code-pick"><option value="">Add cost code...</option></select>
+      <div class="chip-wrap" id="er-codes-chips" style="margin-top:8px"></div>
+    </div>
     <div class="field"><label>Notes</label><textarea id="er-notes" rows="2"></textarea></div>
     <div class="field"><label>Status</label><select id="er-status"><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+    <div class="row2 priv-only" id="er-entry-row">
+      <div class="field"><label>QB Entry Date</label><input type="date" id="er-qbdate"></div>
+      <div class="field"><label>DB Entry Date</label><input type="date" id="er-dbdate"></div>
+    </div>
     <div id="er-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="er-cancel">Cancel</button>
@@ -344,14 +378,16 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- EDIT TIME MODAL -->
 <div id="edit-time-modal" class="modal-bg hidden">
   <div class="modal">
     <h2>Edit Time Entry</h2>
     <div class="field"><label>Project *</label><select id="et-project"><option value="">Select project...</option></select></div>
     <div class="row2">
-      <div class="field"><label>Scope *</label><select id="et-scope"><option value="">Select...</option></select></div>
-      <div class="field"><label>Room *</label><select id="et-room"><option value="">Select...</option></select></div>
+      <div class="field"><label>Cost Category *</label><select id="et-cat"><option value="">Select category...</option></select></div>
+      <div class="field"><label>Cost Code *</label><select id="et-code"><option value="">Select code...</option></select></div>
     </div>
+    <div class="field"><label>Room *</label><select id="et-room"><option value="">Select...</option></select></div>
     <div class="row2">
       <div class="field"><label>Clock In</label><input type="datetime-local" id="et-clockin"></div>
       <div class="field"><label>Clock Out</label><input type="datetime-local" id="et-clockout"></div>
@@ -365,6 +401,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- LIGHTBOX -->
 <div id="lightbox" class="modal-bg hidden" style="cursor:pointer">
   <img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px" alt="receipt">
 </div>
@@ -372,122 +409,274 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
 const app=initializeApp({apiKey:"AIzaSyCfCholttfnLxgJwaxGwTu1-FDmO0Ob1hs",authDomain:"motif-times-and-receipts.firebaseapp.com",projectId:"motif-times-and-receipts",storageBucket:"motif-times-and-receipts.firebasestorage.app",messagingSenderId:"837311030358",appId:"1:837311030358:web:a7a391ecf6b2302d6a07f7"});
-const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app,'us-central1');
+const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app);
 
 const GEO_M=91.44;
-const DEF_SCOPES=['Demo / Rough-In','Framing','Electrical','Plumbing','HVAC','Insulation','Drywall','Tile / Stone','Carpentry / Millwork','Painting','Finish Work','General Admin','Miscellaneous'];
+
+// ── COST CODES ──────────────────────────────────────────────────────────────
+const COST_CODES=[
+  {cat:'01 - Design & Construction Administration',code:'01.00 - Free One Hour Consult'},
+  {cat:'01 - Design & Construction Administration',code:'01.05 - Design Development'},
+  {cat:'01 - Design & Construction Administration',code:'01.10 - Design Project Management'},
+  {cat:'01 - Design & Construction Administration',code:'01.15 - Procurement of Design Elements'},
+  {cat:'01 - Design & Construction Administration',code:'01.20 - Design or Construction Admin'},
+  {cat:'01 - Design & Construction Administration',code:'01.25 - Construction Project Management'},
+  {cat:'01 - Design & Construction Administration',code:'01.30 - Construction Documents'},
+  {cat:'01 - Design & Construction Administration',code:'01.35 - Design Meetings, Preparation and/or Follow Up'},
+  {cat:'02 - Pre Construction Services',code:'02.00 - Specification List'},
+  {cat:'02 - Pre Construction Services',code:'02.15 - Material List Creation'},
+  {cat:'02 - Pre Construction Services',code:'02.20 - Estimating'},
+  {cat:'02 - Pre Construction Services',code:'02.30 - Field Measurements'},
+  {cat:'02 - Pre Construction Services',code:'02.35 - Shop Building Materials (Construction)'},
+  {cat:'02 - Pre Construction Services',code:'02.45 - Permit Application Process'},
+  {cat:'02 - Pre Construction Services',code:'02.50 - Structural Engineering (Subcontractor)'},
+  {cat:'03 - General Conditions',code:'03.00 - Roll Off'},
+  {cat:'03 - General Conditions',code:'03.05 - Porta Potty'},
+  {cat:'03 - General Conditions',code:'03.10 - Permit Cost/Fees'},
+  {cat:'03 - General Conditions',code:'03.15 - Trip Charge'},
+  {cat:'03 - General Conditions',code:'03.20 - MOTIF Labor Electrical (Like for Like)'},
+  {cat:'03 - General Conditions',code:'03.25 - MOTIF Labor Plumbing (Like for Like)'},
+  {cat:'03 - General Conditions',code:'03.30 - Concrete'},
+  {cat:'04 - Inspections',code:'04.00 - Rough Inspections'},
+  {cat:'04 - Inspections',code:'04.05 - Shower Pan Test Inspection'},
+  {cat:'04 - Inspections',code:'04.10 - Fireplace Inspection'},
+  {cat:'04 - Inspections',code:'04.15 - Final Inspections for All Trades'},
+  {cat:'05 - Job Site Prep',code:'05.00 - Tool Set Up Labor'},
+  {cat:'05 - Job Site Prep',code:'05.01 - Content Manipulation (Moving Client Items/Furniture)'},
+  {cat:'05 - Job Site Prep',code:'05.05 - Job Site Protection Labor'},
+  {cat:'05 - Job Site Prep',code:'05.10 - Job Site Protection Materials'},
+  {cat:'05 - Job Site Prep',code:'05.15 - Demolition Labor'},
+  {cat:'05 - Job Site Prep',code:'05.20 - Demolition Materials (includes roll-off)'},
+  {cat:'05 - Job Site Prep',code:'05.25 - Patio'},
+  {cat:'06 - Framing',code:'06.00 - Framing Materials'},
+  {cat:'06 - Framing',code:'06.05 - Framing Labor'},
+  {cat:'07 - Plumbing',code:'07.00 - Plumbing Sub Labor'},
+  {cat:'07 - Plumbing',code:'07.05 - Plumbing Materials'},
+  {cat:'08 - Electrical',code:'08.00 - Electrical Sub Labor'},
+  {cat:'08 - Electrical',code:'08.05 - Electrical Materials'},
+  {cat:'09 - HVAC',code:'09.00 - HVAC Sub Labor'},
+  {cat:'09 - HVAC',code:'09.05 - HVAC Materials'},
+  {cat:'09 - HVAC',code:'09.10 - HVAC MOTIF Labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.00 - Insulation Labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.05 - Insulation Material'},
+  {cat:'10 - Insulation & Drywall',code:'10.10 - Drywall Sub Labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.15 - Drywall MOTIF Labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.20 - Drywall Materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.00 - Glass Sub Materials (Mirror, Shower Door, Cabinet Glass)'},
+  {cat:'11 - Glass & Mirrors',code:'11.05 - Mirrors (fabricated product)'},
+  {cat:'11 - Glass & Mirrors',code:'11.10 - Glass Sub Labor (Mirror, Shower Door, Cabinet Glass)'},
+  {cat:'12 - Finish Carpentry',code:'12.00 - Trim Carpentry Materials (base, case, crown, chair)'},
+  {cat:'12 - Finish Carpentry',code:'12.05 - Trim Carpentry Labor (base, case, crown, chair)'},
+  {cat:'12 - Finish Carpentry',code:'12.10 - Cabinet Hardware Materials'},
+  {cat:'12 - Finish Carpentry',code:'12.15 - Cabinet Hardware Labor'},
+  {cat:'12 - Finish Carpentry',code:'12.20 - Countertops Material (wood tops)'},
+  {cat:'12 - Finish Carpentry',code:'12.25 - Countertops Fabrication Labor (wood tops)'},
+  {cat:'12 - Finish Carpentry',code:'12.30 - Cabinet Install Materials (pre-fab cabinets only)'},
+  {cat:'12 - Finish Carpentry',code:'12.35 - Cabinet Install Labor (pre-fab cabinets only)'},
+  {cat:'12 - Finish Carpentry',code:'12.40 - Staircase Materials'},
+  {cat:'12 - Finish Carpentry',code:'12.45 - Staircase Labor'},
+  {cat:'12 - Finish Carpentry',code:'12.50 - Custom Carpentry Materials (mantels, built-ins, shelves, cabinets)'},
+  {cat:'12 - Finish Carpentry',code:'12.51 - Window Covering Installation'},
+  {cat:'12 - Finish Carpentry',code:'12.55 - Custom Carpentry Labor (mantels, built-ins, shelves, cabinets)'},
+  {cat:'13 - Windows & Doors',code:'13.00 - Door Hardware Materials'},
+  {cat:'13 - Windows & Doors',code:'13.05 - Door Hardware Labor'},
+  {cat:'13 - Windows & Doors',code:'13.10 - Interior Door Materials'},
+  {cat:'13 - Windows & Doors',code:'13.15 - Interior Door Labor'},
+  {cat:'13 - Windows & Doors',code:'13.20 - Window Materials'},
+  {cat:'13 - Windows & Doors',code:'13.25 - Window Labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.00 - Paint Materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.05 - Paint Labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.10 - Wallpaper Materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.15 - Wallpaper Labor by Subcontractor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.20 - Staining Labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.25 - Staining Materials'},
+  {cat:'15 - Flooring & Tile',code:'15.00 - Hardwood Materials'},
+  {cat:'15 - Flooring & Tile',code:'15.05 - Hardwood Labor'},
+  {cat:'15 - Flooring & Tile',code:'15.10 - Hardwood Labor by Subcontractor'},
+  {cat:'15 - Flooring & Tile',code:'15.15 - Tile Labor by Subcontractor'},
+  {cat:'15 - Flooring & Tile',code:'15.20 - Tile Materials'},
+  {cat:'15 - Flooring & Tile',code:'15.25 - Tile Labor'},
+  {cat:'15 - Flooring & Tile',code:'15.30 - Carpet Materials'},
+  {cat:'15 - Flooring & Tile',code:'15.35 - Carpet Labor'},
+  {cat:'15 - Flooring & Tile',code:'15.40 - Carpet Labor by Subcontractor'},
+  {cat:'16 - Appliances',code:'16.00 - Appliance Service Call'},
+  {cat:'16 - Appliances',code:'16.05 - Appliances Installation'},
+  {cat:'17 - Fireplace & Masonry',code:'17.10 - Fireplace Materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.15 - Fireplace Subcontractor Labor'},
+  {cat:'17 - Fireplace & Masonry',code:'17.20 - Masonry Materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.25 - Masonry Subcontractor Labor'},
+  {cat:'18 - Cleaning',code:'18.00 - Daily Site Cleaning'},
+  {cat:'18 - Cleaning',code:'18.05 - Post Drywall Cleaning'},
+  {cat:'18 - Cleaning',code:'18.10 - Final Cleaning'},
+  {cat:'19 - Punch List',code:'19.00 - Punch List Materials'},
+  {cat:'19 - Punch List',code:'19.05 - Punch List Labor'},
+  {cat:'20 - Business Operations',code:'20.00 - Construction Supervision'},
+  {cat:'20 - Business Operations',code:'20.05 - General Business Operations'},
+  {cat:'20 - Business Operations',code:'20.10 - Delivery to Jobsite'},
+  {cat:'20 - Business Operations',code:'20.15 - Accounting - Sales Tax, Bookkeeping'},
+  {cat:'20 - Business Operations',code:'20.20 - Design/Value Engineering'},
+  {cat:'20 - Business Operations',code:'20.25 - Jobsite Safety/Security Materials'},
+  {cat:'20 - Business Operations',code:'20.40 - Shipping (must be taxed)'},
+  {cat:'20 - Business Operations',code:'20.45 - Contingency Labor'},
+  {cat:'20 - Business Operations',code:'20.50 - Contingency Materials'},
+  {cat:'20 - Business Operations',code:'20.55 - RDF Fee'},
+  {cat:'20 - Business Operations',code:'20.60 - Sales Tax (must manually calculate)'},
+  {cat:'20 - Business Operations',code:'20.65 - Home Depot Volume Discount'},
+  {cat:'20 - Business Operations',code:'20.75 - Driving to Office for Meetings'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.00 - Furniture and Rugs (materials)'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.05 - Design Accessories - Table Top (Materials)'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.10 - Lighting (Materials)'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.15 - Plumbing Fixtures (Materials)'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.20 - Reupholster Chairs'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.25 - Hardware Accessories (towel bars, tp holders, shelves)'},
+  {cat:'22 - Change Orders',code:'22.10 - CO1 Additional Scope of Work (Labor)'},
+  {cat:'22 - Change Orders',code:'22.15 - CO1 Additional Scope of Work (Materials)'},
+  {cat:'22 - Change Orders',code:'22.20 - CO2 Additional Scope of Work (Labor)'},
+  {cat:'22 - Change Orders',code:'22.25 - CO2 Additional Scope of Work (Materials)'},
+  {cat:'22 - Change Orders',code:'22.30 - CO3 Additional Scope of Work (Labor)'},
+  {cat:'22 - Change Orders',code:'22.35 - CO3 Additional Scope of Work (Materials)'},
+  {cat:'22 - Change Orders',code:'22.40 - CO4 Additional Scope of Work (Labor)'},
+  {cat:'22 - Change Orders',code:'22.45 - CO4 Additional Scope of Work (Materials)'},
+  {cat:'23 - Sick Time',code:'23.10 - Sick Time'},
+  {cat:'24 - Vacation Time',code:'24.10 - Vacation Time'},
+  {cat:'24 - Vacation Time',code:'24.15 - Unpaid Leave'},
+  {cat:'25 - Holiday Pay',code:'25.10 - Holiday Pay'},
+  {cat:'26 - MOTIF Error',code:'26.10 - Rebuilding Costs Labor'},
+  {cat:'26 - MOTIF Error',code:'26.20 - Rebuilding Costs Materials'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.05 - Solid Surface Materials (Slabs of Quartz, Marble, Granite)'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.10 - Solid Surface Subcontractor Labor (Slabs of Quartz, Marble, Granite)'}
+];
+const COST_CATS=[...new Set(COST_CODES.map(c=>c.cat))];
 const DEF_ROOMS=['Kitchen','Primary Bath','Primary Suite','Living Room','Dining Room','Powder Room','Laundry','Office','Basement','Exterior / Site','General / Whole Home'];
 
+// ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser=null,userProfile=null,activeSession=null,elapsedTimer=null,currentPos=null;
 let allProjects=[],activeProjects=[],currentRptType='time';
-let pmScopes=[...DEF_SCOPES],pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
+let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
+let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
+let _rptRawData=[],_rptType='time';
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id).classList.remove('hidden');
 const hide=id=>$(id).classList.add('hidden');
 
+// ── HELPERS ──────────────────────────────────────────────────────────────────
 function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function geoSt(pos,proj){if(!pos||!proj?.lat||!proj?.lng)return'unknown';return hav(pos.lat,pos.lng,proj.lat,proj.lng)<=GEO_M?'onsite':'offsite'}
 function fmtDur(ms){if(!ms)return'--';const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h>0?h+'h '+m+'m':m+'m'}
 function fmtTs(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
-function fmtDate(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+function fmtDate(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+function fmtDateVal(ts){if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function fmtTime(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
 function ini(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
 function isPriv(){return['admin','bookkeeper'].includes(userProfile?.role?.toLowerCase())}
 function isAdmin(){return userProfile?.role?.toLowerCase()==='admin'}
+function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
+function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
 
+// ── COST CODE HELPERS ────────────────────────────────────────────────────────
+function fillCatDropdown(selId){
+  const s=$(selId);s.innerHTML='<option value="">Select category...</option>';
+  COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
+}
+function fillCodeDropdown(selId,cat){
+  const s=$(selId);s.innerHTML='<option value="">Select code...</option>';
+  COST_CODES.filter(c=>c.cat===cat).forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
+}
+function fillAllCodesDropdown(selId){
+  const s=$(selId);s.innerHTML='<option value="">Search / select cost code...</option>';
+  COST_CODES.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+' ['+c.cat+']';s.appendChild(o)});
+}
+function renderCodeChips(containerId,codesArr,onRemove){
+  $(containerId).innerHTML=codesArr.map((c,i)=>`<span class="chip-code">${c} <span onclick="(${onRemove})(${i})" style="cursor:pointer;font-size:14px;line-height:1">×</span></span>`).join('');
+}
+
+// ── GEOLOCATION ──────────────────────────────────────────────────────────────
 if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};updateGeoBar()},()=>{},{enableHighAccuracy:true,timeout:10000});
-
 function updateGeoBar(){
   const proj=activeProjects.find(p=>p.id===$('ci-project').value);
   const st=geoSt(currentPos,proj);
-  if($('ci-project').value&&currentPos){
-    const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag');
-  }else hide('geo-bar-tag');
+  if($('ci-project').value&&currentPos){const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag')}else hide('geo-bar-tag');
 }
 
-// AUTH
+// ── AUTH ─────────────────────────────────────────────────────────────────────
 $('login-btn').onclick=async()=>{
   const e=$('login-email').value.trim(),p=$('login-password').value;
   $('login-err').textContent='';$('login-btn').disabled=true;$('login-btn').textContent='Signing in...';
   try{await signInWithEmailAndPassword(auth,e,p)}catch(err){$('login-err').textContent='Invalid email or password.';$('login-btn').disabled=false;$('login-btn').textContent='Sign In'}
 };
 $('login-email').onkeydown=$('login-password').onkeydown=e=>{if(e.key==='Enter')$('login-btn').click()};
-$('logout-btn').onclick=()=>{['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el)el.classList.add('hidden')});$('tab-clock').classList.remove('hidden');document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="clock"]').classList.add('active');signOut(auth);};
+$('logout-btn').onclick=()=>signOut(auth);
 $('forgot-link').onclick=async(e)=>{
-  e.preventDefault();
-  const email=$('login-email').value.trim();
-  if(!email){$('login-err').textContent='Enter your email address first.';return;}
-  try{
-    await sendPasswordResetEmail(auth,email);
-    $('forgot-success').classList.remove('hidden');
-    $('login-err').textContent='';
-  }catch(err){
-    $('login-err').textContent='Could not send reset email. Check the address and try again.';
-  }
+  e.preventDefault();const email=$('login-email').value.trim();
+  if(!email){$('login-err').textContent='Enter your email address first.';return}
+  try{await sendPasswordResetEmail(auth,email);$('forgot-success').classList.remove('hidden');$('login-err').textContent=''}
+  catch(err){$('login-err').textContent='Could not send reset email. Check the address and try again.'}
 };
 
 onAuthStateChanged(auth,async u=>{
   currentUser=u;
   if(!u){show('auth-screen');hide('main-screen');$('login-btn').disabled=false;$('login-btn').textContent='Sign In';return}
   hide('auth-screen');show('main-screen');
-  ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el)el.classList.add('hidden')});$('tab-clock').classList.remove('hidden');document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="clock"]').classList.add('active');
   const uref=doc(db,'users',u.uid);
   try{
     const s=await getDoc(uref);
     if(!s.exists()){
-      // Check if admin pre-staged a profile for this email
-      let name=u.displayName||u.email.split('@')[0], role='user';
-      try{
-        const pending=await getDoc(doc(db,'pendingUsers',u.email.toLowerCase()));
-        if(pending.exists()){name=pending.data().name||name;role=pending.data().role||'user';}
-      }catch(e){}
+      let name=u.displayName||u.email.split('@')[0],role='user';
+      try{const pending=await getDoc(doc(db,'pendingUsers',u.email.toLowerCase()));if(pending.exists()){name=pending.data().name||name;role=pending.data().role||'user'}}catch(e){}
       await setDoc(uref,{email:u.email,name,role,createdAt:serverTimestamp()});
     }
   }catch(e){console.warn(e)}
   onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();
 });
 
 function applyProfile(){
   if(!userProfile)return;
   $('tb-name').textContent=userProfile.name||'';
   $('tb-role').textContent=(userProfile.role||'user').toLowerCase();
-  // Show/hide nav tabs directly by ID to avoid timing issues
-  const priv=isPriv(), adm=isAdmin();
+  const priv=isPriv(),adm=isAdmin();
   document.querySelectorAll('.priv-only').forEach(el=>priv?el.classList.remove('hidden'):el.classList.add('hidden'));
   document.querySelectorAll('.admin-only').forEach(el=>adm?el.classList.remove('hidden'):el.classList.add('hidden'));
-  // Force nav tab visibility with inline style as backup
   const rptTab=document.querySelector('[data-tab="reports"]');
   const admTab=document.querySelector('[data-tab="admin"]');
-  if(rptTab){rptTab.style.display=priv?'block':'none';}
-  if(admTab){admTab.style.display=adm?'block':'none';}
+  if(rptTab)rptTab.style.display=priv?'block':'none';
+  if(admTab)admTab.style.display=adm?'block':'none';
 }
 
-// PROJECTS
+// ── PROJECTS ─────────────────────────────────────────────────────────────────
 function loadProjects(){
   onSnapshot(query(collection(db,'projects'),orderBy('name')),snap=>{
     allProjects=snap.docs.map(d=>({id:d.id,...d.data()}));
     activeProjects=allProjects.filter(p=>p.active!==false);
-    ['ci-project','rm-project'].forEach(id=>{const v=$(id).value;$(id).innerHTML='<option value="">Select project...</option>';activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$(id).appendChild(o)});$(id).value=v});
-    const rp=$('rpt-project');const rv=rp.value;rp.innerHTML='<option value="">All Projects</option>';allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;rp.appendChild(o)});rp.value=rv;
+    ['ci-project','rm-project','bm-project'].forEach(id=>{
+      const el=$(id);if(!el)return;
+      const v=el.value;el.innerHTML='<option value="">Select project...</option>';
+      activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
+      el.value=v;
+    });
+    const rp=$('rpt-project');const rv=rp.value;rp.innerHTML='<option value="">All Projects</option>';
+    allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;rp.appendChild(o)});rp.value=rv;
     renderProjectsList();
   });
 }
-function fillScopeRoom(sid,rid,proj){
-  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
-  $(sid).innerHTML='<option value="">Select scope...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$(sid).appendChild(o)});
-  $(rid).innerHTML='<option value="">Select room...</option>';rm.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;$(rid).appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$(rid).appendChild(na);
+function fillRoomDropdown(selId,proj){
+  const rm=proj?.rooms||DEF_ROOMS;
+  const s=$(selId);s.innerHTML='<option value="">Select room...</option>';
+  rm.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;s.appendChild(o)});
+  const na=document.createElement('option');na.value='N/A';na.textContent='N/A';s.appendChild(na);
 }
-$('ci-project').onchange=()=>{fillScopeRoom('ci-scope','ci-room',activeProjects.find(p=>p.id===$('ci-project').value));updateGeoBar()};
-$('rm-project').onchange=()=>fillScopeRoom('rm-scope','rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
 
-// CLOCK
+// ── CLOCK IN/OUT ─────────────────────────────────────────────────────────────
+fillCatDropdown('ci-cat');
+$('ci-project').onchange=()=>{fillRoomDropdown('ci-room',activeProjects.find(p=>p.id===$('ci-project').value));updateGeoBar()};
+$('ci-cat').onchange=()=>fillCodeDropdown('ci-code',$('ci-cat').value);
+
 function loadActiveSession(){
   if(!currentUser)return;
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)),snap=>{
@@ -497,20 +686,19 @@ function loadActiveSession(){
 }
 function renderClockUI(){
   if(activeSession){
-    const clockInVal=activeSession.clockIn?.toDate?.()||(activeSession.clockIn?new Date(activeSession.clockIn):null);
-    if(!clockInVal||isNaN(clockInVal.getTime())||clockInVal.getFullYear()<2020){
-      updateDoc(doc(db,'timeLogs',activeSession.id),{status:'complete',clockOut:serverTimestamp(),durationMs:0,notes:'Auto-closed: missing clock-in timestamp'});
-      activeSession=null;
-    }
-  }
-  if(activeSession){
     hide('clock-in-form');show('clock-out-form');
     $('clock-dot').classList.add('pulse');$('clock-status-bar').classList.add('active');
-    $('clock-status-label').textContent='Clocked In - '+activeSession.projectName;
-    $('clock-status-sub').textContent=activeSession.scope+(activeSession.room?' - '+activeSession.room:'');
+    $('clock-status-label').textContent='Clocked In — '+activeSession.projectName;
+    $('clock-status-sub').textContent=(activeSession.costCode||activeSession.scope||'')+(activeSession.room?' · '+activeSession.room:'');
     const proj=allProjects.find(p=>p.id===activeSession.projectId),st=geoSt(currentPos,proj);
     const t=$('geo-bar-tag');t.className='geo-tag '+st;t.textContent=st==='onsite'?'On Site':st==='offsite'?'Off Site':'?';show('geo-bar-tag');
-    $('active-session-info').innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;font-size:14px"><div><span style="color:var(--muted)">Project: </span><strong>${activeSession.projectName}</strong></div><div><span style="color:var(--muted)">Scope: </span>${activeSession.scope}</div>${activeSession.room?'<div><span style="color:var(--muted)">Room: </span>'+activeSession.room+'</div>':''}<div><span style="color:var(--muted)">Started: </span>${fmtTs(activeSession.clockIn)}</div>${currentPos?'<div style="font-size:12px;color:var(--muted)">GPS: '+currentPos.lat.toFixed(5)+', '+currentPos.lng.toFixed(5)+'</div>':''}</div>`;
+    $('active-session-info').innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;font-size:14px">
+      <div><span style="color:var(--muted)">Project: </span><strong>${activeSession.projectName}</strong></div>
+      <div><span style="color:var(--muted)">Cost Code: </span>${activeSession.costCode||activeSession.scope||'--'}</div>
+      ${activeSession.room?'<div><span style="color:var(--muted)">Room: </span>'+activeSession.room+'</div>':''}
+      <div><span style="color:var(--muted)">Started: </span>${fmtTs(activeSession.clockIn)}</div>
+      ${currentPos?'<div style="font-size:12px;color:var(--muted)">GPS: '+currentPos.lat.toFixed(5)+', '+currentPos.lng.toFixed(5)+'</div>':''}
+    </div>`;
     if(elapsedTimer)clearInterval(elapsedTimer);
     elapsedTimer=setInterval(()=>{const s=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn);$('clock-elapsed').textContent=fmtDur(Date.now()-s.getTime())},1000);
   }else{
@@ -521,17 +709,16 @@ function renderClockUI(){
   }
 }
 $('clock-in-btn').onclick=async()=>{
-  const pid=$('ci-project').value,sc=$('ci-scope').value,rm=$('ci-room').value;
-  if(!pid||!sc||!rm){alert('Select a project, scope, and room.');return}
+  const pid=$('ci-project').value,cat=$('ci-cat').value,code=$('ci-code').value,rm=$('ci-room').value;
+  if(!pid||!cat||!code||!rm){alert('Select a project, cost category, cost code, and room.');return}
   const proj=activeProjects.find(p=>p.id===pid);
   $('clock-in-btn').disabled=true;$('clock-in-btn').textContent='Clocking in...';
-  await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('ci-room').value,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
-  $('ci-notes').value='';$('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
+  await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
+  $('ci-notes').value='';$('ci-code').innerHTML='<option value="">Select code...</option>';$('ci-cat').value='';
+  $('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
 };
 $('clock-out-btn').onclick=async()=>{
-  if(!activeSession){alert('No active session found. Please clock in first.');return;}
-  const clockInVal=activeSession.clockIn?.toDate?.()||(activeSession.clockIn?new Date(activeSession.clockIn):null);
-  if(!clockInVal||isNaN(clockInVal.getTime())){alert('This session has no valid clock-in time and cannot be clocked out. Please contact your admin to delete this entry.');return;}
+  if(!activeSession)return;
   $('clock-out-btn').disabled=true;$('clock-out-btn').textContent='Clocking out...';
   const now=new Date(),start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn),proj=allProjects.find(p=>p.id===activeSession.projectId);
   await updateDoc(doc(db,'timeLogs',activeSession.id),{clockOut:Timestamp.fromDate(now),clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockOutGeoStatus:geoSt(currentPos,proj),durationMs:now-start,status:'complete'});
@@ -540,306 +727,440 @@ $('clock-out-btn').onclick=async()=>{
 function loadMyLog(){
   if(!currentUser)return;
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(30)),snap=>{
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a.clockIn?.toDate?.()?.getTime()||0,bt=b.clockIn?.toDate?.()?.getTime()||0;return bt-at});
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
     window._allTimeLogs=rows;
     const tb=$('my-log-body');
-    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">No entries yet.</td></tr>';return}
-    tb.innerHTML=rows.map(r=>`<tr><td>${fmtDate(r.clockIn)}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span>${r.room?'<span class="tag">'+r.room+'</span>':''}</td><td style="font-size:12px">${fmtTime(r.clockIn)}</td><td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td><td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td><td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>${isAdmin()?`<td><button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button></td>`:'<td></td>'}</tr>`).join('');
+    if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}
+    tb.innerHTML=rows.map(r=>`<tr>
+      <td>${fmtDate(r.clockIn)}</td>
+      <td>${r.projectName||'--'}</td>
+      <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
+      <td>${r.room||'--'}</td>
+      <td style="font-size:12px">${fmtTime(r.clockIn)}</td>
+      <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
+      <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
+      <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
+      <td>${isAdmin()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
+    </tr>`).join('');
   });
 }
 
-// RECEIPTS
+// ── RECEIPTS ──────────────────────────────────────────────────────────────────
 function loadReceipts(){
   if(!currentUser)return;
-  const q=isPriv()?query(collection(db,'receipts'),limit(60)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(60));
+  const q=isPriv()?query(collection(db,'receipts'),limit(100)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(100));
   onSnapshot(q,snap=>{
-    const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a.submittedAt?.toDate?.()?.getTime()||0,bt=b.submittedAt?.toDate?.()?.getTime()||0;return bt-at});
+    const list=snap.docs.map(d=>({id:d.id,...d.data()}));
     window._allReceipts=list;
     const el=$('receipts-list');
     if(!list.length){el.innerHTML='<div class="empty">No receipts yet.</div>';return}
-    el.innerHTML=list.map(r=>`<div class="receipt-item">${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:'<div class="receipt-thumb">&#129534;</div>'}<div style="flex:1"><div style="display:flex;align-items:center;gap:10px"><div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div><span class="badge ${r.status}">${r.status}</span></div><div class="receipt-meta">${r.vendor?r.vendor+' - ':''}${r.projectName||''} - ${fmtDate(r.submittedAt)}${r.submittedByName?' - '+r.submittedByName:''}</div><div style="margin-top:6px">${r.scope?'<span class="tag">'+r.scope+'</span>':''}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>${r.notes?'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+r.notes+'</div>':''}${isAdmin()?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>${r.status==='submitted'&&r.userId!==currentUser.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}</div>`:isPriv()&&r.status==='submitted'&&r.userId!==currentUser.uid?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button></div>`:r.status==='submitted'&&r.userId===currentUser.uid?`<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button></div>`:''}</div></div>`).join('');
+    el.innerHTML=list.map(r=>{
+      const isBill=r.billType==='bill';
+      const codes=(r.costCodes||[r.scope]).filter(Boolean);
+      const billNumHtml=r.billNumber?`<span class="bill-num">#${r.billNumber}</span> `:'';
+      const qbHtml=isPriv()?(r.qbEntryDate?`<span class="entry-date">QB ✓ ${r.qbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','qb')">QB: mark entered</span>`):'';
+      const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
+      return`<div class="receipt-item">
+        ${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div>
+            <span class="badge ${r.status}">${r.status}</span>
+            ${isBill?'<span class="badge bill">Bill</span>':''}
+          </div>
+          <div class="receipt-meta">${billNumHtml}${r.vendor?r.vendor+' · ':''}${r.projectName||''} · ${fmtDate(r.submittedAt||r.createdAt)}${r.submittedByName?' · '+r.submittedByName:''}</div>
+          ${r.invoiceDate?`<div style="font-size:11px;color:var(--muted)">Invoice: ${r.invoiceDate}</div>`:''}
+          <div style="margin-top:6px">${codes.map(c=>`<span class="tag">${c}</span>`).join('')}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>
+          ${r.notes?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${r.notes}</div>`:''}
+          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}</div>`:''}
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            ${isAdmin()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+            ${isPriv()&&r.status==='submitted'&&r.userId!==currentUser?.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}
+            ${!isAdmin()&&r.status==='submitted'&&r.userId===currentUser?.uid?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   });
 }
 window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
 window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
 $('lightbox').onclick=()=>hide('lightbox');
-
-// DELETE receipt
 window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
+window._markEntry=async(id,type)=>{
+  const today=new Date().toISOString().slice(0,10);
+  const field=type==='qb'?'qbEntryDate':'dbEntryDate';
+  await updateDoc(doc(db,'receipts',id),{[field]:today});
+};
 
-// EDIT receipt
+// ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
+fillAllCodesDropdown('rm-code-pick');
+$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});show('receipt-modal')};
+window._rmRemove=i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)};
+$('rm-project').onchange=()=>fillRoomDropdown('rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
+$('rm-code-pick').onchange=()=>{
+  const v=$('rm-code-pick').value;if(!v)return;
+  if(!rmSelectedCodes.includes(v)){rmSelectedCodes.push(v);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)}
+  $('rm-code-pick').value='';
+};
+$('rm-cancel').onclick=()=>{hide('receipt-modal');resetRM()};
+$('rm-upload-zone').onclick=()=>$('rm-file').click();
+$('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview')};r.readAsDataURL(f)}};
+function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)})}
+$('rm-submit').onclick=async()=>{
+  const pid=$('rm-project').value,amt=$('rm-amount').value,rm=$('rm-room').value;
+  if(!pid||!amt||!rm){$('rm-err').textContent='Project, amount, and room are required.';return}
+  if(!rmSelectedCodes.length){$('rm-err').textContent='Select at least one cost code.';return}
+  $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
+  const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
+  if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
+  const autoApprove=isAdmin();
+  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor:$('rm-vendor').value,notes:$('rm-notes').value,imageUrl,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
+};
+function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
+
+// ── VENDOR BILL (bookkeeper/admin) ────────────────────────────────────────────
+fillAllCodesDropdown('bm-code-pick');
+$('new-bill-btn').onclick=async()=>{
+  bmSelectedCodes=[];renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove);
+  $('bm-project').innerHTML='<option value="">Select project...</option>';
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('bm-project').appendChild(o)});
+  ['bm-vendor','bm-amount','bm-notes'].forEach(id=>$(id).value='');
+  $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';
+  $('bm-billnum').value='';$('bm-err').textContent='';
+  fillRoomDropdown('bm-room',null);
+  show('bill-modal');
+};
+window._bmRemove=i=>{bmSelectedCodes.splice(i,1);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)};
+$('bm-project').onchange=async()=>{
+  const pid=$('bm-project').value;
+  const proj=activeProjects.find(p=>p.id===pid);
+  fillRoomDropdown('bm-room',proj);
+  if(!pid){$('bm-billnum').value='';return}
+  // auto-generate bill number
+  const prefix=proj?.billPrefix||autoPrefix(proj?.name||'');
+  const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid),where('billType','==','bill')));
+  const next=String(snap.size+1).padStart(3,'0');
+  $('bm-billnum').value=prefix+'-'+next;
+};
+$('bm-code-pick').onchange=()=>{
+  const v=$('bm-code-pick').value;if(!v)return;
+  if(!bmSelectedCodes.includes(v)){bmSelectedCodes.push(v);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)}
+  $('bm-code-pick').value='';
+};
+$('bm-cancel').onclick=()=>hide('bill-modal');
+$('bm-save').onclick=async()=>{
+  const pid=$('bm-project').value,amt=$('bm-amount').value,vnd=$('bm-vendor').value,idate=$('bm-invoicedate').value;
+  if(!pid||!amt||!vnd||!idate){$('bm-err').textContent='Project, vendor, amount, and invoice date are required.';return}
+  if(!bmSelectedCodes.length){$('bm-err').textContent='Select at least one cost code.';return}
+  $('bm-save').disabled=true;$('bm-save').textContent='Saving...';
+  const proj=activeProjects.find(p=>p.id===pid);
+  try{
+    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
+    hide('bill-modal');
+  }catch(e){$('bm-err').textContent='Save failed: '+e.message}
+  $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';
+};
+
+// ── EDIT RECEIPT / BILL ───────────────────────────────────────────────────────
+fillAllCodesDropdown('er-code-pick');
 let editingReceiptId=null;
 window._er=id=>{
   const receipts=window._allReceipts||[];
   const r=receipts.find(x=>x.id===id);if(!r)return;
   editingReceiptId=id;
-  // populate project dropdown
-  const ep=$('er-project');ep.innerHTML='<option value="">Select project...</option>';activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
+  erSelectedCodes=[...(r.costCodes||[r.scope].filter(Boolean))];
+  const ep=$('er-project');ep.innerHTML='<option value="">Select project...</option>';
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
-  const proj=allProjects.find(p=>p.id===r.projectId);
-  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
-  $('er-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('er-scope').appendChild(o)});
-  $('er-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('er-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('er-room').appendChild(na);
-  $('er-scope').value=r.scope||'';$('er-room').value=r.room||'';
-  $('er-amount').value=r.amount||'';$('er-vendor').value=r.vendor||'';$('er-notes').value=r.notes||'';$('er-status').value=r.status||'submitted';
+  fillRoomDropdown('er-room',allProjects.find(p=>p.id===r.projectId));
+  $('er-room').value=r.room||'';
+  $('er-amount').value=r.amount||'';$('er-vendor').value=r.vendor||'';$('er-notes').value=r.notes||'';
+  $('er-status').value=r.status||'submitted';$('er-invoicedate').value=r.invoiceDate||'';
+  $('er-qbdate').value=r.qbEntryDate||'';$('er-dbdate').value=r.dbEntryDate||'';
+  renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove);
   $('er-err').textContent='';show('edit-receipt-modal');
 };
-$('er-project').onchange=()=>{const proj=allProjects.find(p=>p.id===$('er-project').value);const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;$('er-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('er-scope').appendChild(o)});$('er-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('er-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('er-room').appendChild(na)};
+window._erRemove=i=>{erSelectedCodes.splice(i,1);renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove)};
+$('er-code-pick').onchange=()=>{
+  const v=$('er-code-pick').value;if(!v)return;
+  if(!erSelectedCodes.includes(v)){erSelectedCodes.push(v);renderCodeChips('er-codes-chips',erSelectedCodes,window._erRemove)}
+  $('er-code-pick').value='';
+};
+$('er-project').onchange=()=>fillRoomDropdown('er-room',allProjects.find(p=>p.id===$('er-project').value));
 $('er-cancel').onclick=()=>hide('edit-receipt-modal');
 $('er-save').onclick=async()=>{
-  const pid=$('er-project').value,sc=$('er-scope').value,rm=$('er-room').value,amt=$('er-amount').value;
-  if(!pid||!sc||!rm||!amt){$('er-err').textContent='Project, scope, room and amount required.';return}
+  const pid=$('er-project').value,rm=$('er-room').value,amt=$('er-amount').value;
+  if(!pid||!amt){$('er-err').textContent='Project and amount required.';return}
   $('er-save').disabled=true;$('er-save').textContent='Saving...';
   const proj=allProjects.find(p=>p.id===pid);
-  try{await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,scope:sc,room:rm,amount:parseFloat(amt),vendor:$('er-vendor').value,notes:$('er-notes').value,status:$('er-status').value,updatedAt:serverTimestamp()});hide('edit-receipt-modal')}catch(e){$('er-err').textContent='Save failed: '+e.message}
+  try{
+    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor:$('er-vendor').value,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,updatedAt:serverTimestamp()});
+    hide('edit-receipt-modal');
+  }catch(e){$('er-err').textContent='Save failed: '+e.message}
   $('er-save').disabled=false;$('er-save').textContent='Save Changes';
 };
 
-// DELETE time log
+// ── EDIT TIME LOG ─────────────────────────────────────────────────────────────
+fillCatDropdown('et-cat');
 window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
-
-// EDIT time log
 let editingTimeId=null;
 window._et=id=>{
-  const rows=window._allTimeLogs||[];
-  const r=rows.find(x=>x.id===id);if(!r)return;
+  const rows=window._allTimeLogs||[];const r=rows.find(x=>x.id===id);if(!r)return;
   editingTimeId=id;
-  const ep=$('et-project');ep.innerHTML='<option value="">Select project...</option>';allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
+  const ep=$('et-project');ep.innerHTML='<option value="">Select project...</option>';
+  allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
-  const proj=allProjects.find(p=>p.id===r.projectId);
-  const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;
-  $('et-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('et-scope').appendChild(o)});
-  $('et-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('et-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('et-room').appendChild(na);
-  $('et-scope').value=r.scope||'';$('et-room').value=r.room||'';
+  fillRoomDropdown('et-room',allProjects.find(p=>p.id===r.projectId));
+  // populate cat/code
+  const existingCat=r.costCodeCategory||'';const existingCode=r.costCode||r.scope||'';
+  $('et-cat').value=existingCat;
+  fillCodeDropdown('et-code',existingCat);
+  $('et-code').value=existingCode;
+  $('et-room').value=r.room||'';
   const toLocal=ts=>{if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);const off=d.getTimezoneOffset()*60000;return new Date(d-off).toISOString().slice(0,16)};
   $('et-clockin').value=toLocal(r.clockIn);$('et-clockout').value=r.clockOut?toLocal(r.clockOut):'';
   $('et-notes').value=r.notes||'';$('et-err').textContent='';show('edit-time-modal');
 };
-$('et-project').onchange=()=>{const proj=allProjects.find(p=>p.id===$('et-project').value);const sc=proj?.scopes||DEF_SCOPES,rm=proj?.rooms||DEF_ROOMS;$('et-scope').innerHTML='<option value="">Select...</option>';sc.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('et-scope').appendChild(o)});$('et-room').innerHTML='<option value="">Select...</option>';rm.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('et-room').appendChild(o)});const na=document.createElement('option');na.value='N/A';na.textContent='N/A';$('et-room').appendChild(na)};
+$('et-cat').onchange=()=>fillCodeDropdown('et-code',$('et-cat').value);
+$('et-project').onchange=()=>fillRoomDropdown('et-room',allProjects.find(p=>p.id===$('et-project').value));
 $('et-cancel').onclick=()=>hide('edit-time-modal');
 $('et-save').onclick=async()=>{
-  const pid=$('et-project').value,sc=$('et-scope').value,rm=$('et-room').value,ci=$('et-clockin').value;
-  if(!pid||!sc||!rm||!ci){$('et-err').textContent='Project, scope, room and clock-in required.';return}
+  const pid=$('et-project').value,cat=$('et-cat').value,code=$('et-code').value,rm=$('et-room').value,ci=$('et-clockin').value;
+  if(!pid||!cat||!code||!rm||!ci){$('et-err').textContent='Project, cost category, cost code, room, and clock-in are required.';return}
   $('et-save').disabled=true;$('et-save').textContent='Saving...';
   const proj=allProjects.find(p=>p.id===pid);
   const ciDate=new Date($('et-clockin').value),coVal=$('et-clockout').value,coDate=coVal?new Date(coVal):null;
   const durationMs=coDate?coDate-ciDate:null;
-  try{await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,scope:sc,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});hide('edit-time-modal')}catch(e){$('et-err').textContent='Save failed: '+e.message}
+  try{
+    await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});
+    hide('edit-time-modal');
+  }catch(e){$('et-err').textContent='Save failed: '+e.message}
   $('et-save').disabled=false;$('et-save').textContent='Save Changes';
 };
 
-$('new-receipt-btn').onclick=()=>show('receipt-modal');
-$('rm-cancel').onclick=()=>{hide('receipt-modal');resetRM()};
-$('rm-upload-zone').onclick=()=>$('rm-file').click();
-$('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview')};r.readAsDataURL(f)}};
-function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)});}
-$('rm-submit').onclick=async()=>{
-  const pid=$('rm-project').value,sc=$('rm-scope').value,amt=$('rm-amount').value,rm=$('rm-room').value;
-  const vendorSel=$('rm-vendor').value,newVendorVal=$('rm-new-vendor').value.trim();
-  const vendorName=vendorSel==='__new__'?newVendorVal:vendorSel;
-  if(!pid||!sc||!amt||!rm){$('rm-err').textContent='Project, scope, room, and amount required.';return}
-  if(!vendorName){$('rm-err').textContent='Please select a vendor or enter a new vendor name.';return}
-  $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
-  const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
-  if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
-  const autoApprove=isAdmin();
-  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,scope:sc,room:$('rm-room').value,amount:parseFloat(amt),vendor:vendorName,notes:$('rm-notes').value,imageUrl,status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
-  if(vendorSel==='__new__'&&newVendorVal){const vref=doc(db,'settings','vendors');const vs=await getDoc(vref);const vdata=vs.data()||{};const pending=[...(vdata.pending||[])];if(!pending.includes(newVendorVal)&&!(vdata.approved||[]).includes(newVendorVal))pending.push(newVendorVal);await setDoc(vref,{...vdata,pending})}
-  hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
-};
-function resetRM(){['rm-project','rm-scope','rm-room'].forEach(id=>$(id).value='');['rm-amount','rm-vendor','rm-notes'].forEach(id=>$(id).value='');$('rm-new-vendor').value='';hide('new-vendor-field');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null}
+// ── REPORTS ───────────────────────────────────────────────────────────────────
+// populate report category filter
+COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;$('rpt-cat').appendChild(o)});
 
-// REPORTS
-$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on')};
-$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on')};
+$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+
 $('rpt-run-btn').onclick=async()=>{
+  const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value;
+  if(!pid&&!fr&&!to){alert('Select at least a project or a date range before running.');return}
   $('rpt-run-btn').disabled=true;$('rpt-run-btn').textContent='Running...';$('rpt-results').innerHTML='<div class="empty">Loading...</div>';
-  const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value,col=currentRptType==='time'?'timeLogs':'receipts',tf=currentRptType==='time'?'clockIn':'submittedAt';
+  const col=currentRptType==='time'?'timeLogs':'receipts';
+  const tf=currentRptType==='time'?'clockIn':'submittedAt';
   let c=[];
-  if(pid)c=[...c,where('projectId','==',pid)];
-  if(fr)c=[...c,where(tf,'>=',Timestamp.fromDate(new Date(fr)))];
-  if(to){const e=new Date(to);e.setDate(e.getDate()+1);c=[...c,where(tf,'<=',Timestamp.fromDate(e))]}
-  try{const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});const tf2=currentRptType==='time'?'clockIn':'submittedAt';const sorted=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const at=a[tf2]?.toDate?.()?.getTime()||0,bt=b[tf2]?.toDate?.()?.getTime()||0;return bt-at});renderReport(sorted)}catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
-  $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run';
-};
-function renderReport(data){
-  if(!data.length){$('rpt-results').innerHTML='<div class="empty">No records found.</div>';return}
-  const it=currentRptType==='time';
-  let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;color:var(--muted)">${data.length} records</span><button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button></div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
-  h+=it?'<th>Employee</th><th>Project</th><th>Scope</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th>':'<th>Date</th><th>By</th><th>Project</th><th>Scope</th><th>Amount</th><th>Vendor</th><th>Status</th>';
-  h+='</tr></thead><tbody>';
-  data.forEach(r=>{h+=it?`<tr><td>${r.userName||'--'}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span></td><td>${r.room||'--'}</td><td style="font-size:12px">${fmtTs(r.clockIn)}</td><td style="font-size:12px">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td><td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td><td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td></tr>`:`<tr><td style="font-size:12px">${fmtDate(r.submittedAt)}</td><td>${r.submittedByName||'--'}</td><td>${r.projectName||'--'}</td><td><span class="tag">${r.scope||''}</span></td><td style="font-weight:600">$${parseFloat(r.amount||0).toFixed(2)}</td><td>${r.vendor||'--'}</td><td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td></tr>`});
-  h+='</tbody></table></div>';$('rpt-results').innerHTML=h;window._rptData=data;window._rptType=currentRptType;
-}
-window._csv=()=>{
-  const data=window._rptData||[],it=window._rptType==='time';
-  const headers=it?['Date','Employee','Project','Scope','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']:['Date','Submitted By','Project','Scope','Room','Amount','Vendor','Status','Reviewed By','Notes','Receipt URL'];
-  const rows=data.map(r=>it?[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,r.scope,r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'']:[r.submittedAt?.toDate?.()?.toLocaleDateString()||'',r.submittedByName,r.projectName,r.scope,r.room||'',r.amount,r.vendor||'',r.status,r.reviewedBy||'',r.notes||'',r.imageUrl||'']);
-  const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
-  const fr2=$('rpt-from').value,to2=$('rpt-to').value;
-  let datePart='';
-  if(fr2&&to2)datePart=fr2+'_to_'+to2;
-  else if(fr2)datePart='from_'+fr2;
-  else if(to2)datePart='through_'+to2;
-  else datePart=new Date().toISOString().slice(0,10);
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'timelog':'receipts')+'_'+datePart+'.csv';a.click();
+  if(pid)c.push(where('projectId','==',pid));
+  if(fr)c.push(where(tf,'>=',Timestamp.fromDate(new Date(fr))));
+  if(to){const e=new Date(to);e.setDate(e.getDate()+1);c.push(where(tf,'<=',Timestamp.fromDate(e)))}
+  try{
+    const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});
+    _rptRawData=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _rptType=currentRptType;
+    applyReportFilters();
+  }catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
+  $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run Report';
+
+  // populate secondary filters from result set
+  populateSecondaryFilters(_rptRawData);
 };
 
-// ADMIN - PROJECTS
+function populateSecondaryFilters(data){
+  // employee
+  const employees=[...new Set(data.map(r=>r.userName||r.submittedByName||'').filter(Boolean))].sort();
+  const empSel=$('rpt-employee');const ev=empSel.value;empSel.innerHTML='<option value="">All Employees</option>';employees.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;empSel.appendChild(o)});empSel.value=ev;
+  // rooms
+  const rooms=[...new Set(data.map(r=>r.room||'').filter(Boolean))].sort();
+  const rmSel=$('rpt-room');const rv=rmSel.value;rmSel.innerHTML='<option value="">All Rooms</option>';rooms.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;rmSel.appendChild(o)});rmSel.value=rv;
+}
+
+// secondary filters apply client-side
+['rpt-employee','rpt-cat','rpt-room'].forEach(id=>$(id).onchange=applyReportFilters);
+
+function applyReportFilters(){
+  if(!_rptRawData.length)return;
+  const emp=$('rpt-employee').value;
+  const cat=$('rpt-cat').value;
+  const room=$('rpt-room').value;
+  let data=[..._rptRawData];
+  if(emp)data=data.filter(r=>(r.userName||r.submittedByName||'')=== emp);
+  if(room)data=data.filter(r=>r.room===room);
+  if(cat){
+    if(_rptType==='time')data=data.filter(r=>r.costCodeCategory===cat);
+    else data=data.filter(r=>(r.costCodes||[]).some(c=>{const entry=COST_CODES.find(x=>x.code===c);return entry?.cat===cat}));
+  }
+  // show active filter summary
+  const parts=[];
+  if(emp)parts.push('Employee: '+emp);
+  if(cat)parts.push('Category: '+cat);
+  if(room)parts.push('Room: '+room);
+  $('rpt-active-filters').textContent=parts.length?'Filtered by: '+parts.join(' · '):'';
+  renderReport(data);
+}
+
+function renderReport(data){
+  if(!data.length){$('rpt-results').innerHTML='<div class="empty">No records match the current filters.</div>';window._rptData=[];return}
+  const it=_rptType==='time';
+  // totals
+  let totalsHtml='';
+  if(it){const totalMs=data.reduce((s,r)=>s+(r.durationMs||0),0);totalsHtml=`<div style="font-size:13px;color:var(--muted)">Total hours: <strong style="color:var(--ink)">${fmtDur(totalMs)}</strong></div>`}
+  else{const totalAmt=data.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);totalsHtml=`<div style="font-size:13px;color:var(--muted)">Total amount: <strong style="color:var(--ink)">$${totalAmt.toFixed(2)}</strong></div>`}
+
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:16px;align-items:center"><span style="font-size:13px;color:var(--muted)">${data.length} records</span>${totalsHtml}</div>
+    <button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>
+  </div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
+  if(it){
+    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th>';
+  }else{
+    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th>';
+  }
+  h+='</tr></thead><tbody>';
+  data.forEach(r=>{
+    if(it){
+      h+=`<tr>
+        <td style="white-space:nowrap">${fmtDate(r.clockIn)}</td>
+        <td>${r.userName||'--'}</td>
+        <td>${r.projectName||'--'}</td>
+        <td style="font-size:11px">${r.costCodeCategory||r.scope||'--'}</td>
+        <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||'--'}</span></td>
+        <td>${r.room||'--'}</td>
+        <td style="font-size:12px;white-space:nowrap">${fmtTs(r.clockIn)}</td>
+        <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
+        <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
+        <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
+      </tr>`;
+    }else{
+      const codes=(r.costCodes||[r.scope]).filter(Boolean);
+      h+=`<tr>
+        <td style="white-space:nowrap">${fmtDate(r.submittedAt||r.createdAt)}</td>
+        <td style="font-size:11px">${r.billNumber||'--'}</td>
+        <td>${r.billType==='bill'?'<span class="badge bill">Bill</span>':'Receipt'}</td>
+        <td>${r.submittedByName||'--'}</td>
+        <td>${r.projectName||'--'}</td>
+        <td style="font-size:11px">${codes.map(c=>'<span class="tag">'+c+'</span>').join('')}</td>
+        <td>${r.room||'--'}</td>
+        <td style="font-weight:600">$${parseFloat(r.amount||0).toFixed(2)}</td>
+        <td>${r.vendor||'--'}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.invoiceDate||'--'}</td>
+        <td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td>
+        <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
+        <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
+      </tr>`;
+    }
+  });
+  h+='</tbody></table></div>';
+  $('rpt-results').innerHTML=h;
+  window._rptData=data;
+}
+
+window._csv=()=>{
+  const data=window._rptData||[];const it=_rptType==='time';
+  const headers=it
+    ?['Date','Employee','Project','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']
+    :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Notes','Receipt URL'];
+  const rows=data.map(r=>it
+    ?[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'']
+    :[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.notes||'',r.imageUrl||'']);
+  const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+};
+
+// ── ADMIN — PROJECTS ──────────────────────────────────────────────────────────
 function renderProjectsList(){
   const el=$('projects-list');
   if(!allProjects.length){el.innerHTML='<div class="empty">No projects.</div>';return}
-  el.innerHTML=allProjects.map(p=>`<div class="list-row"><div><div style="font-weight:600">${p.name}</div><div style="font-size:12px;color:var(--muted)">${p.address||''} - ${(p.scopes||[]).length} scopes, ${(p.rooms||[]).length} rooms</div></div><div style="display:flex;gap:8px;flex-shrink:0"><button class="btn btn-outline btn-sm" onclick="window._ep('${p.id}')">Edit</button><button class="btn btn-sm" style="background:${p.active!==false?'var(--cream)':'#d4edd9'};color:${p.active!==false?'var(--muted)':'var(--green)'};border:1px solid var(--border)" onclick="window._tp('${p.id}',${p.active!==false})">${p.active!==false?'Archive':'Activate'}</button><button class="btn btn-red btn-sm" onclick="window._dp('${p.id}')">Delete</button></div></div>`).join('');
+  el.innerHTML=allProjects.map(p=>`<div class="list-row">
+    <div>
+      <div style="font-weight:600">${p.name}</div>
+      <div style="font-size:12px;color:var(--muted)">${p.address||''} · Prefix: ${p.billPrefix||autoPrefix(p.name)} · ${(p.rooms||[]).length} rooms</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button class="btn btn-outline btn-sm" onclick="window._ep('${p.id}')">Edit</button>
+      <button class="btn btn-sm" style="background:${p.active!==false?'var(--cream)':'#d4edd9'};color:${p.active!==false?'var(--muted)':'var(--green)'};border:1px solid var(--border)" onclick="window._tp('${p.id}',${p.active!==false})">${p.active!==false?'Archive':'Activate'}</button>
+    </div>
+  </div>`).join('');
 }
 window._tp=async(id,active)=>updateDoc(doc(db,'projects',id),{active:!active});
-window._dp=async(id)=>{if(!confirm('Delete this project permanently? This cannot be undone.'))return;try{await deleteDoc(doc(db,'projects',id))}catch(e){alert('Delete failed: '+e.message)}};
 window._ep=id=>{
   const p=allProjects.find(x=>x.id===id);if(!p)return;
-  editingProjectId=id;$('pm-title').textContent='Edit Project';$('pm-name').value=p.name||'';$('pm-address').value=p.address||'';$('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
-  pmScopes=[...(p.scopes||DEF_SCOPES)];pmRooms=[...(p.rooms||DEF_ROOMS)];renderChips();updateGeoNote();show('project-modal');
+  editingProjectId=id;$('pm-title').textContent='Edit Project';
+  $('pm-name').value=p.name||'';$('pm-address').value=p.address||'';
+  $('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
+  $('pm-prefix').value=p.billPrefix||autoPrefix(p.name||'');
+  pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();updateGeoNote();show('project-modal');
 };
-$('new-project-btn').onclick=()=>{editingProjectId=null;$('pm-title').textContent='New Project';['pm-name','pm-address','pm-lat','pm-lng'].forEach(id=>$(id).value='');$('pm-err').textContent='';pmScopes=[...DEF_SCOPES];pmRooms=[...DEF_ROOMS];renderChips();updateGeoNote();show('project-modal')};
+$('new-project-btn').onclick=()=>{
+  editingProjectId=null;$('pm-title').textContent='New Project';
+  ['pm-name','pm-address','pm-lat','pm-lng','pm-prefix'].forEach(id=>$(id).value='');
+  $('pm-err').textContent='';pmRooms=[...DEF_ROOMS];renderRoomChips();updateGeoNote();show('project-modal');
+};
+$('pm-name').oninput=()=>{if(!editingProjectId)$('pm-prefix').value=autoPrefix($('pm-name').value)};
 $('pm-cancel').onclick=()=>hide('project-modal');
 $('pm-geocode-btn').onclick=async()=>{
   const addr=$('pm-address').value;if(!addr)return;$('pm-geocode-btn').textContent='...';
   try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr));const d=await r.json();if(d[0]){$('pm-lat').value=parseFloat(d[0].lat).toFixed(6);$('pm-lng').value=parseFloat(d[0].lon).toFixed(6);updateGeoNote()}else alert('Address not found - enter coordinates manually.')}catch(e){alert('Geocoding failed - enter coordinates manually.')}
   $('pm-geocode-btn').textContent='Get Coords';
 };
-function updateGeoNote(){const la=$('pm-lat').value,lo=$('pm-lng').value;$('pm-geo-note').textContent=la&&lo?'Geofence set - 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':''}
+function updateGeoNote(){const la=$('pm-lat').value,lo=$('pm-lng').value;$('pm-geo-note').textContent=la&&lo?'Geofence set — 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':''}
 $('pm-lat').oninput=$('pm-lng').oninput=updateGeoNote;
-function renderChips(){
-  $('pm-scopes').innerHTML=pmScopes.map((s,i)=>`<button class="chip" onclick="window._rs(${i})">${s} x</button>`).join('');
-  $('pm-rooms').innerHTML=pmRooms.map((r,i)=>`<button class="chip" onclick="window._rr(${i})">${r} x</button>`).join('');
-}
-window._rs=i=>{pmScopes.splice(i,1);renderChips()};
-window._rr=i=>{pmRooms.splice(i,1);renderChips()};
-$('pm-add-scope-btn').onclick=()=>{const v=$('pm-new-scope').value.trim();if(v){pmScopes.push(v);$('pm-new-scope').value='';renderChips()}};
-$('pm-add-room-btn').onclick=()=>{const v=$('pm-new-room').value.trim();if(v){pmRooms.push(v);$('pm-new-room').value='';renderChips()}};
+function renderRoomChips(){$('pm-rooms').innerHTML=pmRooms.map((r,i)=>`<button class="chip" onclick="window._rr(${i})">${r} ×</button>`).join('')}
+window._rr=i=>{pmRooms.splice(i,1);renderRoomChips()};
+$('pm-add-room-btn').onclick=()=>{const v=$('pm-new-room').value.trim();if(v){pmRooms.push(v);$('pm-new-room').value='';renderRoomChips()}};
 $('pm-save').onclick=async()=>{
   const name=$('pm-name').value.trim();if(!name){$('pm-err').textContent='Project name required.';return}
+  const prefix=($('pm-prefix').value.trim()||autoPrefix(name)).toUpperCase();
   $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
-  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,scopes:pmScopes,rooms:pmRooms,active:true,updatedAt:serverTimestamp()};
-  try{if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});hide('project-modal')}catch(e){$('pm-err').textContent='Save failed: '+e.message}
+  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,active:true,updatedAt:serverTimestamp()};
+  try{
+    if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);
+    else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});
+    hide('project-modal');
+  }catch(e){$('pm-err').textContent='Save failed: '+e.message}
   $('pm-save').disabled=false;$('pm-save').textContent='Save Project';
 };
 
-// ADMIN - USERS
+// ── ADMIN — USERS ─────────────────────────────────────────────────────────────
 function loadUsers(){
   onSnapshot(collection(db,'users'),snap=>{
     const users=snap.docs.map(d=>({id:d.id,...d.data()}));
     const el=$('users-list');
     if(!users.length){el.innerHTML='<div class="empty">No users found.</div>';return}
-    el.innerHTML=users.map(u=>`<div class="list-row"><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${ini(u.name)}</div><div><div style="font-weight:500">${u.name||'--'}</div><div style="font-size:12px;color:var(--muted)">${u.email||''}</div></div></div><div style="display:flex;align-items:center;gap:8px"><select class="role-sel" onchange="window._ur('${u.id}',this.value)"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="bookkeeper" ${u.role==='bookkeeper'?'selected':''}>Bookkeeper</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select><button class="btn btn-red btn-sm" onclick="window._du('${u.id}','${u.name}')">Delete</button></div></div>`).join('');
+    el.innerHTML=users.map(u=>`<div class="list-row"><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${ini(u.name)}</div><div><div style="font-weight:500">${u.name||'--'}</div><div style="font-size:12px;color:var(--muted)">${u.email||''}</div></div></div><select class="role-sel" onchange="window._ur('${u.id}',this.value)"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="bookkeeper" ${u.role==='bookkeeper'?'selected':''}>Bookkeeper</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></div>`).join('');
   });
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
-window._du=async(id,name)=>{if(!confirm('Delete user '+name+'? This removes their profile but does not delete their login. Use Firebase Console to remove their login if needed.'))return;try{await deleteDoc(doc(db,'users',id))}catch(e){alert('Delete failed: '+e.message)}};
-
-// ADD USER MODAL
-$('new-user-btn').onclick=()=>{
-  ['um-name','um-email'].forEach(id=>$(id).value='');
-  $('um-role').value='user';
-  $('um-err').textContent='';
-  hide('um-success');
-  show('user-modal');
-};
+$('new-user-btn').onclick=()=>{['um-name','um-email'].forEach(id=>$(id).value='');$('um-role').value='user';$('um-err').textContent='';hide('um-success');show('user-modal')};
 $('um-cancel').onclick=()=>hide('user-modal');
 $('um-save').onclick=async()=>{
-  const name=$('um-name').value.trim();
-  const email=$('um-email').value.trim().toLowerCase();
-  const role=$('um-role').value;
-  if(!name||!email){$('um-err').textContent='Name and email are required.';return;}
-  if(!email.includes('@')){$('um-err').textContent='Enter a valid email address.';return;}
+  const name=$('um-name').value.trim(),email=$('um-email').value.trim().toLowerCase(),role=$('um-role').value;
+  if(!name||!email){$('um-err').textContent='Name and email are required.';return}
+  if(!email.includes('@')){$('um-err').textContent='Enter a valid email address.';return}
   $('um-save').disabled=true;$('um-save').textContent='Sending invite...';
   try{
     const inviteUser=httpsCallable(functions,'inviteUser');
     await inviteUser({name,email,role});
-    $('um-err').textContent='';
-    $('um-success').textContent='Invite sent to '+email+'. They will receive an email with a link to set their password.';
-    show('um-success');
+    $('um-err').textContent='';$('um-success').textContent='Invite sent to '+email+'. They will receive an email with a link to set their password.';show('um-success');
     $('um-name').value='';$('um-email').value='';
-  }catch(e){$('um-err').textContent='Invite failed: '+(e.message||'Unknown error');}
+  }catch(e){$('um-err').textContent='Invite failed: '+(e.message||'Unknown error')}
   $('um-save').disabled=false;$('um-save').textContent='Send Invite';
 };
 
-// NAV
+// ── NAV ───────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
-    document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));
-    tab.classList.add('active');
-    ['clock','receipts','reports','admin'].forEach(x=>{const el=$(('tab-'+x));if(el){el.id==='tab-'+t?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
+    ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin')loadUsers();
   }
 });
-// VENDORS
-let approvedVendors=[];
-function loadVendors(){
-  onSnapshot(doc(db,'settings','vendors'),snap=>{
-    const data=snap.data()||{};
-    approvedVendors=(data.approved||[]).slice().sort((a,b)=>a.localeCompare(b));
-    const pending=data.pending||[];
-    // Update receipt vendor dropdown
-    const sel=$('rm-vendor');const cur=sel.value;
-    sel.innerHTML='<option value="">Select vendor...</option>';
-    approvedVendors.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o)});
-    const oth=document.createElement('option');oth.value='__new__';oth.textContent='Other / New Vendor...';sel.appendChild(oth);
-    sel.value=cur||'';
-    // Update approved vendors list in admin
-    const al=$('approved-vendors-list');
-    al.innerHTML=approvedVendors.length?approvedVendors.map((v,i)=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><button class="btn btn-red btn-sm" onclick="window._dv(${i})" style="flex-shrink:0">Remove</button></div>`).join(''):'<div class="empty">No vendors yet.</div>';
-    // Update pending vendors list
-    const pl=$('pending-vendors-list');
-    pl.innerHTML=pending.length?pending.map((v,i)=>`<div class="list-row" style="padding:8px 0"><span>${v}</span><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-green btn-sm" onclick="window._av(${i})">Approve</button><button class="btn btn-red btn-sm" onclick="window._pv(${i})">Decline</button></div></div>`).join(''):'<div class="empty">No pending vendors.</div>';
-    // Badge
-    const badge=$('vendors-pending-badge');
-    if(pending.length){badge.textContent=pending.length;badge.classList.remove('hidden')}else badge.classList.add('hidden');
-  });
-}
-$('rm-vendor').onchange=()=>{
-  if($('rm-vendor').value==='__new__'){show('new-vendor-field')}else{hide('new-vendor-field');$('rm-new-vendor').value=''}
-};
-window._dv=async(i)=>{
-  const v=approvedVendors[i];if(!v)return;
-  if(!confirm('Remove "'+v+'" from approved vendors?'))return;
-  const ref=doc(db,'settings','vendors');
-  const snap=await getDoc(ref);const data=snap.data()||{};
-  const updated=(data.approved||[]).filter(x=>x!==v);
-  await setDoc(ref,{...data,approved:updated});
-};
-window._av=async(i)=>{
-  const ref=doc(db,'settings','vendors');
-  const snap=await getDoc(ref);const data=snap.data()||{};
-  const pending=data.pending||[];const v=pending[i];if(!v)return;
-  const approved=[...(data.approved||[]),v];
-  const newPending=pending.filter(x=>x!==v);
-  await setDoc(ref,{...data,approved,pending:newPending});
-};
-window._pv=async(i)=>{
-  const ref=doc(db,'settings','vendors');
-  const snap=await getDoc(ref);const data=snap.data()||{};
-  const pending=data.pending||[];const v=pending[i];if(!v)return;
-  const newPending=pending.filter(x=>x!==v);
-  await setDoc(ref,{...data,pending:newPending});
-};
-$('add-vendor-btn').onclick=async()=>{
-  const v=$('new-vendor-input').value.trim();
-  if(!v)return;
-  const ref=doc(db,'settings','vendors');
-  const snap=await getDoc(ref);const data=snap.data()||{};
-  const approved=[...(data.approved||[])];
-  if(!approved.includes(v))approved.push(v);
-  await setDoc(ref,{...data,approved});
-  $('new-vendor-input').value='';
-};
-$('adm-vendors-btn').onclick=()=>{
-  ['adm-projects-panel','adm-users-panel'].forEach(x=>hide(x));show('adm-vendors-panel');
-  ['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));
-  $('adm-vendors-btn').classList.add('on');
-};
-
-$('adm-proj-btn').onclick=()=>{['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));$('adm-proj-btn').classList.add('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel')};
-$('adm-users-btn').onclick=()=>{['adm-proj-btn','adm-users-btn','adm-vendors-btn'].forEach(x=>$(x).classList.remove('on'));$('adm-users-btn').classList.add('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel')};
+$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel')};
+$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel')};
 </script>
 </body>
 </html>

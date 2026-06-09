@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://maps.googleapis.com https://maps.gstatic.com https://*.ggpht.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
 <title>MOTIF — Times &amp; Receipts</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDiIA5AF5jVmEidKMRm1o1mpSWUn80kAdw&libraries=places"></script>
 <style>
 :root{--ink:#1a1714;--gold:#b89a6a;--cream:#f7f3ee;--surface:#fff;--border:#e8e0d6;--muted:#8a7f74;--green:#4a7c59;--red:#8b3a3a;--amber:#b87a2a}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -341,15 +342,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
     <div class="field"><label>Job Site Address</label>
       <div style="display:flex;gap:8px">
-        <input type="text" id="pm-address" placeholder="123 Main St, Littleton CO" style="flex:1">
-        <button class="btn btn-outline btn-sm" id="pm-geocode-btn">Get Coords</button>
+        <input type="text" id="pm-address" placeholder="Start typing address..." style="flex:1" autocomplete="off">
+        <button class="btn btn-outline btn-sm" id="pm-geocode-btn">Search</button>
       </div>
+      <div id="pm-autocomplete-list" style="position:relative;z-index:300"></div>
     </div>
-    <div class="row2">
+    <div id="pm-map" style="width:100%;height:220px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:8px;display:none"></div>
+    <div id="pm-geo-note" style="font-size:12px;color:var(--green);margin-bottom:12px"></div>
+    <div class="row2" id="pm-coords-row" style="display:none">
       <div class="field"><label>Latitude</label><input type="number" step="any" id="pm-lat" placeholder="39.6133"></div>
       <div class="field"><label>Longitude</label><input type="number" step="any" id="pm-lng" placeholder="-105.0167"></div>
     </div>
-    <div id="pm-geo-note" style="font-size:12px;color:var(--green);margin-top:-8px;margin-bottom:12px"></div>
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Rooms (tap to remove)</div>
     <div class="chip-wrap" id="pm-rooms"></div>
@@ -1317,22 +1320,70 @@ window._ep=id=>{
   $('pm-name').value=p.name||'';$('pm-address').value=p.address||'';
   $('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
   $('pm-prefix').value=p.billPrefix||autoPrefix(p.name||'');
-  pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();updateGeoNote();show('project-modal');
+  pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();
+  if(p.lat&&p.lng){setTimeout(()=>initMapPicker(p.lat,p.lng),50)}else{hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent=''}
+  show('project-modal');
 };
 $('new-project-btn').onclick=()=>{
   editingProjectId=null;$('pm-title').textContent='New Project';
   ['pm-name','pm-address','pm-lat','pm-lng','pm-prefix'].forEach(id=>$(id).value='');
-  $('pm-err').textContent='';pmRooms=[...DEF_ROOMS];renderRoomChips();updateGeoNote();show('project-modal');
+  $('pm-err').textContent='';pmRooms=[...DEF_ROOMS];renderRoomChips();
+  hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent='';
+  show('project-modal');
 };
 $('pm-name').oninput=()=>{if(!editingProjectId)$('pm-prefix').value=autoPrefix($('pm-name').value)};
 $('pm-cancel').onclick=()=>hide('project-modal');
+// ── GOOGLE MAPS PICKER ───────────────────────────────────────────────────────
+let _map=null,_marker=null,_autocomplete=null;
+function initMapPicker(lat,lng){
+  const center={lat:lat||39.6133,lng:lng||-105.0167};
+  show('pm-map');
+  $('pm-coords-row').style.display='grid';
+  if(!_map){
+    _map=new google.maps.Map($('pm-map'),{center,zoom:lat?17:11,mapTypeId:'roadmap',streetViewControl:false,fullscreenControl:false,mapTypeControl:false});
+    _marker=new google.maps.Marker({map:_map,draggable:true,position:center});
+    _marker.addListener('dragend',e=>{
+      const la=e.latLng.lat().toFixed(6),lo=e.latLng.lng().toFixed(6);
+      $('pm-lat').value=la;$('pm-lng').value=lo;updateGeoNote();
+    });
+    _map.addListener('click',e=>{
+      const la=e.latLng.lat().toFixed(6),lo=e.latLng.lng().toFixed(6);
+      _marker.setPosition(e.latLng);
+      $('pm-lat').value=la;$('pm-lng').value=lo;updateGeoNote();
+    });
+  }else{
+    _map.setCenter(center);
+    _marker.setPosition(center);
+    if(lat)_map.setZoom(17);
+  }
+  if(lat){$('pm-lat').value=parseFloat(lat).toFixed(6);$('pm-lng').value=parseFloat(lng).toFixed(6);updateGeoNote();}
+}
 $('pm-geocode-btn').onclick=async()=>{
-  const addr=$('pm-address').value;if(!addr)return;$('pm-geocode-btn').textContent='...';
-  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr));const d=await r.json();if(d[0]){$('pm-lat').value=parseFloat(d[0].lat).toFixed(6);$('pm-lng').value=parseFloat(d[0].lon).toFixed(6);updateGeoNote()}else alert('Address not found - enter coordinates manually.')}catch(e){alert('Geocoding failed - enter coordinates manually.')}
-  $('pm-geocode-btn').textContent='Get Coords';
+  const addr=$('pm-address').value.trim();if(!addr)return;
+  $('pm-geocode-btn').disabled=true;$('pm-geocode-btn').textContent='...';
+  try{
+    const r=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=AIzaSyDiIA5AF5jVmEidKMRm1o1mpSWUn80kAdw`);
+    const d=await r.json();
+    if(d.results&&d.results[0]){
+      const loc=d.results[0].geometry.location;
+      $('pm-address').value=d.results[0].formatted_address;
+      initMapPicker(loc.lat,loc.lng);
+    }else{
+      alert('Address not found. Try a more specific address or drop the pin manually.');
+      initMapPicker(null,null);
+    }
+  }catch(e){alert('Geocoding failed. Check your connection.');initMapPicker(null,null);}
+  $('pm-geocode-btn').disabled=false;$('pm-geocode-btn').textContent='Search';
 };
-function updateGeoNote(){const la=$('pm-lat').value,lo=$('pm-lng').value;$('pm-geo-note').textContent=la&&lo?'Geofence set — 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':''}
-$('pm-lat').oninput=$('pm-lng').oninput=updateGeoNote;
+function updateGeoNote(){
+  const la=$('pm-lat').value,lo=$('pm-lng').value;
+  $('pm-geo-note').textContent=la&&lo?'&#10003; Geofence set — 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':'';
+}
+$('pm-lat').oninput=$('pm-lng').oninput=()=>{
+  updateGeoNote();
+  const la=parseFloat($('pm-lat').value),lo=parseFloat($('pm-lng').value);
+  if(!isNaN(la)&&!isNaN(lo)&&_map){const ll=new google.maps.LatLng(la,lo);_map.setCenter(ll);_marker.setPosition(ll);}
+};
 function renderRoomChips(){$('pm-rooms').innerHTML=pmRooms.map((r,i)=>`<button class="chip" onclick="window._rr(${i})">${r} ×</button>`).join('')}
 window._rr=i=>{pmRooms.splice(i,1);renderRoomChips()};
 $('pm-add-room-btn').onclick=()=>{const v=$('pm-new-room').value.trim();if(v){pmRooms.push(v);$('pm-new-room').value='';renderRoomChips()}};

@@ -727,7 +727,8 @@ $('clock-out-btn').onclick=async()=>{
 function loadMyLog(){
   if(!currentUser)return;
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(30)),snap=>{
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const ta=a.clockIn?.toDate?.()??new Date(a.clockIn??0);const tb=b.clockIn?.toDate?.()??new Date(b.clockIn??0);return tb-ta});
+    const tsMs=v=>{if(!v)return 0;if(typeof v.toMillis==='function')return v.toMillis();if(typeof v.toDate==='function')return v.toDate().getTime();if(v.seconds)return v.seconds*1000+(v.nanoseconds||0)/1e6;return new Date(v).getTime()||0};
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>tsMs(b.clockIn)-tsMs(a.clockIn));
     window._allTimeLogs=rows;
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}

@@ -1042,7 +1042,7 @@ $('new-bill-btn').onclick=async()=>{
   bmSelectedCodes=[];renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove);
   $('bm-project').innerHTML='<option value="">Select project...</option>';
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('bm-project').appendChild(o)});
-  ['bm-vendor','bm-amount','bm-notes'].forEach(id=>$(id).value='');
+  ['bm-amount','bm-notes'].forEach(id=>$(id).value='');
   $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';
   $('bm-billnum').value='';$('bm-err').textContent='';
   fillRoomDropdown('bm-room',null);

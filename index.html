@@ -1217,15 +1217,13 @@ $('rpt-run-btn').onclick=async()=>{
   if(fr)c.push(where(tf,'>=',Timestamp.fromDate(new Date(fr))));
   if(to){const e=new Date(to);e.setDate(e.getDate()+1);c.push(where(tf,'<=',Timestamp.fromDate(e)))}
   try{
-    const snap=await new Promise((res,rej)=>{const u=onSnapshot(query(collection(db,col),...c),s=>{u();res(s)},rej)});
+    const snap=await getDocs(query(collection(db,col),...c));
     _rptRawData=snap.docs.map(d=>({id:d.id,...d.data()}));
     _rptType=currentRptType;
     applyReportFilters();
+    populateSecondaryFilters(_rptRawData);
   }catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
   $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run Report';
-
-  // populate secondary filters from result set
-  populateSecondaryFilters(_rptRawData);
 };
 
 function populateSecondaryFilters(data){

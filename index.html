@@ -1361,19 +1361,18 @@ function initMapPicker(lat,lng){
 $('pm-geocode-btn').onclick=async()=>{
   const addr=$('pm-address').value.trim();if(!addr)return;
   $('pm-geocode-btn').disabled=true;$('pm-geocode-btn').textContent='...';
-  try{
-    const r=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=AIzaSyDiIA5AF5jVmEidKMRm1o1mpSWUn80kAdw`);
-    const d=await r.json();
-    if(d.results&&d.results[0]){
-      const loc=d.results[0].geometry.location;
-      $('pm-address').value=d.results[0].formatted_address;
-      initMapPicker(loc.lat,loc.lng);
+  const geocoder=new google.maps.Geocoder();
+  geocoder.geocode({address:addr,componentRestrictions:{country:'US'}},function(results,status){
+    if(status==='OK'&&results[0]){
+      const loc=results[0].geometry.location;
+      $('pm-address').value=results[0].formatted_address;
+      initMapPicker(loc.lat(),loc.lng());
     }else{
-      alert('Address not found. Try a more specific address or drop the pin manually.');
+      alert('Address not found. Try adding city, state, or zip code.');
       initMapPicker(null,null);
     }
-  }catch(e){alert('Geocoding failed. Check your connection.');initMapPicker(null,null);}
-  $('pm-geocode-btn').disabled=false;$('pm-geocode-btn').textContent='Search';
+    $('pm-geocode-btn').disabled=false;$('pm-geocode-btn').textContent='Search';
+  });
 };
 function updateGeoNote(){
   const la=$('pm-lat').value,lo=$('pm-lng').value;

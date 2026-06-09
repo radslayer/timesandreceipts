@@ -1389,6 +1389,9 @@ $('pm-add-room-btn').onclick=()=>{const v=$('pm-new-room').value.trim();if(v){pm
 $('pm-save').onclick=async()=>{
   const name=$('pm-name').value.trim();if(!name){$('pm-err').textContent='Project name required.';return}
   const prefix=($('pm-prefix').value.trim()||autoPrefix(name)).toUpperCase();
+  // duplicate prefix check — exclude current project when editing
+  const conflict=allProjects.find(p=>p.billPrefix===prefix&&p.id!==editingProjectId&&p.active!==false);
+  if(conflict){$('pm-err').textContent=`Prefix "${prefix}" is already used by "${conflict.name}". Choose a different prefix.`;return}
   $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
   const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,active:true,updatedAt:serverTimestamp()};
   try{

@@ -320,6 +320,16 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="chip-wrap" id="bm-codes-chips" style="margin-top:8px"></div>
     </div>
     <div class="field"><label>Notes</label><textarea id="bm-notes" rows="2" placeholder="Optional notes..."></textarea></div>
+    <div class="field"><label>Attach Invoice (optional)</label>
+      <div class="upload-zone" id="bm-upload-zone">
+        <div style="font-size:24px;margin-bottom:4px">📎</div>
+        <div style="font-weight:500;font-size:13px">Tap to attach invoice or photo</div>
+        <div style="font-size:11px;margin-top:3px">JPG, PNG, or PDF</div>
+        <img id="bm-preview" class="hidden upload-preview" alt="preview">
+        <div id="bm-filename" style="font-size:12px;color:var(--green);margin-top:6px"></div>
+        <input type="file" id="bm-file" accept="image/*,application/pdf" style="display:none">
+      </div>
+    </div>
     <div class="row2">
       <div class="field"><label>QB Entry Date</label><input type="date" id="bm-qbdate" placeholder="Mark when entered in QB"></div>
       <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
@@ -1047,7 +1057,19 @@ $('new-bill-btn').onclick=async()=>{
   $('bm-billnum').value='';$('bm-err').textContent='';
   fillRoomDropdown('bm-room',null);
   $('bm-vendor-sel').value='';hide('bm-vendor-new');
+  bmFile=null;hide('bm-preview');$('bm-filename').textContent='';$('bm-file').value='';
   show('bill-modal');
+};
+let bmFile=null;
+$('bm-upload-zone').onclick=()=>$('bm-file').click();
+$('bm-file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  bmFile=f;
+  if(f.type.startsWith('image/')){
+    const r=new FileReader();r.onload=ev=>{$('bm-preview').src=ev.target.result;show('bm-preview');$('bm-filename').textContent=''};r.readAsDataURL(f);
+  }else{
+    hide('bm-preview');$('bm-filename').textContent='📄 '+f.name;
+  }
 };
 window._bmRemove=i=>{bmSelectedCodes.splice(i,1);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)};
 $('bm-vendor-sel').onchange=()=>vendorSelChange('bm-vendor-sel','bm-vendor-new');
@@ -1066,7 +1088,7 @@ $('bm-code-pick').onchange=()=>{
   if(!bmSelectedCodes.includes(v)){bmSelectedCodes.push(v);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)}
   $('bm-code-pick').value='';
 };
-$('bm-cancel').onclick=()=>hide('bill-modal');
+$('bm-cancel').onclick=()=>{hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent=''};
 $('bm-save').onclick=async()=>{
   const pid=$('bm-project').value,amt=$('bm-amount').value,idate=$('bm-invoicedate').value;
   const vnd=resolveVendor('bm-vendor-sel','bm-vendor-new');
@@ -1075,9 +1097,18 @@ $('bm-save').onclick=async()=>{
   $('bm-save').disabled=true;$('bm-save').textContent='Saving...';
   if($('bm-vendor-sel').value==='__new__')await submitNewVendor(vnd);
   const proj=activeProjects.find(p=>p.id===pid);
+  let imageUrl=null;
+  if(bmFile){
+    try{
+      const isImg=bmFile.type.startsWith('image/');
+      const fileToUp=isImg?await resizeImage(bmFile):bmFile;
+      const r=sRef(storage,'bills/'+currentUser.uid+'/'+Date.now()+'_'+fileToUp.name);
+      await uploadBytes(r,fileToUp);imageUrl=await getDownloadURL(r);
+    }catch(e){console.warn('Bill attachment upload failed:',e)}
+  }
   try{
-    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
-    hide('bill-modal');
+    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
+    hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent='';
   }catch(e){$('bm-err').textContent='Save failed: '+e.message}
   $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';
 };

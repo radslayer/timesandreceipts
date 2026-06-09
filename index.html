@@ -206,6 +206,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <button class="seg-btn on" id="adm-proj-btn">Projects</button>
         <button class="seg-btn" id="adm-users-btn">Users</button>
         <button class="seg-btn" id="adm-vendors-btn">Vendors <span id="pending-vendor-badge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px">0</span></button>
+        <button class="seg-btn priv-only" id="adm-codes-btn">Cost Codes</button>
       </div>
       <div id="adm-projects-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -233,6 +234,25 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <div class="card" id="pending-vendors-card">
           <div style="font-weight:600;margin-bottom:12px">Pending Approval</div>
           <div id="pending-vendors-list"><div class="empty" style="padding:16px">No pending vendors.</div></div>
+        </div>
+      </div>
+      <div id="adm-codes-panel" class="hidden">
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:4px">Add Custom Cost Code</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Custom codes are added to existing categories or a new category you define. They appear in all cost code dropdowns alongside the standard codes.</div>
+          <div class="field" style="margin-bottom:12px"><label>Category</label>
+            <select id="cc-cat-sel"><option value="">Select existing category...</option><option value="__new__">+ New Category...</option></select>
+            <input type="text" id="cc-cat-new" class="hidden" placeholder="New category name (e.g. 28 - Exterior Work)..." style="margin-top:6px;width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
+          </div>
+          <div class="field" style="margin-bottom:12px"><label>Cost Code *</label>
+            <input type="text" id="cc-code-input" placeholder="e.g. 28.00 - Exterior Painting Labor..." style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
+          </div>
+          <div id="cc-err" class="err" style="margin-bottom:8px"></div>
+          <button class="btn btn-gold btn-sm" id="add-code-btn">Add Cost Code</button>
+        </div>
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:12px">Custom Cost Codes</div>
+          <div id="custom-codes-list"><div class="empty" style="padding:16px">No custom codes yet.</div></div>
         </div>
       </div>
     </div>
@@ -585,7 +605,7 @@ let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
 let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
 let _rptRawData=[],_rptType='time';
-let approvedVendors=[],pendingVendors=[];
+let approvedVendors=[],pendingVendors=[],customCodes=[];
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id).classList.remove('hidden');
@@ -606,18 +626,7 @@ function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
 
 // ── COST CODE HELPERS ────────────────────────────────────────────────────────
-function fillCatDropdown(selId){
-  const s=$(selId);s.innerHTML='<option value="">Select category...</option>';
-  COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
-}
-function fillCodeDropdown(selId,cat){
-  const s=$(selId);s.innerHTML='<option value="">Select code...</option>';
-  COST_CODES.filter(c=>c.cat===cat).forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
-}
-function fillAllCodesDropdown(selId){
-  const s=$(selId);s.innerHTML='<option value="">Search / select cost code...</option>';
-  COST_CODES.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+' ['+c.cat+']';s.appendChild(o)});
-}
+// fillCatDropdown, fillCodeDropdown, fillAllCodesDropdown defined below in CUSTOM COST CODES section using ALL_CODES/ALL_CATS
 function renderCodeChips(containerId,codesArr,onRemove){
   $(containerId).innerHTML=codesArr.map((c,i)=>`<span class="chip-code">${c} <span onclick="(${onRemove})(${i})" style="cursor:pointer;font-size:14px;line-height:1">×</span></span>`).join('');
 }
@@ -718,6 +727,91 @@ $('add-vendor-btn').onclick=async()=>{
   $('new-vendor-input').value='';
 };
 
+// ── CUSTOM COST CODES ─────────────────────────────────────────────────────────
+function loadCustomCodes(){
+  onSnapshot(doc(db,'settings','costCodes'),snap=>{
+    customCodes=snap.exists()?(snap.data().codes||[]):[];
+    rebuildCostCodeData();
+    renderCustomCodesList();
+    // repopulate all code dropdowns with merged list
+    fillAllCodesDropdown('rm-code-pick');
+    fillAllCodesDropdown('bm-code-pick');
+    fillAllCodesDropdown('er-code-pick');
+    // repopulate category dropdowns
+    ['ci-cat','et-cat','rpt-cat'].forEach(id=>{
+      const el=$(id);if(!el)return;
+      const cur=el.value;
+      el.innerHTML=id==='rpt-cat'?'<option value="">All Categories</option>':'<option value="">Select category...</option>';
+      ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
+      if(cur)el.value=cur;
+    });
+    // repopulate category sel in cost codes admin panel
+    const ccSel=$('cc-cat-sel');if(ccSel){
+      ccSel.innerHTML='<option value="">Select existing category...</option>';
+      ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ccSel.appendChild(o)});
+      const newOpt=document.createElement('option');newOpt.value='__new__';newOpt.textContent='+ New Category...';ccSel.appendChild(newOpt);
+    }
+  });
+}
+// Merged list — base COST_CODES + customCodes, used everywhere
+let ALL_CODES=[...COST_CODES];
+let ALL_CATS=[...COST_CATS];
+function rebuildCostCodeData(){
+  ALL_CODES=[...COST_CODES,...customCodes];
+  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
+}
+// Override fillAllCodesDropdown and fillCatDropdown to use ALL_CODES/ALL_CATS
+function fillAllCodesDropdown(selId){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Search / select cost code...</option>';
+  ALL_CODES.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+' ['+c.cat+']';s.appendChild(o)});
+}
+function fillCatDropdown(selId){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Select category...</option>';
+  ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
+}
+function fillCodeDropdown(selId,cat){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Select code...</option>';
+  ALL_CODES.filter(c=>c.cat===cat).forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
+}
+function renderCustomCodesList(){
+  const el=$('custom-codes-list');if(!el)return;
+  if(!customCodes.length){el.innerHTML='<div class="empty" style="padding:16px">No custom codes yet.</div>';return}
+  // group by category
+  const byCat={};
+  customCodes.forEach((c,i)=>{if(!byCat[c.cat])byCat[c.cat]=[];byCat[c.cat].push({...c,idx:i})});
+  el.innerHTML=Object.entries(byCat).map(([cat,codes])=>`
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">${cat}</div>
+      ${codes.map(c=>`<div class="list-row" style="padding:8px 0">
+        <span style="font-size:13px">${c.code}</span>
+        <button class="btn btn-red btn-sm" onclick="window._removeCustomCode(${c.idx})">Remove</button>
+      </div>`).join('')}
+    </div>`).join('');
+}
+window._removeCustomCode=async i=>{
+  const updated=[...customCodes];updated.splice(i,1);
+  await setDoc(doc(db,'settings','costCodes'),{codes:updated});
+};
+$('cc-cat-sel').onchange=()=>{
+  if($('cc-cat-sel').value==='__new__')show('cc-cat-new');
+  else hide('cc-cat-new');
+};
+$('add-code-btn').onclick=async()=>{
+  const catSel=$('cc-cat-sel').value;
+  const cat=catSel==='__new__'?$('cc-cat-new').value.trim():catSel;
+  const code=$('cc-code-input').value.trim();
+  $('cc-err').textContent='';
+  if(!cat){$('cc-err').textContent='Select or enter a category.';return}
+  if(!code){$('cc-err').textContent='Enter a cost code.';return}
+  if(ALL_CODES.some(c=>c.code===code)){$('cc-err').textContent='That code already exists.';return}
+  const updated=[...customCodes,{cat,code}];
+  await setDoc(doc(db,'settings','costCodes'),{codes:updated});
+  $('cc-cat-sel').value='';$('cc-cat-new').value='';$('cc-code-input').value='';hide('cc-cat-new');
+};
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 $('login-btn').onclick=async()=>{
   const e=$('login-email').value.trim(),p=$('login-password').value;
@@ -747,7 +841,7 @@ onAuthStateChanged(auth,async u=>{
     }
   }catch(e){console.warn(e)}
   onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();loadCustomCodes();
 });
 
 function applyProfile(){
@@ -1290,9 +1384,10 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     if(t==='admin')loadUsers();
   }
 });
-$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel')};
-$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel')};
-$('adm-vendors-btn').onclick=()=>{$('adm-vendors-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');show('adm-vendors-panel')};
+$('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};
+$('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};
+$('adm-vendors-btn').onclick=()=>{$('adm-vendors-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');show('adm-vendors-panel');hide('adm-codes-panel')};
+$('adm-codes-btn').onclick=()=>{$('adm-codes-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');show('adm-codes-panel')};
 </script>
 </body>
 </html>

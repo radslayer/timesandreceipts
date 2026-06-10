@@ -743,7 +743,31 @@ function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
 
 // ── COST CODE HELPERS ────────────────────────────────────────────────────────
-// fillCatDropdown, fillCodeDropdown, fillAllCodesDropdown defined below in CUSTOM COST CODES section using ALL_CODES/ALL_CATS
+// Merged list — base COST_CODES + customCodes, used everywhere
+let ALL_CODES=[...COST_CODES];
+let ALL_CATS=[...COST_CATS];
+function rebuildCostCodeData(){
+  ALL_CODES=[...COST_CODES,...customCodes];
+  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
+}
+function fillAllCodesDropdown(selId,typeFilter){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Search / select cost code...</option>';
+  const codes=typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES;
+  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
+}
+function fillCatDropdown(selId,typeFilter){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Select category...</option>';
+  const cats=typeFilter?[...new Set(ALL_CODES.filter(c=>c.type===typeFilter).map(c=>c.cat))]:ALL_CATS;
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
+}
+function fillCodeDropdown(selId,cat,typeFilter){
+  const s=$(selId);if(!s)return;
+  s.innerHTML='<option value="">Select code...</option>';
+  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter));
+  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
+}
 function renderCodeChips(containerId,codesArr,onRemove){
   $(containerId).innerHTML=codesArr.map((c,i)=>`<span class="chip-code">${c} <span onclick="(${onRemove})(${i})" style="cursor:pointer;font-size:14px;line-height:1">×</span></span>`).join('');
 }

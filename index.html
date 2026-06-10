@@ -2085,7 +2085,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
 $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};
 $('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};
 $('adm-vendors-btn').onclick=()=>{$('adm-vendors-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');show('adm-vendors-panel');hide('adm-codes-panel')};
-$('adm-codes-btn').onclick=()=>{$('adm-codes-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');show('adm-codes-panel')};
+$('adm-codes-btn').onclick=()=>{$('adm-codes-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');show('adm-codes-panel');renderCodesMasterList()};
 </script>
 </body>
 </html>

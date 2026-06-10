@@ -1047,6 +1047,7 @@ $('add-code-btn').onclick=async()=>{
   const data=snap.exists()?snap.data():{};
   await setDoc(doc(db,'settings','costCodes'),{...data,codes:updated});
   $('cc-cat-sel').value='';$('cc-cat-new').value='';$('cc-code-input').value='';hide('cc-cat-new');hide('add-code-form');
+  renderCodesMasterList();
 };
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────

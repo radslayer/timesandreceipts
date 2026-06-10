@@ -977,10 +977,6 @@ window._toggleArchive=async(code)=>{
   const data=snap.exists()?snap.data():{};
   await setDoc(doc(db,'settings','costCodes'),{...data,archived:[...archivedCodes]});
 };
-    });
-  });
-  tbody.innerHTML=html;
-}
 window._removeCustomCode=async i=>{
   const updated=[...customCodes];updated.splice(i,1);
   const snap=await getDoc(doc(db,'settings','costCodes'));

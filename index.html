@@ -1019,7 +1019,14 @@ window._setCodeBillable=async(code,billable,isCustom)=>{
     await setDoc(doc(db,'settings','costCodes'),{...data,nonBillable:[...nonBillableCodes]});
   }
 };
-$('show-add-code-btn').onclick=()=>show('add-code-form');
+$('show-add-code-btn').onclick=()=>{
+  // populate category dropdown fresh each time
+  const sel=$('cc-cat-sel');
+  sel.innerHTML='<option value="">Select existing category...</option>';
+  ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o)});
+  const newOpt=document.createElement('option');newOpt.value='__new__';newOpt.textContent='+ New Category...';sel.appendChild(newOpt);
+  show('add-code-form');
+};
 $('cancel-add-code-btn').onclick=()=>{hide('add-code-form');$('cc-code-input').value='';$('cc-cat-sel').value='';$('cc-cat-new').value='';hide('cc-cat-new');$('cc-err').textContent=''};
 $('cc-cat-sel').onchange=()=>{
   if($('cc-cat-sel').value==='__new__')show('cc-cat-new');

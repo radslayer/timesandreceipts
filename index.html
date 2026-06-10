@@ -184,19 +184,49 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="seg">
         <button class="seg-btn on" id="rpt-time-btn">Time Log</button>
         <button class="seg-btn" id="rpt-rcpt-btn">Receipts &amp; Bills</button>
+        <button class="seg-btn" id="rpt-payroll-btn">&#128181; Payroll</button>
       </div>
-      <div class="card">
-        <div class="filter-row">
-          <div class="field"><label>Project</label><select id="rpt-project" style="min-width:160px"><option value="">All Projects</option></select></div>
-          <div class="field"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
-          <div class="field" id="rpt-cat-wrap"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
-          <div class="field"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
-          <div class="field"><label>From</label><input type="date" id="rpt-from"></div>
-          <div class="field"><label>To</label><input type="date" id="rpt-to"></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 20px;white-space:nowrap">Run Report</button></div>
+
+      <!-- TIME LOG / RECEIPTS PANEL -->
+      <div id="rpt-standard-panel">
+        <div class="card">
+          <div class="filter-row">
+            <div class="field"><label>Project</label><select id="rpt-project" style="min-width:160px"><option value="">All Projects</option></select></div>
+            <div class="field"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
+            <div class="field" id="rpt-cat-wrap"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
+            <div class="field"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
+            <div class="field"><label>From</label><input type="date" id="rpt-from"></div>
+            <div class="field"><label>To</label><input type="date" id="rpt-to"></div>
+            <div style="display:flex;align-items:flex-end"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 20px;white-space:nowrap">Run Report</button></div>
+          </div>
+          <div id="rpt-active-filters" style="margin-bottom:12px;font-size:12px;color:var(--muted)"></div>
+          <div id="rpt-results"></div>
         </div>
-        <div id="rpt-active-filters" style="margin-bottom:12px;font-size:12px;color:var(--muted)"></div>
-        <div id="rpt-results"></div>
+      </div>
+
+      <!-- PAYROLL PANEL -->
+      <div id="rpt-payroll-panel" class="hidden">
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:12px">Pay Period</div>
+          <div class="chip-wrap" id="payroll-presets" style="margin-bottom:16px"></div>
+          <div class="row2">
+            <div class="field"><label>Period From *</label><input type="date" id="pr-from"></div>
+            <div class="field"><label>Period To *</label><input type="date" id="pr-to"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="pr-include-spiff" style="width:auto;margin:0"> Include spiff (last period of month)
+            </label>
+          </div>
+          <div id="pr-spiff-range" class="hidden" style="margin-bottom:12px">
+            <div class="row2">
+              <div class="field"><label>Spiff Month From</label><input type="date" id="pr-spiff-from"></div>
+              <div class="field"><label>Spiff Month To</label><input type="date" id="pr-spiff-to"></div>
+            </div>
+          </div>
+          <button class="btn btn-gold" id="pr-run-btn" style="width:auto;padding:10px 24px">Run Payroll Report</button>
+        </div>
+        <div id="pr-results"></div>
       </div>
     </div>
 
@@ -245,11 +275,24 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <select id="cc-cat-sel"><option value="">Select existing category...</option><option value="__new__">+ New Category...</option></select>
             <input type="text" id="cc-cat-new" class="hidden" placeholder="New category name (e.g. 28 - Exterior Work)..." style="margin-top:6px;width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
           </div>
-          <div class="field" style="margin-bottom:12px"><label>Cost Code *</label>
-            <input type="text" id="cc-code-input" placeholder="e.g. 28.00 - Exterior Painting Labor..." style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
+          <div class="row2" style="margin-bottom:12px">
+            <div class="field" style="margin-bottom:0"><label>Cost Code *</label>
+              <input type="text" id="cc-code-input" placeholder="e.g. 28.00 - Exterior Painting Labor..." style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
+            </div>
+            <div class="field" style="margin-bottom:0"><label>Billable to Client</label>
+              <select id="cc-billable" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
+                <option value="true">Yes — Billable</option>
+                <option value="false">No — Non-Billable</option>
+              </select>
+            </div>
           </div>
           <div id="cc-err" class="err" style="margin-bottom:8px"></div>
           <button class="btn btn-gold btn-sm" id="add-code-btn">Add Cost Code</button>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:4px">Billable Overrides — Standard Codes</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">All standard codes default to billable. Uncheck any that should never be billed to a client. Changes apply across all projects.</div>
+          <div id="billable-overrides-list"></div>
         </div>
         <div class="card">
           <div style="font-weight:600;margin-bottom:12px">Custom Cost Codes</div>
@@ -346,9 +389,15 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <div id="project-modal" class="modal-bg hidden">
   <div class="modal">
     <h2 id="pm-title">New Project</h2>
-    <div class="row2">
+    <div class="row2" style="margin-bottom:12px">
       <div class="field"><label>Project Name *</label><input type="text" id="pm-name" placeholder="Jones Kitchen Remodel"></div>
       <div class="field"><label>Bill Prefix (auto)</label><input type="text" id="pm-prefix" placeholder="JON" style="text-transform:uppercase" maxlength="6"></div>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;font-weight:500">
+        <input type="checkbox" id="pm-client-project" style="width:auto;margin:0" checked>
+        Client project (hours billed to this project count as billable)
+      </label>
     </div>
     <div class="field"><label>Job Site Address</label>
       <div style="display:flex;gap:8px">
@@ -432,6 +481,37 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="modal-footer">
       <button class="btn btn-outline" id="er-cancel">Cancel</button>
       <button class="btn btn-gold" id="er-save" style="width:auto">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAY RATE MODAL -->
+<div id="pay-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2 id="pay-modal-name">Pay Rates</h2>
+    <div class="notice">Pay rate information is visible to admin only and is used for payroll report calculations.</div>
+    <div class="row2">
+      <div class="field"><label>Base Rate ($/hr) *</label><input type="number" step="0.01" id="pay-base" placeholder="0.00" inputmode="decimal"></div>
+      <div class="field"><label>Employee Type</label>
+        <select id="pay-type">
+          <option value="w2">W-2 Employee</option>
+          <option value="contractor">Contractor (1099)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="pay-spiff-eligible" style="width:auto;margin:0">
+        <span>Spiff eligible (earns bonus on billable hours)</span>
+      </label>
+    </div>
+    <div id="pay-spiff-row" class="hidden">
+      <div class="field"><label>Spiff Rate ($/hr)</label><input type="number" step="0.01" id="pay-spiff-rate" placeholder="0.00" inputmode="decimal"></div>
+    </div>
+    <div id="pay-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="pay-cancel">Cancel</button>
+      <button class="btn btn-gold" id="pay-save" style="width:auto">Save Pay Rates</button>
     </div>
   </div>
 </div>
@@ -618,7 +698,7 @@ let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
 let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
 let _rptRawData=[],_rptType='time';
-let approvedVendors=[],pendingVendors=[],customCodes=[];
+let approvedVendors=[],pendingVendors=[],customCodes=[],nonBillableCodes=new Set(),customBillableOverrides=new Map();
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id).classList.remove('hidden');
@@ -743,14 +823,22 @@ $('add-vendor-btn').onclick=async()=>{
 // ── CUSTOM COST CODES ─────────────────────────────────────────────────────────
 function loadCustomCodes(){
   onSnapshot(doc(db,'settings','costCodes'),snap=>{
-    customCodes=snap.exists()?(snap.data().codes||[]):[];
+    const data=snap.exists()?snap.data():{};
+    customCodes=data.codes||[];
+    // Load billable overrides — array of codes that are non-billable
+    const nonBillable=data.nonBillable||DEFAULT_NON_BILLABLE;
+    nonBillableCodes=new Set(nonBillable);
+    // Custom code billable flags stored per code
+    customBillableOverrides=new Map();
+    customCodes.forEach(c=>{
+      if(c.billable===false)customBillableOverrides.set(c.code,false);
+    });
     rebuildCostCodeData();
     renderCustomCodesList();
-    // repopulate all code dropdowns with merged list
+    renderBillableOverrides();
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');
     fillAllCodesDropdown('er-code-pick');
-    // repopulate category dropdowns
     ['ci-cat','et-cat','rpt-cat'].forEach(id=>{
       const el=$(id);if(!el)return;
       const cur=el.value;
@@ -758,7 +846,6 @@ function loadCustomCodes(){
       ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
       if(cur)el.value=cur;
     });
-    // repopulate category sel in cost codes admin panel
     const ccSel=$('cc-cat-sel');if(ccSel){
       ccSel.innerHTML='<option value="">Select existing category...</option>';
       ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ccSel.appendChild(o)});
@@ -766,6 +853,49 @@ function loadCustomCodes(){
     }
   });
 }
+
+// Default non-billable codes
+const DEFAULT_NON_BILLABLE=[
+  '20.05 - General Business Operations',
+  '20.15 - Accounting - Sales Tax, Bookkeeping',
+  '20.75 - Driving to Office for Meetings',
+  '23.10 - Sick Time',
+  '24.10 - Vacation Time',
+  '24.15 - Unpaid Leave',
+  '25.10 - Holiday Pay',
+  '26.10 - Rebuilding Costs Labor',
+  '26.20 - Rebuilding Costs Materials'
+];
+
+function renderBillableOverrides(){
+  const el=$('billable-overrides-list');if(!el)return;
+  // Group all standard codes by category, show toggle per code
+  let html='';
+  COST_CATS.forEach(cat=>{
+    const codes=COST_CODES.filter(c=>c.cat===cat);
+    html+=`<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${cat}</div>
+      ${codes.map(c=>{
+        const billable=!nonBillableCodes.has(c.code);
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px">${c.code}</span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+            <input type="checkbox" ${billable?'checked':''} onchange="window._toggleBillable('${c.code.replace(/'/g,"\\'")}',this.checked)" style="width:auto;margin:0">
+            Billable
+          </label>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+window._toggleBillable=async(code,billable)=>{
+  if(billable){nonBillableCodes.delete(code)}else{nonBillableCodes.add(code)}
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{codes:[]};
+  await setDoc(doc(db,'settings','costCodes'),{...data,nonBillable:[...nonBillableCodes]});
+};
 // Merged list — base COST_CODES + customCodes, used everywhere
 let ALL_CODES=[...COST_CODES];
 let ALL_CATS=[...COST_CATS];
@@ -820,7 +950,8 @@ $('add-code-btn').onclick=async()=>{
   if(!cat){$('cc-err').textContent='Select or enter a category.';return}
   if(!code){$('cc-err').textContent='Enter a cost code.';return}
   if(ALL_CODES.some(c=>c.code===code)){$('cc-err').textContent='That code already exists.';return}
-  const updated=[...customCodes,{cat,code}];
+  const billable=$('cc-billable').value==='true';
+  const updated=[...customCodes,{cat,code,billable}];
   await setDoc(doc(db,'settings','costCodes'),{codes:updated});
   $('cc-cat-sel').value='';$('cc-cat-new').value='';$('cc-code-input').value='';hide('cc-cat-new');
 };
@@ -1203,8 +1334,9 @@ $('et-save').onclick=async()=>{
 // populate report category filter
 COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;$('rpt-cat').appendChild(o)});
 
-$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
-$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-payroll-btn').onclick=()=>{$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');buildPayrollPresets()};
 
 $('rpt-run-btn').onclick=async()=>{
   const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value;
@@ -1327,6 +1459,410 @@ window._csv=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 };
 
+// ── PAYROLL REPORT ────────────────────────────────────────────────────────────
+// Pay period anchor: May 17 2026 - May 30 2026, paid June 19 2026
+// Periods run Sunday-Saturday, 14 days. Payday = period end + 20 days (Friday).
+const PAYROLL_ANCHOR_START = new Date(2026, 4, 17); // May 17 2026
+
+function getPeriodIndex(d) {
+  const ms = new Date(d) - PAYROLL_ANCHOR_START;
+  return Math.floor(ms / (14 * 86400000));
+}
+function getPeriodDates(index) {
+  const start = new Date(PAYROLL_ANCHOR_START);
+  start.setDate(start.getDate() + index * 14);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 13);
+  const payday = new Date(end);
+  payday.setDate(payday.getDate() + 20);
+  while (payday.getDay() !== 5) payday.setDate(payday.getDate() + 1);
+  return { start, end, payday };
+}
+function fmtPeriod(start, end) {
+  return start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + end.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function toYMD(d) { return d.toISOString().slice(0,10); }
+function isLastPaydayOfMonth(payday) {
+  // Check if next pay period's payday is in a different month
+  const next = new Date(payday);
+  next.setDate(next.getDate() + 14);
+  while (next.getDay() !== 5) next.setDate(next.getDate() + 1);
+  return next.getMonth() !== payday.getMonth();
+}
+
+function buildPayrollPresets() {
+  const today = new Date();
+  const todayIdx = getPeriodIndex(today);
+  const presets = [
+    { label: 'Next Payroll', idx: todayIdx },
+    { label: 'Current Period', idx: todayIdx + 1 },
+    { label: 'Previous Payroll', idx: todayIdx - 1 },
+  ];
+  const wrap = $('payroll-presets');
+  wrap.innerHTML = presets.map((p, i) => {
+    const { start, end, payday } = getPeriodDates(p.idx);
+    const isLast = isLastPaydayOfMonth(payday);
+    return `<button class="chip" style="background:var(--ink)" onclick="window._setPayrollPreset(${p.idx})">${p.label}: ${fmtPeriod(start,end)}${isLast?' + Spiff':''}</button>`;
+  }).join('');
+}
+window._setPayrollPreset = (idx) => {
+  const { start, end, payday } = getPeriodDates(idx);
+  $('pr-from').value = toYMD(start);
+  $('pr-to').value = toYMD(end);
+  const isLast = isLastPaydayOfMonth(payday);
+  $('pr-include-spiff').checked = isLast;
+  if (isLast) {
+    show('pr-spiff-range');
+    // Spiff month = month of payday (which is ~20 days after period end, so payday month - 1)
+    const spiffMonth = new Date(payday.getFullYear(), payday.getMonth() - 1, 1);
+    const spiffEnd = new Date(spiffMonth.getFullYear(), spiffMonth.getMonth() + 1, 0);
+    $('pr-spiff-from').value = toYMD(spiffMonth);
+    $('pr-spiff-to').value = toYMD(spiffEnd);
+  } else {
+    hide('pr-spiff-range');
+    $('pr-spiff-from').value = '';
+    $('pr-spiff-to').value = '';
+  }
+};
+$('pr-include-spiff').onchange = () => {
+  if ($('pr-include-spiff').checked) show('pr-spiff-range');
+  else hide('pr-spiff-range');
+};
+
+function isBillableEntry(entry) {
+  // Project must be a client project (not overhead/internal)
+  const proj = allProjects.find(p => p.id === entry.projectId);
+  if (!proj || proj.clientProject === false) return false;
+  // Cost code must be billable
+  const code = entry.costCode || entry.scope || '';
+  return isCodeBillable(code);
+}
+function isCodeBillable(code) {
+  if (!code) return false;
+  // Check overrides first
+  if (nonBillableCodes.has(code)) return false;
+  if (customBillableOverrides.has(code)) return customBillableOverrides.get(code);
+  return true; // default billable
+}
+
+// Colorado OT calculation
+// Sunday=0 ... Saturday=6, workweek Sun-Sat
+function calcColoradoOT(entries) {
+  // Group by workweek (Sun-Sat)
+  const weeks = {};
+  entries.forEach(e => {
+    if (!e.clockIn || !e.durationMs) return;
+    const d = e.clockIn.toDate ? e.clockIn.toDate() : new Date(e.clockIn);
+    // Find Sunday of that week
+    const day = d.getDay(); // 0=Sun
+    const sun = new Date(d); sun.setDate(d.getDate() - day); sun.setHours(0,0,0,0);
+    const wk = toYMD(sun);
+    if (!weeks[wk]) weeks[wk] = [];
+    weeks[wk].push(e);
+  });
+
+  // For each week, apply daily then weekly OT
+  const result = {}; // entry.id -> {reg, ot, dt}
+  Object.values(weeks).forEach(wkEntries => {
+    // Group by day
+    const days = {};
+    wkEntries.forEach(e => {
+      const d = e.clockIn.toDate ? e.clockIn.toDate() : new Date(e.clockIn);
+      const dk = toYMD(d);
+      if (!days[dk]) days[dk] = [];
+      days[dk].push(e);
+    });
+
+    let weeklyRegUsed = 0;
+    Object.values(days).forEach(dayEntries => {
+      const totalHrs = dayEntries.reduce((s,e) => s + (e.durationMs||0)/3600000, 0);
+      let regHrs = Math.min(totalHrs, 8);
+      let otHrs = totalHrs > 8 ? Math.min(totalHrs - 8, 4) : 0; // 8-12 = OT
+      let dtHrs = totalHrs > 12 ? totalHrs - 12 : 0; // >12 = DT
+      weeklyRegUsed += regHrs;
+
+      // Distribute proportionally across entries
+      dayEntries.forEach(e => {
+        const hrs = (e.durationMs||0)/3600000;
+        const frac = totalHrs > 0 ? hrs/totalHrs : 0;
+        result[e.id] = {
+          reg: +(regHrs * frac).toFixed(4),
+          ot: +(otHrs * frac).toFixed(4),
+          dt: +(dtHrs * frac).toFixed(4)
+        };
+      });
+    });
+
+    // Weekly OT: if reg > 40, excess moves to weekly OT
+    if (weeklyRegUsed > 40) {
+      const weeklyOtHrs = weeklyRegUsed - 40;
+      // Apply to last entries of the week until covered
+      let remaining = weeklyOtHrs;
+      [...wkEntries].reverse().forEach(e => {
+        if (remaining <= 0) return;
+        const r = result[e.id];
+        if (!r) return;
+        const convert = Math.min(r.reg, remaining);
+        r.reg -= convert;
+        r.ot += convert;
+        remaining -= convert;
+      });
+    }
+  });
+  return result;
+}
+
+let allUsersForPayroll = [];
+$('pr-run-btn').onclick = async () => {
+  const from = $('pr-from').value;
+  const to = $('pr-to').value;
+  if (!from || !to) { alert('Select a pay period date range.'); return; }
+  $('pr-run-btn').disabled = true; $('pr-run-btn').textContent = 'Running...';
+  $('pr-results').innerHTML = '<div class="empty">Loading...</div>';
+
+  const includeSpiff = $('pr-include-spiff').checked;
+  const spiffFrom = $('pr-spiff-from').value;
+  const spiffTo = $('pr-spiff-to').value;
+
+  try {
+    // Fetch time logs for pay period
+    const fromTs = Timestamp.fromDate(new Date(from));
+    const toDate = new Date(to); toDate.setDate(toDate.getDate()+1);
+    const toTs = Timestamp.fromDate(toDate);
+    const snap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',fromTs), where('clockIn','<=',toTs)));
+    const entries = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs);
+
+    // Fetch users for pay rates
+    const usersSnap = await getDocs(collection(db,'users'));
+    allUsersForPayroll = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Fetch spiff entries if needed
+    let spiffEntries = [];
+    if (includeSpiff && spiffFrom && spiffTo) {
+      const sfTs = Timestamp.fromDate(new Date(spiffFrom));
+      const stDate = new Date(spiffTo); stDate.setDate(stDate.getDate()+1);
+      const stTs = Timestamp.fromDate(stDate);
+      const sSnap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',sfTs), where('clockIn','<=',stTs)));
+      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&isBillableEntry({...e.data?.(),...e}));
+    }
+
+    renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo);
+  } catch(e) {
+    $('pr-results').innerHTML = '<div class="err">Query failed: '+e.message+'</div>';
+  }
+  $('pr-run-btn').disabled = false; $('pr-run-btn').textContent = 'Run Payroll Report';
+};
+
+function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo) {
+  if (!entries.length) { $('pr-results').innerHTML = '<div class="empty">No completed time entries found for this period.</div>'; return; }
+
+  // Calculate OT per entry
+  const otMap = calcColoradoOT(entries);
+
+  // Group entries by employee
+  const byEmp = {};
+  entries.forEach(e => {
+    const name = e.userName || 'Unknown';
+    if (!byEmp[name]) byEmp[name] = [];
+    byEmp[name].push(e);
+  });
+
+  // Calculate spiff by employee
+  const spiffByEmp = {};
+  if (includeSpiff) {
+    spiffEntries.forEach(e => {
+      const name = e.userName || 'Unknown';
+      if (!spiffByEmp[name]) spiffByEmp[name] = 0;
+      spiffByEmp[name] += (e.durationMs||0)/3600000;
+    });
+  }
+
+  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
+    Pay Period: <strong>${from} to ${to}</strong>
+    ${includeSpiff?'&nbsp;|&nbsp;Spiff Month: <strong>'+(spiffFrom||'')+ ' to '+(spiffTo||'')+'</strong>':''}
+  </div>`;
+
+  let grandRegPay = 0, grandOTPay = 0, grandDTPay = 0, grandSpiff = 0;
+
+  Object.entries(byEmp).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([empName, empEntries]) => {
+    const user = users.find(u=>(u.name||'').trim()===empName.trim()) || {};
+    const baseRate = parseFloat(user.baseRate||0);
+    const spiffRate = parseFloat(user.spiffRate||0);
+    const spiffEligible = user.spiffEligible===true;
+    const isContractor = user.employeeType==='contractor';
+
+    // Group by day
+    const byDay = {};
+    empEntries.forEach(e => {
+      const d = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
+      const dk = toYMD(d);
+      if (!byDay[dk]) byDay[dk] = [];
+      byDay[dk].push(e);
+    });
+
+    let empReg=0, empOT=0, empDT=0;
+    let dayRows = '';
+
+    Object.entries(byDay).sort().forEach(([dateKey, dayEntries]) => {
+      let dayReg=0, dayOT=0, dayDT=0;
+      let entryRows = '';
+      dayEntries.sort((a,b)=>{
+        const ta=a.clockIn?.toDate?.()??new Date(a.clockIn??0);
+        const tb=b.clockIn?.toDate?.()??new Date(b.clockIn??0);
+        return ta-tb;
+      }).forEach(e => {
+        const ot = otMap[e.id]||{reg:(e.durationMs||0)/3600000,ot:0,dt:0};
+        dayReg+=ot.reg; dayOT+=ot.ot; dayDT+=ot.dt;
+        const billable = isBillableEntry(e);
+        const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
+        const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
+        entryRows += `<tr style="font-size:12px">
+          <td style="padding:6px 8px;color:var(--muted)">${cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} – ${cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
+          <td style="padding:6px 8px">${e.projectName||'--'}</td>
+          <td style="padding:6px 8px"><span class="tag" style="font-size:10px">${e.costCode||e.scope||'--'}</span></td>
+          <td style="padding:6px 8px;text-align:center"><span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${billable?'#d4edd9':'#f5dada'};color:${billable?'var(--green)':'var(--red)'}">${billable?'Billable':'Non-Bill'}</span></td>
+          <td style="padding:6px 8px;text-align:right">${ot.reg.toFixed(2)}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--amber)">${ot.ot>0?ot.ot.toFixed(2):'--'}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--red)">${ot.dt>0?ot.dt.toFixed(2):'--'}</td>
+          <td style="padding:6px 8px;text-align:right">${baseRate?'$'+(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2).toFixed(2):'--'}</td>
+        </tr>`;
+      });
+      empReg+=dayReg; empOT+=dayOT; empDT+=dayDT;
+      const dayPay = baseRate?(dayReg*baseRate+dayOT*baseRate*1.5+dayDT*baseRate*2):0;
+      const dateObj = new Date(dateKey+'T12:00:00');
+      dayRows += `
+        <tr style="background:var(--cream)">
+          <td colspan="4" style="padding:8px;font-weight:600;font-size:13px">${dateObj.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td>
+          <td style="padding:8px;text-align:right;font-weight:600">${dayReg.toFixed(2)}</td>
+          <td style="padding:8px;text-align:right;font-weight:600;color:var(--amber)">${dayOT>0?dayOT.toFixed(2):'--'}</td>
+          <td style="padding:8px;text-align:right;font-weight:600;color:var(--red)">${dayDT>0?dayDT.toFixed(2):'--'}</td>
+          <td style="padding:8px;text-align:right;font-weight:600">${baseRate?'$'+dayPay.toFixed(2):'--'}</td>
+        </tr>
+        ${entryRows}`;
+    });
+
+    const empBasePay = baseRate?(empReg*baseRate+empOT*baseRate*1.5+empDT*baseRate*2):0;
+    const empSpiffHrs = spiffByEmp[empName]||0;
+    const empSpiffPay = (includeSpiff&&spiffEligible&&spiffRate)?empSpiffHrs*spiffRate:0;
+    grandRegPay+=empBasePay; grandSpiff+=empSpiffPay;
+
+    html += `<div class="card" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:18px">${empName}</div>
+          <div style="font-size:12px;color:var(--muted)">${isContractor?'Contractor':'W-2'} · Base $${baseRate}/hr${spiffEligible?' · Spiff $'+spiffRate+'/hr':' · No spiff'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;color:var(--muted)">Period Total</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$${(empBasePay+empSpiffPay).toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl" style="min-width:600px">
+          <thead><tr>
+            <th>Time</th><th>Project</th><th>Cost Code</th><th>Billable</th>
+            <th style="text-align:right">Reg Hrs</th>
+            <th style="text-align:right">OT Hrs</th>
+            <th style="text-align:right">DT Hrs</th>
+            <th style="text-align:right">Pay</th>
+          </tr></thead>
+          <tbody>${dayRows}</tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);font-weight:600">
+              <td colspan="4" style="padding:10px 8px">Period Totals</td>
+              <td style="padding:10px 8px;text-align:right">${empReg.toFixed(2)}</td>
+              <td style="padding:10px 8px;text-align:right;color:var(--amber)">${empOT>0?empOT.toFixed(2):'--'}</td>
+              <td style="padding:10px 8px;text-align:right;color:var(--red)">${empDT>0?empDT.toFixed(2):'--'}</td>
+              <td style="padding:10px 8px;text-align:right">$${empBasePay.toFixed(2)}</td>
+            </tr>
+            ${includeSpiff?`<tr style="background:#f0f7f2">
+              <td colspan="6" style="padding:8px;font-size:13px">
+                Spiff — ${empSpiffHrs.toFixed(2)} billable hrs × $${spiffRate}/hr (${spiffFrom} to ${spiffTo})
+                ${!spiffEligible?'<span style="color:var(--muted)"> — Not eligible</span>':''}
+              </td>
+              <td colspan="2" style="padding:8px;text-align:right;font-weight:600;color:var(--green)">$${empSpiffPay.toFixed(2)}</td>
+            </tr>`:''}
+            <tr style="background:var(--gold);color:#fff">
+              <td colspan="7" style="padding:10px 8px;font-weight:600">Total Check Amount</td>
+              <td style="padding:10px 8px;text-align:right;font-weight:600">$${(empBasePay+empSpiffPay).toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+  });
+
+  // Grand summary
+  html += `<div class="card" style="background:var(--ink);color:#fff">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);margin-bottom:12px">Payroll Summary — ${from} to ${to}</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Base Pay</div><div style="font-size:22px;font-weight:600">$${grandRegPay.toFixed(2)}</div></div>
+      ${includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${grandSpiff.toFixed(2)}</div></div>`:''}
+      <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
+    </div>
+    <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)">Export CSV</button>
+  </div>`;
+
+  $('pr-results').innerHTML = html;
+  window._prData = { entries, otMap, users: allUsersForPayroll, spiffByEmp, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo };
+}
+
+window._csvPayroll = () => {
+  const d = window._prData; if(!d) return;
+  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
+  const rows = [];
+  d.entries.forEach(e => {
+    const user = d.users.find(u=>(u.name||'').trim()===(e.userName||'').trim())||{};
+    const baseRate = parseFloat(user.baseRate||0);
+    const ot = d.otMap[e.id]||{reg:(e.durationMs||0)/3600000,ot:0,dt:0};
+    const billable = isBillableEntry(e);
+    const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
+    const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
+    const basePay = baseRate?(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2):0;
+    const spiffHrs = d.includeSpiff?(d.spiffByEmp[e.userName||'']||0):0;
+    const spiffPay = d.includeSpiff&&user.spiffEligible?spiffHrs*(parseFloat(user.spiffRate)||0):0;
+    rows.push([e.userName||'',user.employeeType==='contractor'?'Contractor':'W-2',cin.toLocaleDateString(),cin.toLocaleDateString('en-US',{weekday:'short'}),e.projectName||'',e.costCode||e.scope||'',billable?'Y':'N',cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),ot.reg.toFixed(4),ot.ot.toFixed(4),ot.dt.toFixed(4),baseRate,basePay.toFixed(2),user.spiffEligible?'Y':'N',user.spiffRate||0,spiffHrs.toFixed(4),spiffPay.toFixed(2)]);
+  });
+  const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_payroll_'+d.from+'_to_'+d.to+'.csv';a.click();
+};
+
+// ── PAY RATE MODAL ────────────────────────────────────────────────────────────
+let editingPayUserId = null;
+window._editPay = id => {
+  const u = allUsersForPayroll.find(x=>x.id===id) || {};
+  editingPayUserId = id;
+  $('pay-modal-name').textContent = u.name || 'Pay Rates';
+  $('pay-base').value = u.baseRate || '';
+  $('pay-type').value = u.employeeType || 'w2';
+  $('pay-spiff-eligible').checked = u.spiffEligible === true;
+  $('pay-spiff-rate').value = u.spiffRate || '';
+  if (u.spiffEligible) show('pay-spiff-row'); else hide('pay-spiff-row');
+  $('pay-err').textContent = '';
+  show('pay-modal');
+};
+$('pay-spiff-eligible').onchange = () => {
+  if ($('pay-spiff-eligible').checked) show('pay-spiff-row'); else hide('pay-spiff-row');
+};
+$('pay-cancel').onclick = () => hide('pay-modal');
+$('pay-save').onclick = async () => {
+  const base = parseFloat($('pay-base').value);
+  if (!base || isNaN(base)) { $('pay-err').textContent = 'Enter a valid base rate.'; return; }
+  $('pay-save').disabled = true; $('pay-save').textContent = 'Saving...';
+  const spiffEligible = $('pay-spiff-eligible').checked;
+  const spiffRate = spiffEligible ? parseFloat($('pay-spiff-rate').value)||0 : 0;
+  try {
+    await updateDoc(doc(db,'users',editingPayUserId), {
+      baseRate: base,
+      employeeType: $('pay-type').value,
+      spiffEligible,
+      spiffRate
+    });
+    hide('pay-modal');
+  } catch(e) { $('pay-err').textContent = 'Save failed: '+e.message; }
+  $('pay-save').disabled = false; $('pay-save').textContent = 'Save Pay Rates';
+};
+
 // ── ADMIN — PROJECTS ──────────────────────────────────────────────────────────
 function renderProjectsList(){
   const el=$('projects-list');
@@ -1349,6 +1885,7 @@ window._ep=id=>{
   $('pm-name').value=p.name||'';$('pm-address').value=p.address||'';
   $('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
   $('pm-prefix').value=p.billPrefix||autoPrefix(p.name||'');
+  $('pm-client-project').checked=p.clientProject!==false;
   pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();
   if(p.lat&&p.lng){setTimeout(()=>initMapPicker(p.lat,p.lng),50)}else{hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent=''}
   show('project-modal');
@@ -1422,7 +1959,7 @@ $('pm-save').onclick=async()=>{
   const conflict=allProjects.find(p=>p.billPrefix===prefix&&p.id!==editingProjectId&&p.active!==false);
   if(conflict){$('pm-err').textContent=`Prefix "${prefix}" is already used by "${conflict.name}". Choose a different prefix.`;return}
   $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
-  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,active:true,updatedAt:serverTimestamp()};
+  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,clientProject:$('pm-client-project').checked,active:true,updatedAt:serverTimestamp()};
   try{
     if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);
     else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});
@@ -1434,10 +1971,30 @@ $('pm-save').onclick=async()=>{
 // ── ADMIN — USERS ─────────────────────────────────────────────────────────────
 function loadUsers(){
   onSnapshot(collection(db,'users'),snap=>{
-    const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const users=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     const el=$('users-list');
     if(!users.length){el.innerHTML='<div class="empty">No users found.</div>';return}
-    el.innerHTML=users.map(u=>`<div class="list-row"><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${ini(u.name)}</div><div><div style="font-weight:500">${u.name||'--'}</div><div style="font-size:12px;color:var(--muted)">${u.email||''}</div></div></div><select class="role-sel" onchange="window._ur('${u.id}',this.value)"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="bookkeeper" ${u.role==='bookkeeper'?'selected':''}>Bookkeeper</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></div>`).join('');
+    el.innerHTML=users.map(u=>`<div class="list-row">
+      <div style="display:flex;align-items:center;gap:10px;flex:1">
+        <div class="avatar">${ini(u.name)}</div>
+        <div style="flex:1">
+          <div style="font-weight:500">${u.name||'--'}</div>
+          <div style="font-size:12px;color:var(--muted)">${u.email||''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            Base: ${u.baseRate?'$'+u.baseRate+'/hr':'not set'} &nbsp;|&nbsp;
+            Spiff: ${u.spiffEligible?'$'+(u.spiffRate||0)+'/hr':'not eligible'}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <select class="role-sel" onchange="window._ur('${u.id}',this.value)">
+          <option value="user" ${(u.role||'').toLowerCase()==='user'?'selected':''}>User</option>
+          <option value="bookkeeper" ${(u.role||'').toLowerCase()==='bookkeeper'?'selected':''}>Bookkeeper</option>
+          <option value="admin" ${(u.role||'').toLowerCase()==='admin'?'selected':''}>Admin</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="window._editPay('${u.id}')">Pay Rates</button>
+      </div>
+    </div>`).join('');
   });
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});

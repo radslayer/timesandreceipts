@@ -557,137 +557,138 @@ const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=g
 const GEO_M=91.44;
 
 // ── COST CODES ──────────────────────────────────────────────────────────────
+// type: 'labor' = time clock only, 'materials' = receipts/bills only
 const COST_CODES=[
-  {cat:'01 - Design & Construction Administration',code:'01.00 - Free One Hour Consult'},
-  {cat:'01 - Design & Construction Administration',code:'01.05 - Design Development'},
-  {cat:'01 - Design & Construction Administration',code:'01.10 - Design Project Management'},
-  {cat:'01 - Design & Construction Administration',code:'01.15 - Procurement of Design Elements'},
-  {cat:'01 - Design & Construction Administration',code:'01.20 - Design or Construction Admin'},
-  {cat:'01 - Design & Construction Administration',code:'01.25 - Construction Project Management'},
-  {cat:'01 - Design & Construction Administration',code:'01.30 - Construction Documents'},
-  {cat:'01 - Design & Construction Administration',code:'01.35 - Design Meetings, Preparation and/or Follow Up'},
-  {cat:'02 - Pre Construction Services',code:'02.00 - Specification List'},
-  {cat:'02 - Pre Construction Services',code:'02.15 - Material List Creation'},
-  {cat:'02 - Pre Construction Services',code:'02.20 - Estimating'},
-  {cat:'02 - Pre Construction Services',code:'02.30 - Field Measurements'},
-  {cat:'02 - Pre Construction Services',code:'02.35 - Shop Building Materials (Construction)'},
-  {cat:'02 - Pre Construction Services',code:'02.45 - Permit Application Process'},
-  {cat:'02 - Pre Construction Services',code:'02.50 - Structural Engineering (Subcontractor)'},
-  {cat:'03 - General Conditions',code:'03.00 - Roll Off'},
-  {cat:'03 - General Conditions',code:'03.05 - Porta Potty'},
-  {cat:'03 - General Conditions',code:'03.10 - Permit Cost/Fees'},
-  {cat:'03 - General Conditions',code:'03.15 - Trip Charge'},
-  {cat:'03 - General Conditions',code:'03.20 - MOTIF Labor Electrical (Like for Like)'},
-  {cat:'03 - General Conditions',code:'03.25 - MOTIF Labor Plumbing (Like for Like)'},
-  {cat:'03 - General Conditions',code:'03.30 - Concrete'},
-  {cat:'04 - Inspections',code:'04.00 - Rough Inspections'},
-  {cat:'04 - Inspections',code:'04.05 - Shower Pan Test Inspection'},
-  {cat:'04 - Inspections',code:'04.10 - Fireplace Inspection'},
-  {cat:'04 - Inspections',code:'04.15 - Final Inspections for All Trades'},
-  {cat:'05 - Job Site Prep',code:'05.00 - Tool Set Up Labor'},
-  {cat:'05 - Job Site Prep',code:'05.01 - Content Manipulation (Moving Client Items/Furniture)'},
-  {cat:'05 - Job Site Prep',code:'05.05 - Job Site Protection Labor'},
-  {cat:'05 - Job Site Prep',code:'05.10 - Job Site Protection Materials'},
-  {cat:'05 - Job Site Prep',code:'05.15 - Demolition Labor'},
-  {cat:'05 - Job Site Prep',code:'05.20 - Demolition Materials (includes roll-off)'},
-  {cat:'05 - Job Site Prep',code:'05.25 - Patio'},
-  {cat:'06 - Framing',code:'06.00 - Framing Materials'},
-  {cat:'06 - Framing',code:'06.05 - Framing Labor'},
-  {cat:'07 - Plumbing',code:'07.00 - Plumbing Sub Labor'},
-  {cat:'07 - Plumbing',code:'07.05 - Plumbing Materials'},
-  {cat:'08 - Electrical',code:'08.00 - Electrical Sub Labor'},
-  {cat:'08 - Electrical',code:'08.05 - Electrical Materials'},
-  {cat:'09 - HVAC',code:'09.00 - HVAC Sub Labor'},
-  {cat:'09 - HVAC',code:'09.05 - HVAC Materials'},
-  {cat:'09 - HVAC',code:'09.10 - HVAC MOTIF Labor'},
-  {cat:'10 - Insulation & Drywall',code:'10.00 - Insulation Labor'},
-  {cat:'10 - Insulation & Drywall',code:'10.05 - Insulation Material'},
-  {cat:'10 - Insulation & Drywall',code:'10.10 - Drywall Sub Labor'},
-  {cat:'10 - Insulation & Drywall',code:'10.15 - Drywall MOTIF Labor'},
-  {cat:'10 - Insulation & Drywall',code:'10.20 - Drywall Materials'},
-  {cat:'11 - Glass & Mirrors',code:'11.00 - Glass Sub Materials (Mirror, Shower Door, Cabinet Glass)'},
-  {cat:'11 - Glass & Mirrors',code:'11.05 - Mirrors (fabricated product)'},
-  {cat:'11 - Glass & Mirrors',code:'11.10 - Glass Sub Labor (Mirror, Shower Door, Cabinet Glass)'},
-  {cat:'12 - Finish Carpentry',code:'12.00 - Trim Carpentry Materials (base, case, crown, chair)'},
-  {cat:'12 - Finish Carpentry',code:'12.05 - Trim Carpentry Labor (base, case, crown, chair)'},
-  {cat:'12 - Finish Carpentry',code:'12.10 - Cabinet Hardware Materials'},
-  {cat:'12 - Finish Carpentry',code:'12.15 - Cabinet Hardware Labor'},
-  {cat:'12 - Finish Carpentry',code:'12.20 - Countertops Material (wood tops)'},
-  {cat:'12 - Finish Carpentry',code:'12.25 - Countertops Fabrication Labor (wood tops)'},
-  {cat:'12 - Finish Carpentry',code:'12.30 - Cabinet Install Materials (pre-fab cabinets only)'},
-  {cat:'12 - Finish Carpentry',code:'12.35 - Cabinet Install Labor (pre-fab cabinets only)'},
-  {cat:'12 - Finish Carpentry',code:'12.40 - Staircase Materials'},
-  {cat:'12 - Finish Carpentry',code:'12.45 - Staircase Labor'},
-  {cat:'12 - Finish Carpentry',code:'12.50 - Custom Carpentry Materials (mantels, built-ins, shelves, cabinets)'},
-  {cat:'12 - Finish Carpentry',code:'12.51 - Window Covering Installation'},
-  {cat:'12 - Finish Carpentry',code:'12.55 - Custom Carpentry Labor (mantels, built-ins, shelves, cabinets)'},
-  {cat:'13 - Windows & Doors',code:'13.00 - Door Hardware Materials'},
-  {cat:'13 - Windows & Doors',code:'13.05 - Door Hardware Labor'},
-  {cat:'13 - Windows & Doors',code:'13.10 - Interior Door Materials'},
-  {cat:'13 - Windows & Doors',code:'13.15 - Interior Door Labor'},
-  {cat:'13 - Windows & Doors',code:'13.20 - Window Materials'},
-  {cat:'13 - Windows & Doors',code:'13.25 - Window Labor'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.00 - Paint Materials'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.05 - Paint Labor'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.10 - Wallpaper Materials'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.15 - Wallpaper Labor by Subcontractor'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.20 - Staining Labor'},
-  {cat:'14 - Paint, Stain & Wallcovering',code:'14.25 - Staining Materials'},
-  {cat:'15 - Flooring & Tile',code:'15.00 - Hardwood Materials'},
-  {cat:'15 - Flooring & Tile',code:'15.05 - Hardwood Labor'},
-  {cat:'15 - Flooring & Tile',code:'15.10 - Hardwood Labor by Subcontractor'},
-  {cat:'15 - Flooring & Tile',code:'15.15 - Tile Labor by Subcontractor'},
-  {cat:'15 - Flooring & Tile',code:'15.20 - Tile Materials'},
-  {cat:'15 - Flooring & Tile',code:'15.25 - Tile Labor'},
-  {cat:'15 - Flooring & Tile',code:'15.30 - Carpet Materials'},
-  {cat:'15 - Flooring & Tile',code:'15.35 - Carpet Labor'},
-  {cat:'15 - Flooring & Tile',code:'15.40 - Carpet Labor by Subcontractor'},
-  {cat:'16 - Appliances',code:'16.00 - Appliance Service Call'},
-  {cat:'16 - Appliances',code:'16.05 - Appliances Installation'},
-  {cat:'17 - Fireplace & Masonry',code:'17.10 - Fireplace Materials'},
-  {cat:'17 - Fireplace & Masonry',code:'17.15 - Fireplace Subcontractor Labor'},
-  {cat:'17 - Fireplace & Masonry',code:'17.20 - Masonry Materials'},
-  {cat:'17 - Fireplace & Masonry',code:'17.25 - Masonry Subcontractor Labor'},
-  {cat:'18 - Cleaning',code:'18.00 - Daily Site Cleaning'},
-  {cat:'18 - Cleaning',code:'18.05 - Post Drywall Cleaning'},
-  {cat:'18 - Cleaning',code:'18.10 - Final Cleaning'},
-  {cat:'19 - Punch List',code:'19.00 - Punch List Materials'},
-  {cat:'19 - Punch List',code:'19.05 - Punch List Labor'},
-  {cat:'20 - Business Operations',code:'20.00 - Construction Supervision'},
-  {cat:'20 - Business Operations',code:'20.05 - General Business Operations'},
-  {cat:'20 - Business Operations',code:'20.10 - Delivery to Jobsite'},
-  {cat:'20 - Business Operations',code:'20.15 - Accounting - Sales Tax, Bookkeeping'},
-  {cat:'20 - Business Operations',code:'20.20 - Design/Value Engineering'},
-  {cat:'20 - Business Operations',code:'20.25 - Jobsite Safety/Security Materials'},
-  {cat:'20 - Business Operations',code:'20.40 - Shipping (must be taxed)'},
-  {cat:'20 - Business Operations',code:'20.45 - Contingency Labor'},
-  {cat:'20 - Business Operations',code:'20.50 - Contingency Materials'},
-  {cat:'20 - Business Operations',code:'20.55 - RDF Fee'},
-  {cat:'20 - Business Operations',code:'20.60 - Sales Tax (must manually calculate)'},
-  {cat:'20 - Business Operations',code:'20.65 - Home Depot Volume Discount'},
-  {cat:'20 - Business Operations',code:'20.75 - Driving to Office for Meetings'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.00 - Furniture and Rugs (materials)'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.05 - Design Accessories - Table Top (Materials)'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.10 - Lighting (Materials)'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.15 - Plumbing Fixtures (Materials)'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.20 - Reupholster Chairs'},
-  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.25 - Hardware Accessories (towel bars, tp holders, shelves)'},
-  {cat:'22 - Change Orders',code:'22.10 - CO1 Additional Scope of Work (Labor)'},
-  {cat:'22 - Change Orders',code:'22.15 - CO1 Additional Scope of Work (Materials)'},
-  {cat:'22 - Change Orders',code:'22.20 - CO2 Additional Scope of Work (Labor)'},
-  {cat:'22 - Change Orders',code:'22.25 - CO2 Additional Scope of Work (Materials)'},
-  {cat:'22 - Change Orders',code:'22.30 - CO3 Additional Scope of Work (Labor)'},
-  {cat:'22 - Change Orders',code:'22.35 - CO3 Additional Scope of Work (Materials)'},
-  {cat:'22 - Change Orders',code:'22.40 - CO4 Additional Scope of Work (Labor)'},
-  {cat:'22 - Change Orders',code:'22.45 - CO4 Additional Scope of Work (Materials)'},
-  {cat:'23 - Sick Time',code:'23.10 - Sick Time'},
-  {cat:'24 - Vacation Time',code:'24.10 - Vacation Time'},
-  {cat:'24 - Vacation Time',code:'24.15 - Unpaid Leave'},
-  {cat:'25 - Holiday Pay',code:'25.10 - Holiday Pay'},
-  {cat:'26 - MOTIF Error',code:'26.10 - Rebuilding Costs Labor'},
-  {cat:'26 - MOTIF Error',code:'26.20 - Rebuilding Costs Materials'},
-  {cat:'27 - Solid Surface & Countertops',code:'27.05 - Solid Surface Materials (Slabs of Quartz, Marble, Granite)'},
-  {cat:'27 - Solid Surface & Countertops',code:'27.10 - Solid Surface Subcontractor Labor (Slabs of Quartz, Marble, Granite)'}
+  {cat:'01 - Design & Construction Administration',code:'01.00 - Free One Hour Consult',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.05 - Design Development',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.10 - Design Project Management',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.15 - Procurement of Design Elements',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.20 - Design or Construction Admin',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.25 - Construction Project Management',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.30 - Construction Documents',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.35 - Design Meetings, Preparation and/or Follow Up',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.00 - Specification List',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.15 - Material List Creation',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.20 - Estimating',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.30 - Field Measurements',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.35 - Shop Building Materials (Construction)',type:'materials'},
+  {cat:'02 - Pre Construction Services',code:'02.45 - Permit Application Process',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.50 - Structural Engineering (Subcontractor)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.00 - Roll Off',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.05 - Porta Potty',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.10 - Permit Cost/Fees',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.15 - Trip Charge',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.20 - MOTIF Labor Electrical (Like for Like)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.25 - MOTIF Labor Plumbing (Like for Like)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.30 - Concrete',type:'materials'},
+  {cat:'04 - Inspections',code:'04.00 - Rough Inspections',type:'labor'},
+  {cat:'04 - Inspections',code:'04.05 - Shower Pan Test Inspection',type:'labor'},
+  {cat:'04 - Inspections',code:'04.10 - Fireplace Inspection',type:'labor'},
+  {cat:'04 - Inspections',code:'04.15 - Final Inspections for All Trades',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.00 - Tool Set Up Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.01 - Content Manipulation (Moving Client Items/Furniture)',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.05 - Job Site Protection Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.10 - Job Site Protection Materials',type:'materials'},
+  {cat:'05 - Job Site Prep',code:'05.15 - Demolition Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.20 - Demolition Materials (includes roll-off)',type:'materials'},
+  {cat:'05 - Job Site Prep',code:'05.25 - Patio',type:'labor'},
+  {cat:'06 - Framing',code:'06.00 - Framing Materials',type:'materials'},
+  {cat:'06 - Framing',code:'06.05 - Framing Labor',type:'labor'},
+  {cat:'07 - Plumbing',code:'07.00 - Plumbing Sub Labor',type:'labor'},
+  {cat:'07 - Plumbing',code:'07.05 - Plumbing Materials',type:'materials'},
+  {cat:'08 - Electrical',code:'08.00 - Electrical Sub Labor',type:'labor'},
+  {cat:'08 - Electrical',code:'08.05 - Electrical Materials',type:'materials'},
+  {cat:'09 - HVAC',code:'09.00 - HVAC Sub Labor',type:'labor'},
+  {cat:'09 - HVAC',code:'09.05 - HVAC Materials',type:'materials'},
+  {cat:'09 - HVAC',code:'09.10 - HVAC MOTIF Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.00 - Insulation Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.05 - Insulation Material',type:'materials'},
+  {cat:'10 - Insulation & Drywall',code:'10.10 - Drywall Sub Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.15 - Drywall MOTIF Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.20 - Drywall Materials',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.00 - Glass Sub Materials (Mirror, Shower Door, Cabinet Glass)',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.05 - Mirrors (fabricated product)',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.10 - Glass Sub Labor (Mirror, Shower Door, Cabinet Glass)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.00 - Trim Carpentry Materials (base, case, crown, chair)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.05 - Trim Carpentry Labor (base, case, crown, chair)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.10 - Cabinet Hardware Materials',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.15 - Cabinet Hardware Labor',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.20 - Countertops Material (wood tops)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.25 - Countertops Fabrication Labor (wood tops)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.30 - Cabinet Install Materials (pre-fab cabinets only)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.35 - Cabinet Install Labor (pre-fab cabinets only)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.40 - Staircase Materials',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.45 - Staircase Labor',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.50 - Custom Carpentry Materials (mantels, built-ins, shelves, cabinets)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.51 - Window Covering Installation',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.55 - Custom Carpentry Labor (mantels, built-ins, shelves, cabinets)',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.00 - Door Hardware Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.05 - Door Hardware Labor',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.10 - Interior Door Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.15 - Interior Door Labor',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.20 - Window Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.25 - Window Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.00 - Paint Materials',type:'materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.05 - Paint Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.10 - Wallpaper Materials',type:'materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.15 - Wallpaper Labor by Subcontractor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.20 - Staining Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.25 - Staining Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.00 - Hardwood Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.05 - Hardwood Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.10 - Hardwood Labor by Subcontractor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.15 - Tile Labor by Subcontractor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.20 - Tile Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.25 - Tile Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.30 - Carpet Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.35 - Carpet Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.40 - Carpet Labor by Subcontractor',type:'labor'},
+  {cat:'16 - Appliances',code:'16.00 - Appliance Service Call',type:'labor'},
+  {cat:'16 - Appliances',code:'16.05 - Appliances Installation',type:'labor'},
+  {cat:'17 - Fireplace & Masonry',code:'17.10 - Fireplace Materials',type:'materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.15 - Fireplace Subcontractor Labor',type:'labor'},
+  {cat:'17 - Fireplace & Masonry',code:'17.20 - Masonry Materials',type:'materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.25 - Masonry Subcontractor Labor',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.00 - Daily Site Cleaning',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.05 - Post Drywall Cleaning',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.10 - Final Cleaning',type:'labor'},
+  {cat:'19 - Punch List',code:'19.00 - Punch List Materials',type:'materials'},
+  {cat:'19 - Punch List',code:'19.05 - Punch List Labor',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.00 - Construction Supervision',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.05 - General Business Operations',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.10 - Delivery to Jobsite',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.15 - Accounting - Sales Tax, Bookkeeping',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.20 - Design/Value Engineering',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.25 - Jobsite Safety/Security Materials',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.40 - Shipping (must be taxed)',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.45 - Contingency Labor',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.50 - Contingency Materials',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.55 - RDF Fee',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.60 - Sales Tax (must manually calculate)',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.65 - Home Depot Volume Discount',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.75 - Driving to Office for Meetings',type:'labor'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.00 - Furniture and Rugs (materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.05 - Design Accessories - Table Top (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.10 - Lighting (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.15 - Plumbing Fixtures (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.20 - Reupholster Chairs',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.25 - Hardware Accessories (towel bars, tp holders, shelves)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.10 - CO1 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.15 - CO1 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.20 - CO2 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.25 - CO2 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.30 - CO3 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.35 - CO3 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.40 - CO4 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.45 - CO4 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'23 - Sick Time',code:'23.10 - Sick Time',type:'labor'},
+  {cat:'24 - Vacation Time',code:'24.10 - Vacation Time',type:'labor'},
+  {cat:'24 - Vacation Time',code:'24.15 - Unpaid Leave',type:'labor'},
+  {cat:'25 - Holiday Pay',code:'25.10 - Holiday Pay',type:'labor'},
+  {cat:'26 - MOTIF Error',code:'26.10 - Rebuilding Costs Labor',type:'labor'},
+  {cat:'26 - MOTIF Error',code:'26.20 - Rebuilding Costs Materials',type:'materials'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.05 - Solid Surface Materials (Slabs of Quartz, Marble, Granite)',type:'materials'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.10 - Solid Surface Subcontractor Labor (Slabs of Quartz, Marble, Granite)',type:'labor'}
 ];
 const COST_CATS=[...new Set(COST_CODES.map(c=>c.cat))];
 const DEF_ROOMS=['Kitchen','Primary Bath','Primary Suite','Living Room','Dining Room','Powder Room','Laundry','Office','Basement','Exterior / Site','General / Whole Home'];
@@ -839,13 +840,19 @@ function loadCustomCodes(){
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');
     fillAllCodesDropdown('er-code-pick');
-    ['ci-cat','et-cat','rpt-cat'].forEach(id=>{
+    ['ci-cat','et-cat'].forEach(id=>{
       const el=$(id);if(!el)return;
       const cur=el.value;
-      el.innerHTML=id==='rpt-cat'?'<option value="">All Categories</option>':'<option value="">Select category...</option>';
-      ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
+      el.innerHTML='<option value="">Select category...</option>';
+      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))];
+      laborCats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
       if(cur)el.value=cur;
     });
+    const rptCat=$('rpt-cat');if(rptCat){
+      const rv=rptCat.value;rptCat.innerHTML='<option value="">All Categories</option>';
+      ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;rptCat.appendChild(o)});
+      rptCat.value=rv;
+    }
     const ccSel=$('cc-cat-sel');if(ccSel){
       ccSel.innerHTML='<option value="">Select existing category...</option>';
       ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ccSel.appendChild(o)});
@@ -904,20 +911,23 @@ function rebuildCostCodeData(){
   ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
 }
 // Override fillAllCodesDropdown and fillCatDropdown to use ALL_CODES/ALL_CATS
-function fillAllCodesDropdown(selId){
+function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Search / select cost code...</option>';
-  ALL_CODES.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+' ['+c.cat+']';s.appendChild(o)});
+  const codes=typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES;
+  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
 }
-function fillCatDropdown(selId){
+function fillCatDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select category...</option>';
-  ALL_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
+  const cats=typeFilter?[...new Set(ALL_CODES.filter(c=>c.type===typeFilter).map(c=>c.cat))]:ALL_CATS;
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
 }
-function fillCodeDropdown(selId,cat){
+function fillCodeDropdown(selId,cat,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select code...</option>';
-  ALL_CODES.filter(c=>c.cat===cat).forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
+  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter));
+  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
 }
 function renderCustomCodesList(){
   const el=$('custom-codes-list');if(!el)return;
@@ -1025,9 +1035,9 @@ function fillRoomDropdown(selId,proj){
 }
 
 // ── CLOCK IN/OUT ─────────────────────────────────────────────────────────────
-fillCatDropdown('ci-cat');
+fillCatDropdown('ci-cat','labor');
 $('ci-project').onchange=()=>{fillRoomDropdown('ci-room',activeProjects.find(p=>p.id===$('ci-project').value));updateGeoBar()};
-$('ci-cat').onchange=()=>fillCodeDropdown('ci-code',$('ci-cat').value);
+$('ci-cat').onchange=()=>fillCodeDropdown('ci-code',$('ci-cat').value,'labor');
 
 function loadActiveSession(){
   if(!currentUser)return;
@@ -1293,7 +1303,7 @@ $('er-save').onclick=async()=>{
 };
 
 // ── EDIT TIME LOG ─────────────────────────────────────────────────────────────
-fillCatDropdown('et-cat');
+fillCatDropdown('et-cat','labor');
 window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
 let editingTimeId=null;
 window._et=id=>{
@@ -1306,14 +1316,14 @@ window._et=id=>{
   // populate cat/code
   const existingCat=r.costCodeCategory||'';const existingCode=r.costCode||r.scope||'';
   $('et-cat').value=existingCat;
-  fillCodeDropdown('et-code',existingCat);
+  fillCodeDropdown('et-code',existingCat,'labor');
   $('et-code').value=existingCode;
   $('et-room').value=r.room||'';
   const toLocal=ts=>{if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);const off=d.getTimezoneOffset()*60000;return new Date(d-off).toISOString().slice(0,16)};
   $('et-clockin').value=toLocal(r.clockIn);$('et-clockout').value=r.clockOut?toLocal(r.clockOut):'';
   $('et-notes').value=r.notes||'';$('et-err').textContent='';show('edit-time-modal');
 };
-$('et-cat').onchange=()=>fillCodeDropdown('et-code',$('et-cat').value);
+$('et-cat').onchange=()=>fillCodeDropdown('et-code',$('et-cat').value,'labor');
 $('et-project').onchange=()=>fillRoomDropdown('et-room',allProjects.find(p=>p.id===$('et-project').value));
 $('et-cancel').onclick=()=>hide('edit-time-modal');
 $('et-save').onclick=async()=>{

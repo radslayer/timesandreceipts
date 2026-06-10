@@ -268,35 +268,58 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
       </div>
       <div id="adm-codes-panel" class="hidden">
-        <div class="card" style="margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:4px">Add Custom Cost Code</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Custom codes are added to existing categories or a new category you define. They appear in all cost code dropdowns alongside the standard codes.</div>
-          <div class="field" style="margin-bottom:12px"><label>Category</label>
-            <select id="cc-cat-sel"><option value="">Select existing category...</option><option value="__new__">+ New Category...</option></select>
-            <input type="text" id="cc-cat-new" class="hidden" placeholder="New category name (e.g. 28 - Exterior Work)..." style="margin-top:6px;width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
-          </div>
-          <div class="row2" style="margin-bottom:12px">
-            <div class="field" style="margin-bottom:0"><label>Cost Code *</label>
-              <input type="text" id="cc-code-input" placeholder="e.g. 28.00 - Exterior Painting Labor..." style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
-            </div>
-            <div class="field" style="margin-bottom:0"><label>Billable to Client</label>
-              <select id="cc-billable" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--cream)">
-                <option value="true">Yes — Billable</option>
-                <option value="false">No — Non-Billable</option>
-              </select>
-            </div>
-          </div>
-          <div id="cc-err" class="err" style="margin-bottom:8px"></div>
-          <button class="btn btn-gold btn-sm" id="add-code-btn">Add Cost Code</button>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:4px">Billable Overrides — Standard Codes</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">All standard codes default to billable. Uncheck any that should never be billed to a client. Changes apply across all projects.</div>
-          <div id="billable-overrides-list"></div>
-        </div>
         <div class="card">
-          <div style="font-weight:600;margin-bottom:12px">Custom Cost Codes</div>
-          <div id="custom-codes-list"><div class="empty" style="padding:16px">No custom codes yet.</div></div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-weight:600;margin-bottom:2px">Cost Code Master List</div>
+              <div style="font-size:12px;color:var(--muted)">All codes used across time clock, receipts, and bills. Labor codes appear on time entries; materials codes appear on receipts and bills. Changes save automatically.</div>
+            </div>
+            <button class="btn btn-gold btn-sm" id="show-add-code-btn">+ Add Code</button>
+          </div>
+          <div id="add-code-form" class="hidden" style="background:var(--cream);border-radius:8px;padding:14px;margin-bottom:16px;border:1px solid var(--border)">
+            <div style="font-weight:600;font-size:13px;margin-bottom:10px">New Cost Code</div>
+            <div class="field" style="margin-bottom:10px"><label>Category</label>
+              <select id="cc-cat-sel"><option value="">Select existing category...</option><option value="__new__">+ New Category...</option></select>
+              <input type="text" id="cc-cat-new" class="hidden" placeholder="New category name (e.g. 28 - Exterior Work)..." style="margin-top:6px;width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;font-family:'DM Sans',sans-serif;background:#fff">
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div style="flex:2;min-width:200px">
+                <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Cost Code *</label>
+                <input type="text" id="cc-code-input" placeholder="e.g. 28.00 - Exterior Painting Labor..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;font-family:'DM Sans',sans-serif;background:#fff">
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Type</label>
+                <div style="display:flex;gap:12px;padding:10px 0">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="cc-type" value="labor" checked style="width:auto;margin:0"> Labor</label>
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="cc-type" value="materials" style="width:auto;margin:0"> Materials</label>
+                </div>
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Billable</label>
+                <div style="display:flex;gap:12px;padding:10px 0">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="cc-billable" value="true" checked style="width:auto;margin:0"> Yes</label>
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="cc-billable" value="false" style="width:auto;margin:0"> No</label>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-gold btn-sm" id="add-code-btn">Add</button>
+                <button class="btn btn-outline btn-sm" id="cancel-add-code-btn">Cancel</button>
+              </div>
+            </div>
+            <div id="cc-err" class="err" style="margin-top:6px"></div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="codes-master-table">
+              <thead><tr>
+                <th>Category</th>
+                <th>Cost Code</th>
+                <th style="text-align:center">Type</th>
+                <th style="text-align:center">Billable</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="codes-master-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -829,6 +852,9 @@ function loadCustomCodes(){
     // Load billable overrides — array of codes that are non-billable
     const nonBillable=data.nonBillable||DEFAULT_NON_BILLABLE;
     nonBillableCodes=new Set(nonBillable);
+    // Apply type overrides to standard codes
+    const typeOverrides=data.typeOverrides||{};
+    COST_CODES.forEach(c=>{if(typeOverrides[c.code])c.type=typeOverrides[c.code]});
     // Custom code billable flags stored per code
     customBillableOverrides=new Map();
     customCodes.forEach(c=>{
@@ -874,80 +900,76 @@ const DEFAULT_NON_BILLABLE=[
   '26.20 - Rebuilding Costs Materials'
 ];
 
-function renderBillableOverrides(){
-  const el=$('billable-overrides-list');if(!el)return;
-  // Group all standard codes by category, show toggle per code
-  let html='';
-  COST_CATS.forEach(cat=>{
-    const codes=COST_CODES.filter(c=>c.cat===cat);
-    html+=`<div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${cat}</div>
-      ${codes.map(c=>{
-        const billable=!nonBillableCodes.has(c.code);
-        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:13px">${c.code}</span>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
-            <input type="checkbox" ${billable?'checked':''} onchange="window._toggleBillable('${c.code.replace(/'/g,"\\'")}',this.checked)" style="width:auto;margin:0">
-            Billable
-          </label>
-        </div>`;
-      }).join('')}
-    </div>`;
-  });
-  el.innerHTML=html;
-}
+function renderBillableOverrides(){ renderCodesMasterList(); }
 
-window._toggleBillable=async(code,billable)=>{
-  if(billable){nonBillableCodes.delete(code)}else{nonBillableCodes.add(code)}
-  const snap=await getDoc(doc(db,'settings','costCodes'));
-  const data=snap.exists()?snap.data():{codes:[]};
-  await setDoc(doc(db,'settings','costCodes'),{...data,nonBillable:[...nonBillableCodes]});
-};
-// Merged list — base COST_CODES + customCodes, used everywhere
-let ALL_CODES=[...COST_CODES];
-let ALL_CATS=[...COST_CATS];
-function rebuildCostCodeData(){
-  ALL_CODES=[...COST_CODES,...customCodes];
-  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
-}
-// Override fillAllCodesDropdown and fillCatDropdown to use ALL_CODES/ALL_CATS
-function fillAllCodesDropdown(selId,typeFilter){
-  const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Search / select cost code...</option>';
-  const codes=typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES;
-  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
-}
-function fillCatDropdown(selId,typeFilter){
-  const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Select category...</option>';
-  const cats=typeFilter?[...new Set(ALL_CODES.filter(c=>c.type===typeFilter).map(c=>c.cat))]:ALL_CATS;
-  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
-}
-function fillCodeDropdown(selId,cat,typeFilter){
-  const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Select code...</option>';
-  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter));
-  codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
-}
-function renderCustomCodesList(){
-  const el=$('custom-codes-list');if(!el)return;
-  if(!customCodes.length){el.innerHTML='<div class="empty" style="padding:16px">No custom codes yet.</div>';return}
-  // group by category
+function renderCodesMasterList(){
+  const tbody=$('codes-master-body');if(!tbody)return;
+  const allRows=[
+    ...COST_CODES.map(c=>({...c,custom:false})),
+    ...customCodes.map(c=>({...c,custom:true}))
+  ];
+  if(!allRows.length){tbody.innerHTML='<tr><td colspan="5" class="empty">No codes.</td></tr>';return}
   const byCat={};
-  customCodes.forEach((c,i)=>{if(!byCat[c.cat])byCat[c.cat]=[];byCat[c.cat].push({...c,idx:i})});
-  el.innerHTML=Object.entries(byCat).map(([cat,codes])=>`
-    <div style="margin-bottom:14px">
-      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">${cat}</div>
-      ${codes.map(c=>`<div class="list-row" style="padding:8px 0">
-        <span style="font-size:13px">${c.code}</span>
-        <button class="btn btn-red btn-sm" onclick="window._removeCustomCode(${c.idx})">Remove</button>
-      </div>`).join('')}
-    </div>`).join('');
+  allRows.forEach(c=>{if(!byCat[c.cat])byCat[c.cat]=[];byCat[c.cat].push(c)});
+  let html='';
+  Object.entries(byCat).forEach(([cat,codes])=>{
+    html+=`<tr style="background:var(--cream)"><td colspan="5" style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">${cat}</td></tr>`;
+    codes.forEach(c=>{
+      const billable=!nonBillableCodes.has(c.code)&&(c.billable!==false);
+      const isLabor=(c.type||'labor')==='labor';
+      const codeId='c'+c.code.replace(/[^a-z0-9]/gi,'_');
+      const safeCode=c.code.replace(/'/g,"\\'");
+      html+=`<tr>
+        <td style="padding:6px 10px;font-size:11px">${c.custom?'<span class="badge" style="background:#e8e0f5;color:#5a3a8a;font-size:9px">Custom</span>':''}</td>
+        <td style="padding:6px 10px;font-size:13px">${c.code}</td>
+        <td style="padding:6px 10px;text-align:center">
+          <div style="display:inline-flex;gap:10px;white-space:nowrap">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="labor" ${isLabor?'checked':''} onchange="window._setCodeType('${safeCode}','labor',${c.custom})" style="width:auto;margin:0"> Labor</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="materials" ${!isLabor?'checked':''} onchange="window._setCodeType('${safeCode}','materials',${c.custom})" style="width:auto;margin:0"> Materials</label>
+          </div>
+        </td>
+        <td style="padding:6px 10px;text-align:center">
+          <div style="display:inline-flex;gap:10px;white-space:nowrap">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="true" ${billable?'checked':''} onchange="window._setCodeBillable('${safeCode}',true,${c.custom})" style="width:auto;margin:0"> Yes</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="false" ${!billable?'checked':''} onchange="window._setCodeBillable('${safeCode}',false,${c.custom})" style="width:auto;margin:0"> No</label>
+          </div>
+        </td>
+        <td style="padding:6px 10px;text-align:right">${c.custom?`<button class="btn btn-red btn-sm" onclick="window._removeCustomCode(${customCodes.findIndex(x=>x.code===c.code)})">Remove</button>`:''}</td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
 }
 window._removeCustomCode=async i=>{
   const updated=[...customCodes];updated.splice(i,1);
-  await setDoc(doc(db,'settings','costCodes'),{codes:updated});
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{};
+  await setDoc(doc(db,'settings','costCodes'),{...data,codes:updated});
 };
+window._setCodeType=async(code,type,isCustom)=>{
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{codes:[]};
+  if(isCustom){
+    const updated=customCodes.map(c=>c.code===code?{...c,type}:c);
+    await setDoc(doc(db,'settings','costCodes'),{...data,codes:updated});
+  }else{
+    const typeOverrides={...(data.typeOverrides||{}),[code]:type};
+    await setDoc(doc(db,'settings','costCodes'),{...data,typeOverrides});
+  }
+};
+window._setCodeBillable=async(code,billable,isCustom)=>{
+  if(billable){nonBillableCodes.delete(code)}else{nonBillableCodes.add(code)}
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{};
+  if(isCustom){
+    const updated=customCodes.map(c=>c.code===code?{...c,billable}:c);
+    await setDoc(doc(db,'settings','costCodes'),{...data,codes:updated});
+  }else{
+    await setDoc(doc(db,'settings','costCodes'),{...data,nonBillable:[...nonBillableCodes]});
+  }
+};
+$('show-add-code-btn').onclick=()=>show('add-code-form');
+$('cancel-add-code-btn').onclick=()=>{hide('add-code-form');$('cc-code-input').value='';$('cc-cat-sel').value='';$('cc-cat-new').value='';hide('cc-cat-new');$('cc-err').textContent=''};
 $('cc-cat-sel').onchange=()=>{
   if($('cc-cat-sel').value==='__new__')show('cc-cat-new');
   else hide('cc-cat-new');
@@ -960,10 +982,13 @@ $('add-code-btn').onclick=async()=>{
   if(!cat){$('cc-err').textContent='Select or enter a category.';return}
   if(!code){$('cc-err').textContent='Enter a cost code.';return}
   if(ALL_CODES.some(c=>c.code===code)){$('cc-err').textContent='That code already exists.';return}
-  const billable=$('cc-billable').value==='true';
-  const updated=[...customCodes,{cat,code,billable}];
-  await setDoc(doc(db,'settings','costCodes'),{codes:updated});
-  $('cc-cat-sel').value='';$('cc-cat-new').value='';$('cc-code-input').value='';hide('cc-cat-new');
+  const type=document.querySelector('input[name="cc-type"]:checked')?.value||'labor';
+  const billable=document.querySelector('input[name="cc-billable"]:checked')?.value!=='false';
+  const updated=[...customCodes,{cat,code,type,billable}];
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{};
+  await setDoc(doc(db,'settings','costCodes'),{...data,codes:updated});
+  $('cc-cat-sel').value='';$('cc-cat-new').value='';$('cc-code-input').value='';hide('cc-cat-new');hide('add-code-form');
 };
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────

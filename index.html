@@ -315,9 +315,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
                 <th>Cost Code</th>
                 <th style="text-align:center">Type</th>
                 <th style="text-align:center">Billable</th>
+                <th style="text-align:center">Archive</th>
                 <th></th>
               </tr></thead>
-              <tbody id="codes-master-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+              <tbody id="codes-master-body"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -722,7 +723,7 @@ let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
 let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
 let _rptRawData=[],_rptType='time';
-let approvedVendors=[],pendingVendors=[],customCodes=[],nonBillableCodes=new Set(),customBillableOverrides=new Map();
+let approvedVendors=[],pendingVendors=[],customCodes=[],nonBillableCodes=new Set(),customBillableOverrides=new Map(),archivedCodes=new Set();
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id).classList.remove('hidden');
@@ -753,19 +754,20 @@ function rebuildCostCodeData(){
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Search / select cost code...</option>';
-  const codes=typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES;
+  const codes=(typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES).filter(c=>!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
 }
 function fillCatDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select category...</option>';
-  const cats=typeFilter?[...new Set(ALL_CODES.filter(c=>c.type===typeFilter).map(c=>c.cat))]:ALL_CATS;
+  const activeCodes=ALL_CODES.filter(c=>!archivedCodes.has(c.code));
+  const cats=typeFilter?[...new Set(activeCodes.filter(c=>c.type===typeFilter).map(c=>c.cat))]:[...new Set(activeCodes.map(c=>c.cat))];
   cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
 }
 function fillCodeDropdown(selId,cat,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select code...</option>';
-  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter));
+  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter)&&!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
 }
 function renderCodeChips(containerId,codesArr,onRemove){
@@ -876,6 +878,7 @@ function loadCustomCodes(){
     // Load billable overrides — array of codes that are non-billable
     const nonBillable=data.nonBillable||DEFAULT_NON_BILLABLE;
     nonBillableCodes=new Set(nonBillable);
+    archivedCodes=new Set(data.archived||[]);
     // Apply type overrides to standard codes
     const typeOverrides=data.typeOverrides||{};
     COST_CODES.forEach(c=>{if(typeOverrides[c.code])c.type=typeOverrides[c.code]});
@@ -941,25 +944,39 @@ function renderCodesMasterList(){
     codes.forEach(c=>{
       const billable=!nonBillableCodes.has(c.code)&&(c.billable!==false);
       const isLabor=(c.type||'labor')==='labor';
+      const isArchived=archivedCodes.has(c.code);
       const codeId='c'+c.code.replace(/[^a-z0-9]/gi,'_');
       const safeCode=c.code.replace(/'/g,"\\'");
-      html+=`<tr>
-        <td style="padding:6px 10px;font-size:11px">${c.custom?'<span class="badge" style="background:#e8e0f5;color:#5a3a8a;font-size:9px">Custom</span>':''}</td>
+      html+=`<tr style="${isArchived?'opacity:0.4;':''}">
+        <td style="padding:6px 10px;font-size:11px">${c.custom?'<span class="badge" style="background:#e8e0f5;color:#5a3a8a;font-size:9px">Custom</span>':''}${isArchived?'<span class="badge" style="background:var(--border);color:var(--muted);font-size:9px;margin-left:3px">Archived</span>':''}</td>
         <td style="padding:6px 10px;font-size:13px">${c.code}</td>
         <td style="padding:6px 10px;text-align:center">
           <div style="display:inline-flex;gap:10px;white-space:nowrap">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="labor" ${isLabor?'checked':''} onchange="window._setCodeType('${safeCode}','labor',${c.custom})" style="width:auto;margin:0"> Labor</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="materials" ${!isLabor?'checked':''} onchange="window._setCodeType('${safeCode}','materials',${c.custom})" style="width:auto;margin:0"> Materials</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="labor" ${isLabor?'checked':''} ${isArchived?'disabled':''} onchange="window._setCodeType('${safeCode}','labor',${c.custom})" style="width:auto;margin:0"> Labor</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="type_${codeId}" value="materials" ${!isLabor?'checked':''} ${isArchived?'disabled':''} onchange="window._setCodeType('${safeCode}','materials',${c.custom})" style="width:auto;margin:0"> Materials</label>
           </div>
         </td>
         <td style="padding:6px 10px;text-align:center">
           <div style="display:inline-flex;gap:10px;white-space:nowrap">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="true" ${billable?'checked':''} onchange="window._setCodeBillable('${safeCode}',true,${c.custom})" style="width:auto;margin:0"> Yes</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="false" ${!billable?'checked':''} onchange="window._setCodeBillable('${safeCode}',false,${c.custom})" style="width:auto;margin:0"> No</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="true" ${billable?'checked':''} ${isArchived?'disabled':''} onchange="window._setCodeBillable('${safeCode}',true,${c.custom})" style="width:auto;margin:0"> Yes</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="bill_${codeId}" value="false" ${!billable?'checked':''} ${isArchived?'disabled':''} onchange="window._setCodeBillable('${safeCode}',false,${c.custom})" style="width:auto;margin:0"> No</label>
           </div>
+        </td>
+        <td style="padding:6px 10px;text-align:center">
+          <button class="btn btn-sm" style="background:${isArchived?'#d4edd9':'var(--cream)'};color:${isArchived?'var(--green)':'var(--muted)'};border:1px solid var(--border);white-space:nowrap" onclick="window._toggleArchive('${safeCode}')">${isArchived?'Unarchive':'Archive'}</button>
         </td>
         <td style="padding:6px 10px;text-align:right">${c.custom?`<button class="btn btn-red btn-sm" onclick="window._removeCustomCode(${customCodes.findIndex(x=>x.code===c.code)})">Remove</button>`:''}</td>
       </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
+}
+window._toggleArchive=async(code)=>{
+  if(archivedCodes.has(code)){archivedCodes.delete(code)}else{archivedCodes.add(code)}
+  const snap=await getDoc(doc(db,'settings','costCodes'));
+  const data=snap.exists()?snap.data():{};
+  await setDoc(doc(db,'settings','costCodes'),{...data,archived:[...archivedCodes]});
+};
     });
   });
   tbody.innerHTML=html;

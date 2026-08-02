@@ -2068,11 +2068,13 @@ function loadUsers(){
     const users=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     const el=$('users-list');
     if(!users.length){el.innerHTML='<div class="empty">No users found.</div>';return}
-    el.innerHTML=users.map(u=>`<div class="list-row">
+    el.innerHTML=users.map(u=>{
+      const isDeactivated=u.deactivated===true;
+      return`<div class="list-row" style="${isDeactivated?'opacity:0.5':''}">
       <div style="display:flex;align-items:center;gap:10px;flex:1">
-        <div class="avatar">${ini(u.name)}</div>
+        <div class="avatar" style="background:${isDeactivated?'var(--muted)':'var(--gold)'}">${ini(u.name)}</div>
         <div style="flex:1">
-          <div style="font-weight:500">${u.name||'--'}</div>
+          <div style="font-weight:500">${u.name||'--'} ${isDeactivated?'<span class="badge" style="background:var(--border);color:var(--muted);font-size:9px">Deactivated</span>':''}</div>
           <div style="font-size:12px;color:var(--muted)">${u.email||''}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">
             Base: ${u.baseRate?'$'+u.baseRate+'/hr':'not set'} &nbsp;|&nbsp;
@@ -2081,17 +2083,27 @@ function loadUsers(){
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-        <select class="role-sel" onchange="window._ur('${u.id}',this.value)">
+        <select class="role-sel" onchange="window._ur('${u.id}',this.value)" ${isDeactivated?'disabled':''}>
           <option value="user" ${(u.role||'').toLowerCase()==='user'?'selected':''}>User</option>
           <option value="bookkeeper" ${(u.role||'').toLowerCase()==='bookkeeper'?'selected':''}>Bookkeeper</option>
           <option value="admin" ${(u.role||'').toLowerCase()==='admin'?'selected':''}>Admin</option>
         </select>
-        <button class="btn btn-outline btn-sm" onclick="window._editPay('${u.id}')">Pay Rates</button>
+        <button class="btn btn-outline btn-sm" onclick="window._editPay('${u.id}')" ${isDeactivated?'disabled':''}>Pay Rates</button>
+        <button class="btn btn-sm" style="background:${isDeactivated?'#d4edd9':'#f5dada'};color:${isDeactivated?'var(--green)':'var(--red)'};border:1px solid var(--border)" onclick="window._toggleDeactivate('${u.id}',${isDeactivated})">${isDeactivated?'Reactivate':'Deactivate'}</button>
       </div>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   });
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
+window._toggleDeactivate=async(uid,currentlyDeactivated)=>{
+  if(!currentlyDeactivated&&!confirm('Deactivate this user? They will not be able to sign in until reactivated.'))return;
+  try{
+    const deactivateUser=httpsCallable(functions,'deactivateUser');
+    await deactivateUser({uid,deactivate:!currentlyDeactivated});
+    await updateDoc(doc(db,'users',uid),{deactivated:!currentlyDeactivated});
+  }catch(e){alert('Failed: '+e.message)}
+};
 $('new-user-btn').onclick=()=>{['um-name','um-email'].forEach(id=>$(id).value='');$('um-role').value='user';$('um-err').textContent='';hide('um-success');show('user-modal')};
 $('um-cancel').onclick=()=>hide('user-modal');
 $('um-save').onclick=async()=>{

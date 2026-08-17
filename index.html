@@ -747,9 +747,14 @@ function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(
 // Merged list — base COST_CODES + customCodes, used everywhere
 let ALL_CODES=[...COST_CODES];
 let ALL_CATS=[...COST_CATS];
+function catSort(a,b){
+  const na=parseFloat(a),nb=parseFloat(b);
+  if(!isNaN(na)&&!isNaN(nb)&&na!==nb)return na-nb;
+  return a.localeCompare(b);
+}
 function rebuildCostCodeData(){
   ALL_CODES=[...COST_CODES,...customCodes];
-  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
+  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort(catSort);
 }
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
@@ -897,7 +902,7 @@ function loadCustomCodes(){
       const el=$(id);if(!el)return;
       const cur=el.value;
       el.innerHTML='<option value="">Select category...</option>';
-      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))];
+      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))].sort(catSort);
       laborCats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
       if(cur)el.value=cur;
     });

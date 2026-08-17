@@ -888,7 +888,7 @@ function loadCustomCodes(){
       if(c.billable===false)customBillableOverrides.set(c.code,false);
     });
     rebuildCostCodeData();
-    renderCustomCodesList();
+    renderCodesMasterList();
     renderBillableOverrides();
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');

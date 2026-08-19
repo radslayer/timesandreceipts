@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://*.firebase.com wss://*.firebaseio.com https://firestore.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://maps.googleapis.com https://maps.gstatic.com https://*.ggpht.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://*.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://maps.googleapis.com https://maps.gstatic.com https://*.ggpht.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
 <title>MOTIF — Times &amp; Receipts</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDiIA5AF5jVmEidKMRm1o1mpSWUn80kAdw&libraries=places"></script>
@@ -747,14 +747,9 @@ function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(
 // Merged list — base COST_CODES + customCodes, used everywhere
 let ALL_CODES=[...COST_CODES];
 let ALL_CATS=[...COST_CATS];
-function catSort(a,b){
-  const na=parseFloat(a),nb=parseFloat(b);
-  if(!isNaN(na)&&!isNaN(nb)&&na!==nb)return na-nb;
-  return a.localeCompare(b);
-}
 function rebuildCostCodeData(){
   ALL_CODES=[...COST_CODES,...customCodes];
-  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort(catSort);
+  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
 }
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
@@ -893,7 +888,7 @@ function loadCustomCodes(){
       if(c.billable===false)customBillableOverrides.set(c.code,false);
     });
     rebuildCostCodeData();
-    renderCodesMasterList();
+    renderCustomCodesList();
     renderBillableOverrides();
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');
@@ -902,7 +897,7 @@ function loadCustomCodes(){
       const el=$(id);if(!el)return;
       const cur=el.value;
       el.innerHTML='<option value="">Select category...</option>';
-      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))].sort(catSort);
+      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))];
       laborCats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
       if(cur)el.value=cur;
     });
@@ -1549,11 +1544,17 @@ function renderReport(data){
 window._csv=()=>{
   const data=window._rptData||[];const it=_rptType==='time';
   const headers=it
-    ?['Date','Employee','Project','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']
+    ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']
     :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Notes','Receipt URL'];
-  const rows=data.map(r=>it
-    ?[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'']
-    :[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.notes||'',r.imageUrl||'']);
+  const rows=data.map(r=>{
+    if(it){
+      const billable=isBillableEntry(r);
+      const proj=allProjects.find(p=>p.id===r.projectId);
+      const billTo=billable?(proj?.name||r.projectName||''):'';
+      return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||''];
+    }
+    return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.notes||'',r.imageUrl||''];
+  });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 };

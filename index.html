@@ -419,7 +419,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
     <div class="field">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;font-weight:500">
-        <input type="checkbox" id="pm-client-project" style="width:auto;margin:0" checked>
+        <input type="checkbox" id="pm-client-project" style="width:18px;height:18px;margin:0;cursor:pointer;pointer-events:auto;touch-action:manipulation" checked>
         Client project (hours billed to this project count as billable)
       </label>
     </div>
@@ -754,20 +754,20 @@ function rebuildCostCodeData(){
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Search / select cost code...</option>';
-  const codes=(typeFilter?ALL_CODES.filter(c=>c.type===typeFilter):ALL_CODES).filter(c=>!archivedCodes.has(c.code));
+  const codes=(typeFilter?ALL_CODES.filter(c=>(c.type||'labor').trim().toLowerCase()===typeFilter):ALL_CODES).filter(c=>!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
 }
 function fillCatDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select category...</option>';
   const activeCodes=ALL_CODES.filter(c=>!archivedCodes.has(c.code));
-  const cats=typeFilter?[...new Set(activeCodes.filter(c=>c.type===typeFilter).map(c=>c.cat))]:[...new Set(activeCodes.map(c=>c.cat))];
-  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
+  const cats=typeFilter?[...new Set(activeCodes.filter(c=>(c.type||'labor').trim().toLowerCase()===typeFilter).map(c=>c.cat))]:[...new Set(activeCodes.map(c=>c.cat))];
+  cats.sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
 }
 function fillCodeDropdown(selId,cat,typeFilter){
   const s=$(selId);if(!s)return;
   s.innerHTML='<option value="">Select code...</option>';
-  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||c.type===typeFilter)&&!archivedCodes.has(c.code));
+  const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||(c.type||'labor').trim().toLowerCase()===typeFilter)&&!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
 }
 function renderCodeChips(containerId,codesArr,onRemove){
@@ -2042,7 +2042,7 @@ $('pm-geocode-btn').onclick=async()=>{
 };
 function updateGeoNote(){
   const la=$('pm-lat').value,lo=$('pm-lng').value;
-  $('pm-geo-note').textContent=la&&lo?'&#10003; Geofence set — 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':'';
+  $('pm-geo-note').innerHTML=la&&lo?'✓ Geofence set — 300 ft radius ('+parseFloat(la).toFixed(4)+', '+parseFloat(lo).toFixed(4)+')':'';
 }
 $('pm-lat').oninput=$('pm-lng').oninput=()=>{
   updateGeoNote();

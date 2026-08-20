@@ -1178,7 +1178,13 @@ function loadMyLog(){
     window._allTimeLogs=rows;
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}
-    tb.innerHTML=rows.map(r=>`<tr>
+    const now=Date.now();
+    tb.innerHTML=rows.map(r=>{
+      const entryMs=tsMs(r.clockIn);
+      const withinDay=now-entryMs<172800000; // 48 hours
+      const canEdit=isAdmin()||(r.userId===currentUser.uid&&withinDay);
+      const canDel=isAdmin();
+      return`<tr>
       <td>${fmtDate(r.clockIn)}</td>
       <td>${r.projectName||'--'}</td>
       <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
@@ -1187,8 +1193,12 @@ function loadMyLog(){
       <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
       <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
       <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
-      <td>${isAdmin()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
-    </tr>`).join('');
+      <td style="white-space:nowrap">
+        ${canEdit?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button>`:''}
+        ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
+      </td>
+    </tr>`;
+    }).join('');
   });
 }
 
@@ -1397,7 +1407,6 @@ window._et=id=>{
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
   fillRoomDropdown('et-room',allProjects.find(p=>p.id===r.projectId));
-  // populate cat/code
   const existingCat=r.costCodeCategory||'';const existingCode=r.costCode||r.scope||'';
   $('et-cat').value=existingCat;
   fillCodeDropdown('et-code',existingCat,'labor');
@@ -1405,7 +1414,10 @@ window._et=id=>{
   $('et-room').value=r.room||'';
   const toLocal=ts=>{if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);const off=d.getTimezoneOffset()*60000;return new Date(d-off).toISOString().slice(0,16)};
   $('et-clockin').value=toLocal(r.clockIn);$('et-clockout').value=r.clockOut?toLocal(r.clockOut):'';
-  $('et-notes').value=r.notes||'';$('et-err').textContent='';show('edit-time-modal');
+  $('et-notes').value=r.notes||'';$('et-err').textContent='';
+  // All fields editable for everyone within the 48-hour window
+  ['et-project','et-cat','et-code','et-room','et-clockin'].forEach(fid=>{$(fid).disabled=false});
+  show('edit-time-modal');
 };
 $('et-cat').onchange=()=>fillCodeDropdown('et-code',$('et-cat').value,'labor');
 $('et-project').onchange=()=>fillRoomDropdown('et-room',allProjects.find(p=>p.id===$('et-project').value));

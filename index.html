@@ -757,8 +757,15 @@ function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(
 let ALL_CODES=[...COST_CODES];
 let ALL_CATS=[...COST_CATS];
 function rebuildCostCodeData(){
-  ALL_CODES=[...COST_CODES,...customCodes];
-  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))].sort();
+  const customCodeSet=new Set(customCodes.map(c=>c.code));
+  ALL_CODES=[
+    ...COST_CODES.filter(c=>!customCodeSet.has(c.code)),
+    ...customCodes
+  ];
+  // Sort numerically by code prefix
+  const num=s=>{const m=(s.code||'').match(/^(\d+)\.?(\d*)/);return m?parseFloat(m[1]+'.'+m[2].padEnd(4,'0')):9999};
+  ALL_CODES.sort((a,b)=>num(a)-num(b));
+  ALL_CATS=[...new Set(ALL_CODES.map(c=>c.cat))];
 }
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
@@ -938,23 +945,39 @@ function renderBillableOverrides(){ renderCodesMasterList(); }
 
 function renderCodesMasterList(){
   const tbody=$('codes-master-body');if(!tbody)return;
-  const allRows=[
-    ...COST_CODES.map(c=>({...c,custom:false})),
+
+  // Merge ALL codes — standard + custom — into one flat list
+  // Custom codes override standard codes with same code string
+  const customCodeSet=new Set(customCodes.map(c=>c.code));
+  const merged=[
+    ...COST_CODES.filter(c=>!customCodeSet.has(c.code)).map(c=>({...c,custom:false})),
     ...customCodes.map(c=>({...c,custom:true}))
   ];
-  if(!allRows.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No codes.</td></tr>';return}
-  const byCat={};
-  allRows.forEach(c=>{if(!byCat[c.cat])byCat[c.cat]=[];byCat[c.cat].push(c)});
+
+  // Sort by numeric prefix of the code (e.g. "00.10" < "01.00" < "12.35")
+  merged.sort((a,b)=>{
+    const num=s=>{const m=s.code.match(/^(\d+)\.?(\d*)/);return m?parseFloat(m[1]+'.'+m[2].padEnd(4,'0')):9999};
+    return num(a)-num(b);
+  });
+
+  if(!merged.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No codes.</td></tr>';return}
+
+  // Group by category preserving sort order
+  const cats=[];const byCat={};
+  merged.forEach(c=>{
+    if(!byCat[c.cat]){byCat[c.cat]=[];cats.push(c.cat)}
+    byCat[c.cat].push(c);
+  });
+
   let html='';
-  Object.entries(byCat).forEach(([cat,codes])=>{
-    html+=`<tr style="background:var(--cream)"><td colspan="5" style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">${cat}</td></tr>`;
-    codes.forEach(c=>{
+  cats.forEach(cat=>{
+    html+=`<tr style="background:var(--cream)"><td colspan="6" style="padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">${cat}</td></tr>`;
+    byCat[cat].forEach(c=>{
       const billable=!nonBillableCodes.has(c.code)&&(c.billable!==false);
-      const isLabor=(c.type||'labor')==='labor';
+      const isLabor=(c.type||'labor').trim().toLowerCase()==='labor';
       const isArchived=archivedCodes.has(c.code);
       const codeId='c'+c.code.replace(/[^a-z0-9]/gi,'_');
-      const safeCode=c.code.replace(/'/g,"\\'");
-      html+=`<tr>
+      html+=`<tr style="${isArchived?'opacity:0.5':''}">
         <td style="padding:6px 10px;font-size:11px">${c.custom?'<span class="badge" style="background:#e8e0f5;color:#5a3a8a;font-size:9px">Custom</span>':''}</td>
         <td style="padding:6px 10px;font-size:13px">${c.code}</td>
         <td style="padding:6px 10px;text-align:center">

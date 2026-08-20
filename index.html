@@ -893,6 +893,10 @@ function loadCustomCodes(){
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');
     fillAllCodesDropdown('er-code-pick');
+    // Repopulate clock-in and edit time category dropdowns with custom codes
+    const curCiCat=$('ci-cat').value;
+    fillCatDropdown('ci-cat','labor');
+    if(curCiCat)$('ci-cat').value=curCiCat;
     ['ci-cat','et-cat'].forEach(id=>{
       const el=$(id);if(!el)return;
       const cur=el.value;
@@ -1415,6 +1419,11 @@ window._et=id=>{
   const toLocal=ts=>{if(!ts)return'';const d=ts.toDate?ts.toDate():new Date(ts);const off=d.getTimezoneOffset()*60000;return new Date(d-off).toISOString().slice(0,16)};
   $('et-clockin').value=toLocal(r.clockIn);$('et-clockout').value=r.clockOut?toLocal(r.clockOut):'';
   $('et-notes').value=r.notes||'';$('et-err').textContent='';
+  // Repopulate category dropdown fresh to include any custom codes
+  fillCatDropdown('et-cat','labor');
+  $('et-cat').value=existingCat;
+  fillCodeDropdown('et-code',existingCat,'labor');
+  $('et-code').value=existingCode;
   // All fields editable for everyone within the 48-hour window
   ['et-project','et-cat','et-code','et-room','et-clockin'].forEach(fid=>{$(fid).disabled=false});
   show('edit-time-modal');

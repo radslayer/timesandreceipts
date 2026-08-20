@@ -897,21 +897,15 @@ function loadCustomCodes(){
       if(c.billable===false)customBillableOverrides.set(c.code,false);
     });
     rebuildCostCodeData();
-    renderCustomCodesList();
-    renderBillableOverrides();
+    renderCodesMasterList();
     fillAllCodesDropdown('rm-code-pick');
     fillAllCodesDropdown('bm-code-pick');
     fillAllCodesDropdown('er-code-pick');
-    // Repopulate clock-in and edit time category dropdowns with custom codes
-    const curCiCat=$('ci-cat').value;
-    fillCatDropdown('ci-cat','labor');
-    if(curCiCat)$('ci-cat').value=curCiCat;
+    // Repopulate labor dropdowns using the safe type filter
     ['ci-cat','et-cat'].forEach(id=>{
       const el=$(id);if(!el)return;
       const cur=el.value;
-      el.innerHTML='<option value="">Select category...</option>';
-      const laborCats=[...new Set(ALL_CODES.filter(c=>c.type==='labor').map(c=>c.cat))];
-      laborCats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
+      fillCatDropdown(id,'labor');
       if(cur)el.value=cur;
     });
     const rptCat=$('rpt-cat');if(rptCat){
@@ -948,7 +942,7 @@ function renderCodesMasterList(){
     ...COST_CODES.map(c=>({...c,custom:false})),
     ...customCodes.map(c=>({...c,custom:true}))
   ];
-  if(!allRows.length){tbody.innerHTML='<tr><td colspan="5" class="empty">No codes.</td></tr>';return}
+  if(!allRows.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No codes.</td></tr>';return}
   const byCat={};
   allRows.forEach(c=>{if(!byCat[c.cat])byCat[c.cat]=[];byCat[c.cat].push(c)});
   let html='';

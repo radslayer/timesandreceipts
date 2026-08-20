@@ -129,6 +129,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 
     <!-- TIME CLOCK TAB -->
     <div id="tab-clock">
+      <div class="notice" id="time-edit-notice" style="display:none">&#9432; Records can be edited for 48 hours after clock-in. After that time, contact your system administrator to request a revision.</div>
       <div id="clock-status-bar" class="status-bar">
         <div class="dot" id="clock-dot"></div>
         <div style="flex:1">
@@ -156,10 +157,18 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <button class="btn btn-red" id="clock-out-btn" style="width:100%;padding:14px;font-size:15px">&#9632; Clock Out</button>
       </div>
       <div class="card">
-        <h2>My Time Log</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <h2 style="margin:0" id="time-log-heading">My Time Log</h2>
+          <div id="log-view-toggle" class="hidden">
+            <div class="seg" style="margin-bottom:0">
+              <button class="seg-btn on" id="log-mine-btn">My Punches</button>
+              <button class="seg-btn" id="log-all-btn">All Employees</button>
+            </div>
+          </div>
+        </div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>Date</th><th>Project</th><th>Cost Code</th><th>Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th id="log-emp-col" style="display:none">Employee</th><th>Project</th><th>Cost Code</th><th>Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
@@ -1174,22 +1183,38 @@ $('clock-out-btn').onclick=async()=>{
   await updateDoc(doc(db,'timeLogs',activeSession.id),{clockOut:Timestamp.fromDate(now),clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockOutGeoStatus:geoSt(currentPos,proj),durationMs:now-start,status:'complete'});
   $('clock-out-btn').disabled=false;$('clock-out-btn').textContent='Clock Out';
 };
+let _logViewAll=false;
 function loadMyLog(){
   if(!currentUser)return;
-  onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(30)),snap=>{
+  // Show toggle for admin and bookkeeper
+  if(isPriv()){
+    show('log-view-toggle');
+    $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent='My Time Log';$('log-emp-col').style.display='none';loadMyLog()};
+    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent='All Time Logs';$('log-emp-col').style.display='';loadMyLog()};
+  }
+  const q=(_logViewAll&&isPriv())
+    ?query(collection(db,'timeLogs'),limit(200))
+    :query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(50));
+  onSnapshot(q,snap=>{
     const tsMs=v=>{if(!v)return 0;if(typeof v.toMillis==='function')return v.toMillis();if(typeof v.toDate==='function')return v.toDate().getTime();if(v.seconds)return v.seconds*1000+(v.nanoseconds||0)/1e6;return new Date(v).getTime()||0};
     const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>tsMs(b.clockIn)-tsMs(a.clockIn));
     window._allTimeLogs=rows;
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}
     const now=Date.now();
+    const hasExpired=!isPriv()&&rows.some(r=>now-tsMs(r.clockIn)>=172800000);
+    if(hasExpired)$('time-edit-notice').style.display='';
+    else $('time-edit-notice').style.display='none';
     tb.innerHTML=rows.map(r=>{
       const entryMs=tsMs(r.clockIn);
-      const withinDay=now-entryMs<172800000; // 48 hours
-      const canEdit=isAdmin()||(r.userId===currentUser.uid&&withinDay);
+      const withinWindow=now-entryMs<172800000;
+      const isOwn=r.userId===currentUser.uid;
+      const canEdit=isPriv()||(isOwn&&withinWindow);
       const canDel=isAdmin();
+      const editBtn=`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
       return`<tr>
       <td>${fmtDate(r.clockIn)}</td>
+      ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
       <td>${r.projectName||'--'}</td>
       <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
       <td>${r.room||'--'}</td>
@@ -1198,11 +1223,13 @@ function loadMyLog(){
       <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
       <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
       <td style="white-space:nowrap">
-        ${canEdit?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button>`:''}
+        ${editBtn}
         ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
       </td>
     </tr>`;
     }).join('');
+    // Fix colspan if showing all employees (extra column)
+    if(!rows.length)tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">No entries yet.</td></tr>`;
   });
 }
 

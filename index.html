@@ -92,7 +92,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .notice{background:#fef9ed;border:1px solid #f0d070;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px}
 .bill-num{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px}
 .entry-date{font-size:11px;color:var(--green);font-weight:600}
-.entry-pending{font-size:11px;color:var(--amber);cursor:pointer;text-decoration:underline}
+.radio-label-selected{border-color:var(--gold)!important;background:#faf6f0}
 </style>
 </head>
 <body>
@@ -431,10 +431,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>Bill Prefix (auto)</label><input type="text" id="pm-prefix" placeholder="JON" style="text-transform:uppercase" maxlength="6"></div>
     </div>
     <div class="field">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;font-weight:500">
-        <input type="checkbox" id="pm-client-project" style="width:18px;height:18px;margin:0;cursor:pointer;pointer-events:auto;touch-action:manipulation" checked>
-        Client project (hours billed to this project count as billable)
-      </label>
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Client Project (hours count as billable)</label>
+      <div style="display:flex;gap:16px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;cursor:pointer;padding:10px 16px;border:2px solid var(--border);border-radius:8px;flex:1;justify-content:center" id="pm-client-yes-label">
+          <input type="radio" name="pm-client-project" id="pm-client-yes" value="true" style="width:auto;margin:0" checked>
+          ✓ Yes — Client Project
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;cursor:pointer;padding:10px 16px;border:2px solid var(--border);border-radius:8px;flex:1;justify-content:center" id="pm-client-no-label">
+          <input type="radio" name="pm-client-project" id="pm-client-no" value="false" style="width:auto;margin:0">
+          ✗ No — Internal
+        </label>
+      </div>
     </div>
     <div class="field"><label>Job Site Address</label>
       <div style="display:flex;gap:8px">
@@ -2099,16 +2106,19 @@ $('pay-save').onclick = async () => {
 function renderProjectsList(){
   const el=$('projects-list');
   if(!allProjects.length){el.innerHTML='<div class="empty">No projects.</div>';return}
-  el.innerHTML=allProjects.map(p=>`<div class="list-row">
+  el.innerHTML=allProjects.map(p=>{
+    const isClient=p.clientProject!==false;
+    return`<div class="list-row">
     <div>
-      <div style="font-weight:600">${p.name}</div>
+      <div style="font-weight:600">${p.name} <span class="badge" style="background:${isClient?'#d4edd9':'var(--cream)'};color:${isClient?'var(--green)':'var(--muted)'};border:1px solid ${isClient?'var(--green)':'var(--border)'};font-size:9px">${isClient?'Billable':'Internal'}</span></div>
       <div style="font-size:12px;color:var(--muted)">${p.address||''} · Prefix: ${p.billPrefix||autoPrefix(p.name)} · ${(p.rooms||[]).length} rooms</div>
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0">
       <button class="btn btn-outline btn-sm" onclick="window._ep('${p.id}')">Edit</button>
       <button class="btn btn-sm" style="background:${p.active!==false?'var(--cream)':'#d4edd9'};color:${p.active!==false?'var(--muted)':'var(--green)'};border:1px solid var(--border)" onclick="window._tp('${p.id}',${p.active!==false})">${p.active!==false?'Archive':'Activate'}</button>
     </div>
-  </div>`).join('');
+  </div>`;
+  }).join('');
 }
 window._tp=async(id,active)=>updateDoc(doc(db,'projects',id),{active:!active});
 window._ep=id=>{
@@ -2117,7 +2127,11 @@ window._ep=id=>{
   $('pm-name').value=p.name||'';$('pm-address').value=p.address||'';
   $('pm-lat').value=p.lat||'';$('pm-lng').value=p.lng||'';
   $('pm-prefix').value=p.billPrefix||autoPrefix(p.name||'');
-  $('pm-client-project').checked=p.clientProject!==false;
+  // Set client project radio
+  const isClient=p.clientProject!==false;
+  $('pm-client-yes').checked=isClient;
+  $('pm-client-no').checked=!isClient;
+  updateClientProjectRadioStyle();
   pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();
   if(p.lat&&p.lng){setTimeout(()=>initMapPicker(p.lat,p.lng),50)}else{hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent=''}
   show('project-modal');
@@ -2126,10 +2140,18 @@ $('new-project-btn').onclick=()=>{
   editingProjectId=null;$('pm-title').textContent='New Project';
   ['pm-name','pm-address','pm-lat','pm-lng','pm-prefix'].forEach(id=>$(id).value='');
   $('pm-err').textContent='';pmRooms=[...DEF_ROOMS];renderRoomChips();
+  $('pm-client-yes').checked=true;$('pm-client-no').checked=false;updateClientProjectRadioStyle();
   hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent='';
   show('project-modal');
 };
 $('pm-name').oninput=()=>{if(!editingProjectId)$('pm-prefix').value=autoPrefix($('pm-name').value)};
+function updateClientProjectRadioStyle(){
+  $('pm-client-yes-label').classList.toggle('radio-label-selected',$('pm-client-yes').checked);
+  $('pm-client-no-label').classList.toggle('radio-label-selected',$('pm-client-no').checked);
+}
+$('pm-client-yes').onchange=$('pm-client-no').onchange=updateClientProjectRadioStyle;
+// Initialize style on load
+updateClientProjectRadioStyle();
 $('pm-cancel').onclick=()=>hide('project-modal');
 // ── GOOGLE MAPS PICKER ───────────────────────────────────────────────────────
 let _map=null,_marker=null,_autocomplete=null;
@@ -2191,7 +2213,7 @@ $('pm-save').onclick=async()=>{
   const conflict=allProjects.find(p=>p.billPrefix===prefix&&p.id!==editingProjectId&&p.active!==false);
   if(conflict){$('pm-err').textContent=`Prefix "${prefix}" is already used by "${conflict.name}". Choose a different prefix.`;return}
   $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
-  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,clientProject:$('pm-client-project').checked,active:true,updatedAt:serverTimestamp()};
+  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,clientProject:$('pm-client-yes').checked,active:true,updatedAt:serverTimestamp()};
   try{
     if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);
     else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});

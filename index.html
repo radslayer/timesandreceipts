@@ -2106,7 +2106,13 @@ $('pay-save').onclick = async () => {
 function renderProjectsList(){
   const el=$('projects-list');
   if(!allProjects.length){el.innerHTML='<div class="empty">No projects.</div>';return}
-  el.innerHTML=allProjects.map(p=>{
+  const sorted=[...allProjects].sort((a,b)=>{
+    const aA=a.active!==false?0:1;
+    const bA=b.active!==false?0:1;
+    if(aA!==bA)return aA-bA;
+    return(a.name||'').localeCompare(b.name||'');
+  });
+  el.innerHTML=sorted.map(p=>{
     const isClient=p.clientProject!==false;
     return`<div class="list-row">
     <div>

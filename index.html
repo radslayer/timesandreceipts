@@ -1140,7 +1140,7 @@ function applyProfile(){
 
 // ── PROJECTS ─────────────────────────────────────────────────────────────────
 function loadProjects(){
-  onSnapshot(query(collection(db,'projects'),orderBy('name')),snap=>{
+  onSnapshot(query(collection(db,'projects')),snap=>{
     allProjects=snap.docs.map(d=>({id:d.id,...d.data()}));
     activeProjects=allProjects.filter(p=>p.active!==false);
     ['ci-project','rm-project','bm-project'].forEach(id=>{
@@ -2107,8 +2107,9 @@ function renderProjectsList(){
   const el=$('projects-list');
   if(!allProjects.length){el.innerHTML='<div class="empty">No projects.</div>';return}
   const sorted=[...allProjects].sort((a,b)=>{
-    const aA=a.active!==false?0:1;
-    const bA=b.active!==false?0:1;
+    // active: true or undefined = 0, active: false = 1
+    const aA=a.active===false?1:0;
+    const bA=b.active===false?1:0;
     if(aA!==bA)return aA-bA;
     return(a.name||'').localeCompare(b.name||'');
   });

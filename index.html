@@ -242,6 +242,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <!-- ADMIN TAB -->
     <div id="tab-admin" class="hidden">
       <h2>Admin</h2>
+      <div id="whos-clocked-in" class="card" style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:13px;letter-spacing:.5px;margin-bottom:10px">&#128338; Currently Clocked In</div>
+        <div id="active-sessions-list"><div class="empty" style="padding:8px">Loading...</div></div>
+      </div>
       <div class="seg">
         <button class="seg-btn on" id="adm-proj-btn">Projects</button>
         <button class="seg-btn" id="adm-users-btn">Users</button>
@@ -2196,6 +2200,69 @@ $('pm-save').onclick=async()=>{
   $('pm-save').disabled=false;$('pm-save').textContent='Save Project';
 };
 
+// ── ADMIN — ACTIVE SESSIONS ───────────────────────────────────────────────────
+let _activeSessionsUnsub=null;
+function loadActiveSessions(){
+  if(_activeSessionsUnsub)_activeSessionsUnsub();
+  _activeSessionsUnsub=onSnapshot(
+    query(collection(db,'timeLogs'),where('status','==','active')),
+    snap=>{
+      const el=$('active-sessions-list');if(!el)return;
+      if(snap.empty){el.innerHTML='<div style="font-size:13px;color:var(--muted);padding:4px 0">No one is currently clocked in.</div>';return}
+      const sessions=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
+        const ta=a.clockIn?.toMillis?.()||0;
+        const tb=b.clockIn?.toMillis?.()||0;
+        return ta-tb;
+      });
+      el.innerHTML=sessions.map(s=>{
+        const start=s.clockIn?.toDate?s.clockIn.toDate():new Date(s.clockIn||0);
+        const elapsed=Date.now()-start.getTime();
+        const hrs=Math.floor(elapsed/3600000);
+        const mins=Math.floor((elapsed%3600000)/60000);
+        const duration=hrs>0?hrs+'h '+mins+'m':mins+'m';
+        const isLong=elapsed>8*3600000;
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="dot pulse"></div>
+            <div>
+              <div style="font-weight:600;font-size:14px">${s.userName||'Unknown'}</div>
+              <div style="font-size:12px;color:var(--muted)">${s.projectName||'--'} · ${s.costCode||s.scope||'--'}${s.room?' · '+s.room:''}</div>
+              <div style="font-size:11px;color:var(--muted)">Since ${start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} on ${start.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:600;color:${isLong?'var(--red)':'var(--green)'};font-size:15px">${duration}</div>
+            ${isLong?'<div style="font-size:10px;color:var(--red)">&#9888; Long session</div>':''}
+            <button class="btn btn-sm" style="margin-top:6px;background:var(--red);color:#fff" onclick="window._adminClockOut('${s.id}','${s.userName||''}')">Clock Out</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  );
+}
+
+window._adminClockOut=async(logId,userName)=>{
+  const now=new Date();
+  const off=now.getTimezoneOffset()*60000;
+  const localNow=new Date(now-off).toISOString().slice(0,16);
+  const input=prompt(`Clock out ${userName||'this employee'}.\n\nEnter clock-out date/time (or leave as-is for now):\n\nFormat: YYYY-MM-DDTHH:MM`,localNow);
+  if(input===null)return;
+  const clockOutTime=new Date(input);
+  if(isNaN(clockOutTime)){alert('Invalid date/time entered.');return}
+  const logSnap=await getDoc(doc(db,'timeLogs',logId));
+  if(!logSnap.exists())return;
+  const logData=logSnap.data();
+  const start=logData.clockIn?.toDate?logData.clockIn.toDate():new Date(logData.clockIn||0);
+  if(clockOutTime<start){alert('Clock-out time cannot be before clock-in time.');return}
+  await updateDoc(doc(db,'timeLogs',logId),{
+    clockOut:Timestamp.fromDate(clockOutTime),
+    durationMs:clockOutTime-start,
+    status:'complete',
+    clockOutGeo:null,
+    clockOutGeoStatus:'unknown'
+  });
+};
+
 // ── ADMIN — USERS ─────────────────────────────────────────────────────────────
 function loadUsers(){
   onSnapshot(collection(db,'users'),snap=>{
@@ -2260,7 +2327,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
     ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
-    if(t==='admin')loadUsers();
+    if(t==='admin'){loadUsers();loadActiveSessions();}
   }
 });
 $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};

@@ -200,16 +200,18 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <!-- TIME LOG / RECEIPTS PANEL -->
       <div id="rpt-standard-panel">
         <div class="card">
-          <div class="filter-row">
-            <div class="field"><label>Project</label><select id="rpt-project" style="min-width:160px"><option value="">All Projects</option></select></div>
-            <div class="field"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
-            <div class="field" id="rpt-cat-wrap"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
-            <div class="field"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
-            <div class="field"><label>From</label><input type="date" id="rpt-from"></div>
-            <div class="field"><label>To</label><input type="date" id="rpt-to"></div>
-            <div style="display:flex;align-items:flex-end"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:10px 20px;white-space:nowrap">Run Report</button></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="field" style="margin-bottom:0"><label>Project</label><select id="rpt-project"><option value="">All Projects</option></select></div>
+            <div class="field" style="margin-bottom:0"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
+            <div class="field" id="rpt-cat-wrap" style="margin-bottom:0"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
+            <div class="field" style="margin-bottom:0"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
           </div>
-          <div id="rpt-active-filters" style="margin-bottom:12px;font-size:12px;color:var(--muted)"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
+            <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
+            <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
+            <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button>
+          </div>
+          <div id="rpt-active-filters" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
           <div id="rpt-results"></div>
         </div>
       </div>
@@ -1682,7 +1684,8 @@ fillCatDropdown('et-cat','labor');
 window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
 let editingTimeId=null;
 window._et=id=>{
-  const rows=window._allTimeLogs||[];const r=rows.find(x=>x.id===id);if(!r)return;
+  const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
+  const r=rows.find(x=>x.id===id);if(!r)return;
   editingTimeId=id;
   const ep=$('et-project');ep.innerHTML='<option value="">Select project...</option>';
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
@@ -1796,9 +1799,9 @@ function renderReport(data){
     <button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>
   </div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
   if(it){
-    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th>';
+    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th></th>';
   }else{
-    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th>';
+    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th></th>';
   }
   h+='</tr></thead><tbody>';
   data.forEach(r=>{
@@ -1814,6 +1817,7 @@ function renderReport(data){
         <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
         <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
         <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
+        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }else{
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
@@ -1831,6 +1835,7 @@ function renderReport(data){
         <td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td>
         <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
+        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }
   });

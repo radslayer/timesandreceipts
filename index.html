@@ -2513,7 +2513,7 @@ $('um-save').onclick=async()=>{
 function prefillReportEmployees(){
   const empSel=$('rpt-employee');if(!empSel||empSel.options.length>1)return;
   getDocs(collection(db,'users')).then(snap=>{
-    const names=snap.docs.map(d=>d.data().name||'').filter(Boolean).sort();
+    const names=snap.docs.map(d=>d.data()).filter(u=>u.name&&!u.deactivated).map(u=>u.name).sort();
     names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;empSel.appendChild(o)});
   });
 }

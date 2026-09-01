@@ -130,7 +130,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 
     <!-- TIME CLOCK TAB -->
     <div id="tab-clock">
-      <div class="notice" id="time-edit-notice" style="display:none">&#9432; Records can be edited for 7 days after clock-in. After that time, contact your system administrator to request a revision.</div>
+      <div class="notice" id="time-edit-notice" style="display:none">&#9432; Records can be edited for 30 days after clock-in. After that time, contact your system administrator to request a revision.</div>
       <div id="clock-status-bar" class="status-bar">
         <div class="dot" id="clock-dot"></div>
         <div style="flex:1">
@@ -1120,7 +1120,7 @@ const T={
     approve:'Approve',reject:'Reject',edit:'Edit',delete:'Delete',
     editReceipt:'Edit Receipt / Bill',status:'Status',saveChanges:'Save Changes',
     editTime:'Edit Time Entry',clockInTime:'Clock In',clockOutTime:'Clock Out',
-    recordsNotice:'Records can be edited for 7 days after clock-in. After that time, contact your system administrator to request a revision.',
+    recordsNotice:'Records can be edited for 30 days after clock-in. After that time, contact your system administrator to request a revision.',
     shiftEnded:'My shift just ended — clock out now',clockOutAtTime:'Clock out at this time',
     forgotClockOut:'You have been clocked in for {hours}+ hours.',
     whenDidShiftEnd:'When did your shift end?',
@@ -1152,7 +1152,7 @@ const T={
     approve:'Aprobar',reject:'Rechazar',edit:'Editar',delete:'Eliminar',
     editReceipt:'Editar Recibo / Factura',status:'Estado',saveChanges:'Guardar Cambios',
     editTime:'Editar Registro de Tiempo',clockInTime:'Hora de Entrada',clockOutTime:'Hora de Salida',
-    recordsNotice:'Los registros se pueden editar por 7 días después del registro de entrada. Después de ese tiempo, contacte al administrador del sistema para solicitar una revisión.',
+    recordsNotice:'Los registros se pueden editar por 30 días después del registro de entrada. Después de ese tiempo, contacte al administrador del sistema para solicitar una revisión.',
     shiftEnded:'Mi turno acaba de terminar — registrar salida ahora',clockOutAtTime:'Registrar salida a esta hora',
     forgotClockOut:'Has estado registrado por {hours}+ horas.',
     whenDidShiftEnd:'¿Cuándo terminó tu turno?',
@@ -1452,14 +1452,14 @@ function loadMyLog(){
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}
     const now=Date.now();
-    const hasExpired=!isPriv()&&rows.some(r=>now-tsMs(r.clockIn)>=604800000);
+    const hasExpired=!isPriv()&&rows.some(r=>now-tsMs(r.clockIn)>=2592000000);
     if(hasExpired)$('time-edit-notice').style.display='';
     else $('time-edit-notice').style.display='none';
     tb.innerHTML=rows.map(r=>{
       const entryMs=tsMs(r.clockIn);
-      const withinWindow=now-entryMs<604800000;
+      const withinWindow=now-entryMs<2592000000;
       const isOwn=r.userId===currentUser.uid;
-      const canEdit=isPriv()||(isOwn&&withinWindow);
+      const canEdit=isAdmin()||isBookkeeper()||(isOwn&&withinWindow);
       const canDel=isAdmin();
       const editBtn=`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
       return`<tr>
@@ -1701,7 +1701,7 @@ window._et=id=>{
   $('et-cat').value=existingCat;
   fillCodeDropdown('et-code',existingCat,'labor');
   $('et-code').value=existingCode;
-  // All fields editable for everyone within the 7-day window
+  // All fields editable for everyone within the 30-day window
   ['et-project','et-cat','et-code','et-room','et-clockin'].forEach(fid=>{$(fid).disabled=false});
   show('edit-time-modal');
 };

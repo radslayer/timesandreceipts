@@ -1277,9 +1277,13 @@ onAuthStateChanged(auth,async u=>{
       await setDoc(uref,{email:u.email,name,role,createdAt:serverTimestamp()});
     }
   }catch(e){console.warn(e)}
-  onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile();
+  onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){
+    const wasPriv=isPriv();
+    userProfile={id:d.id,...d.data()};applyProfile();
     // Apply saved language preference
     if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
+    // Reload receipts if priv status changed (timing fix)
+    if(isPriv()!==wasPriv)loadReceipts();
   }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}

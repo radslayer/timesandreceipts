@@ -2479,12 +2479,21 @@ function loadUsers(){
         </select>
         <button class="btn btn-outline btn-sm" onclick="window._editPay('${u.id}')" ${isDeactivated?'disabled':''}>Pay Rates</button>
         <button class="btn btn-sm" style="background:${isDeactivated?'#d4edd9':'#f5dada'};color:${isDeactivated?'var(--green)':'var(--red)'};border:1px solid var(--border)" onclick="window._toggleDeactivate('${u.id}',${isDeactivated})">${isDeactivated?'Reactivate':'Deactivate'}</button>
+        ${isDeactivated?`<button class="btn btn-red btn-sm" onclick="window._deleteUser('${u.id}','${(u.name||'').replace(/'/g,"\\'")}')">Delete</button>`:''}
       </div>
     </div>`;
     }).join('');
   });
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
+window._deleteUser=async(uid,name)=>{
+  if(!confirm(`Permanently delete ${name}? This cannot be undone. Their time logs and receipts will be preserved.`))return;
+  try{
+    const deleteUser=httpsCallable(functions,'deleteUser');
+    await deleteUser({uid});
+    await deleteDoc(doc(db,'users',uid));
+  }catch(e){alert('Delete failed: '+e.message)}
+};
 window._toggleDeactivate=async(uid,currentlyDeactivated)=>{
   if(!currentlyDeactivated&&!confirm('Deactivate this user? They will not be able to sign in until reactivated.'))return;
   try{

@@ -2510,12 +2510,21 @@ $('um-save').onclick=async()=>{
 };
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
+function prefillReportEmployees(){
+  const empSel=$('rpt-employee');if(!empSel||empSel.options.length>1)return;
+  getDocs(collection(db,'users')).then(snap=>{
+    const names=snap.docs.map(d=>d.data().name||'').filter(Boolean).sort();
+    names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;empSel.appendChild(o)});
+  });
+}
+
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
     ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
+    if(t==='reports'){prefillReportEmployees();}
   }
 });
 $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};

@@ -114,6 +114,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   <div class="topbar">
     <div class="topbar-brand">MOTIF</div>
     <div class="topbar-right">
+      <button id="lang-toggle" onclick="window._toggleLang()" style="background:transparent;border:1px solid #444;color:#aaa;font-size:12px;padding:4px 8px;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif">ES</button>
       <span class="role-badge" id="tb-role">user</span>
       <span class="username" id="tb-name"></span>
       <button class="btn-logout" id="logout-btn">Sign Out</button>
@@ -1091,6 +1092,161 @@ $('add-code-btn').onclick=async()=>{
   renderCodesMasterList();
 };
 
+// ── LANGUAGE / TRANSLATIONS ───────────────────────────────────────────────────
+let currentLang='en';
+
+const T={
+  en:{
+    clockIn:'Clock In',clockOut:'Clock Out',clockingOut:'Clocking out...',
+    activeSession:'Active Session',project:'Project',costCode:'Cost Code',
+    room:'Room',notes:'Notes',started:'Started',
+    myTimeLog:'My Time Log',myPunches:'My Punches',allEmployees:'All Employees',
+    date:'Date',inTime:'In',outTime:'Out',duration:'Duration',location:'Location',
+    active:'Active',onSite:'On Site',offSite:'Off Site',
+    selectProject:'Select project...',selectCategory:'Select category...',
+    selectCode:'Select code...',selectRoom:'Select room...',
+    notesOptional:'Optional...',
+    clockInBtn:'⏵ Clock In',clockOutBtn:'⏹ Clock Out',
+    receiptsTitle:'Receipts & Bills',submitReceipt:'+ Submit Receipt',addBill:'+ Add Bill',
+    submitReceiptTitle:'Submit Receipt',amount:'Amount ($)',vendor:'Vendor',
+    costCodes:'Cost Codes',tapToUpload:'Tap to photo or upload receipt',
+    jpgOrPng:'JPG or PNG',cancel:'Cancel',submit:'Submit Receipt',
+    addBillTitle:'Add Vendor Bill',payTo:'Pay To (Vendor)',invoiceDate:'Invoice Date',
+    attachInvoice:'Attach Invoice (optional)',tapToAttach:'Tap to attach invoice or photo',
+    qbEntryDate:'QB Entry Date',dbEntryDate:'DB Entry Date',saveBill:'Save Bill',
+    approved:'approved',submitted:'submitted',rejected:'rejected',
+    billable:'Billable',nonBillable:'Non-Bill',
+    qbMark:'QB: mark entered',dbMark:'DB: mark entered',
+    approve:'Approve',reject:'Reject',edit:'Edit',delete:'Delete',
+    editReceipt:'Edit Receipt / Bill',status:'Status',saveChanges:'Save Changes',
+    editTime:'Edit Time Entry',clockInTime:'Clock In',clockOutTime:'Clock Out',
+    recordsNotice:'Records can be edited for 7 days after clock-in. After that time, contact your system administrator to request a revision.',
+    shiftEnded:'My shift just ended — clock out now',clockOutAtTime:'Clock out at this time',
+    forgotClockOut:'You have been clocked in for {hours}+ hours.',
+    whenDidShiftEnd:'When did your shift end?',
+    searchVendor:'Search / select cost code...',selectVendor:'Select vendor...',
+    otherVendor:'Other / New Vendor...',enterVendor:'Enter new vendor name...',
+    signOut:'Sign Out',
+  },
+  es:{
+    clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
+    activeSession:'Sesión Activa',project:'Proyecto',costCode:'Código de Costo',
+    room:'Habitación',notes:'Notas',started:'Iniciado',
+    myTimeLog:'Mi Registro de Tiempo',myPunches:'Mis Registros',allEmployees:'Todos los Empleados',
+    date:'Fecha',inTime:'Entrada',outTime:'Salida',duration:'Duración',location:'Ubicación',
+    active:'Activo',onSite:'En Sitio',offSite:'Fuera de Sitio',
+    selectProject:'Seleccionar proyecto...',selectCategory:'Seleccionar categoría...',
+    selectCode:'Seleccionar código...',selectRoom:'Seleccionar habitación...',
+    notesOptional:'Opcional...',
+    clockInBtn:'⏵ Registrar Entrada',clockOutBtn:'⏹ Registrar Salida',
+    receiptsTitle:'Recibos y Facturas',submitReceipt:'+ Enviar Recibo',addBill:'+ Agregar Factura',
+    submitReceiptTitle:'Enviar Recibo',amount:'Cantidad ($)',vendor:'Proveedor',
+    costCodes:'Códigos de Costo',tapToUpload:'Toca para fotografiar o subir recibo',
+    jpgOrPng:'JPG o PNG',cancel:'Cancelar',submit:'Enviar Recibo',
+    addBillTitle:'Agregar Factura de Proveedor',payTo:'Pagar A (Proveedor)',invoiceDate:'Fecha de Factura',
+    attachInvoice:'Adjuntar Factura (opcional)',tapToAttach:'Toca para adjuntar factura o foto',
+    qbEntryDate:'Fecha Entrada QB',dbEntryDate:'Fecha Entrada DB',saveBill:'Guardar Factura',
+    approved:'aprobado',submitted:'enviado',rejected:'rechazado',
+    billable:'Facturable',nonBillable:'No Facturable',
+    qbMark:'QB: marcar ingresado',dbMark:'DB: marcar ingresado',
+    approve:'Aprobar',reject:'Rechazar',edit:'Editar',delete:'Eliminar',
+    editReceipt:'Editar Recibo / Factura',status:'Estado',saveChanges:'Guardar Cambios',
+    editTime:'Editar Registro de Tiempo',clockInTime:'Hora de Entrada',clockOutTime:'Hora de Salida',
+    recordsNotice:'Los registros se pueden editar por 7 días después del registro de entrada. Después de ese tiempo, contacte al administrador del sistema para solicitar una revisión.',
+    shiftEnded:'Mi turno acaba de terminar — registrar salida ahora',clockOutAtTime:'Registrar salida a esta hora',
+    forgotClockOut:'Has estado registrado por {hours}+ horas.',
+    whenDidShiftEnd:'¿Cuándo terminó tu turno?',
+    searchVendor:'Buscar / seleccionar código de costo...',selectVendor:'Seleccionar proveedor...',
+    otherVendor:'Otro / Nuevo Proveedor...',enterVendor:'Ingresar nombre del proveedor...',
+    signOut:'Cerrar Sesión',
+  }
+};
+
+function t(key){return(T[currentLang]||T.en)[key]||(T.en)[key]||key}
+
+function applyTranslations(){
+  const lang=currentLang;
+  // Topbar
+  $('logout-btn').textContent=t('signOut');
+  const ltBtn=$('lang-toggle');
+  if(ltBtn){ltBtn.textContent=lang==='en'?'ES':'EN';ltBtn.style.color=lang==='es'?'#f0c060':'#aaa';ltBtn.style.borderColor=lang==='es'?'#f0c060':'#444';}
+  // Nav tabs
+  const tabs=document.querySelectorAll('.nav-tab');
+  tabs.forEach(tab=>{
+    const t2=tab.dataset.tab;
+    if(t2==='clock')tab.innerHTML='&#9201; '+(lang==='es'?'Tiempo':'Time Clock');
+    if(t2==='receipts')tab.innerHTML='&#129534; '+(lang==='es'?'Recibos':'Receipts');
+    if(t2==='reports')tab.innerHTML='&#128202; '+(lang==='es'?'Reportes':'Reports');
+    if(t2==='admin')tab.innerHTML='&#9881; Admin';
+  });
+  // Clock-in form
+  const ciH=$('clock-in-form')?.querySelector('h2');if(ciH)ciH.textContent=t('clockIn');
+  setLabel('ci-project',t('project')+' *');
+  setLabel('ci-cat',t('selectCategory').replace('...','')+' *');
+  setLabel('ci-room',t('room')+' *');
+  setLabel('ci-notes',t('notes'));
+  const ciBtn=$('clock-in-btn');if(ciBtn)ciBtn.textContent=t('clockInBtn');
+  // Active session
+  const asH=$('clock-out-form')?.querySelector('h2');if(asH)asH.textContent=t('activeSession');
+  const coBtn=$('clock-out-btn');if(coBtn)coBtn.textContent=t('clockOutBtn');
+  // Time log heading
+  const tlH=$('time-log-heading');if(tlH&&!tlH.textContent.includes('All')&&!tlH.textContent.includes('Todos'))tlH.textContent=t('myTimeLog');
+  const mineBtn=$('log-mine-btn');if(mineBtn)mineBtn.textContent=t('myPunches');
+  const allBtn=$('log-all-btn');if(allBtn)allBtn.textContent=t('allEmployees');
+  // Notice
+  const notice=$('time-edit-notice');if(notice)notice.innerHTML='&#9432; '+t('recordsNotice');
+  // Receipts tab
+  const rTitle=document.querySelector('#tab-receipts h2');if(rTitle)rTitle.textContent=t('receiptsTitle');
+  const srBtn=$('new-receipt-btn');if(srBtn)srBtn.textContent=t('submitReceipt');
+  const abBtn=$('new-bill-btn');if(abBtn)abBtn.textContent=t('addBill');
+  // Submit receipt modal
+  const rmH=document.querySelector('#receipt-modal h2');if(rmH)rmH.textContent=t('submitReceiptTitle');
+  setLabel('rm-amount',t('amount')+' *');
+  setLabel('rm-room',t('room')+' *');
+  const rmUpload=$('rm-upload-zone')?.querySelector('div:nth-child(2)');if(rmUpload)rmUpload.textContent=t('tapToUpload');
+  const rmCancel=$('rm-cancel');if(rmCancel)rmCancel.textContent=t('cancel');
+  const rmSubmit=$('rm-submit');if(rmSubmit)rmSubmit.textContent=t('submit');
+  // Bill modal
+  const bmH=document.querySelector('#bill-modal h2');if(bmH)bmH.textContent=t('addBillTitle');
+  setLabel('bm-amount',t('amount')+' *');
+  setLabel('bm-invoicedate',t('invoiceDate')+' *');
+  const bmCancel=$('bm-cancel');if(bmCancel)bmCancel.textContent=t('cancel');
+  const bmSave=$('bm-save');if(bmSave)bmSave.textContent=t('saveBill');
+  // Vendor dropdowns placeholder
+  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel'].forEach(id=>{
+    const el=$(id);if(!el)return;
+    if(el.options[0])el.options[0].textContent=t('selectVendor');
+    const last=el.options[el.options.length-1];if(last&&last.value==='__new__')last.textContent=t('otherVendor');
+  });
+  ['rm-vendor-new','bm-vendor-new','er-vendor-new'].forEach(id=>{
+    const el=$(id);if(el)el.placeholder=t('enterVendor');
+  });
+  // Edit receipt modal
+  const erH=document.querySelector('#edit-receipt-modal h2');if(erH)erH.textContent=t('editReceipt');
+  const erCancel=$('er-cancel');if(erCancel)erCancel.textContent=t('cancel');
+  const erSave=$('er-save');if(erSave)erSave.textContent=t('saveChanges');
+  // Edit time modal
+  const etH=document.querySelector('#edit-time-modal h2');if(etH)etH.textContent=t('editTime');
+  setLabel('et-clockin',t('clockInTime'));
+  setLabel('et-clockout',t('clockOutTime'));
+  const etCancel=$('et-cancel');if(etCancel)etCancel.textContent=t('cancel');
+  const etSave=$('et-save');if(etSave)etSave.textContent=t('saveChanges');
+}
+
+function setLabel(inputId,text){
+  const el=$(inputId);if(!el)return;
+  const label=el.closest('.field')?.querySelector('label');
+  if(label)label.textContent=text;
+}
+
+window._toggleLang=async()=>{
+  currentLang=currentLang==='en'?'es':'en';
+  applyTranslations();
+  if(currentUser){
+    try{await updateDoc(doc(db,'users',currentUser.uid),{lang:currentLang})}catch(e){}
+  }
+};
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 $('login-btn').onclick=async()=>{
   const e=$('login-email').value.trim(),p=$('login-password').value;
@@ -1098,7 +1254,7 @@ $('login-btn').onclick=async()=>{
   try{await signInWithEmailAndPassword(auth,e,p)}catch(err){$('login-err').textContent='Invalid email or password.';$('login-btn').disabled=false;$('login-btn').textContent='Sign In'}
 };
 $('login-email').onkeydown=$('login-password').onkeydown=e=>{if(e.key==='Enter')$('login-btn').click()};
-$('logout-btn').onclick=()=>signOut(auth);
+$('logout-btn').onclick=()=>{currentLang='en';signOut(auth)};
 $('forgot-link').onclick=async(e)=>{
   e.preventDefault();const email=$('login-email').value.trim();
   if(!email){$('login-err').textContent='Enter your email address first.';return}
@@ -1119,7 +1275,10 @@ onAuthStateChanged(auth,async u=>{
       await setDoc(uref,{email:u.email,name,role,createdAt:serverTimestamp()});
     }
   }catch(e){console.warn(e)}
-  onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile()}});
+  onSnapshot(doc(db,'users',u.uid),d=>{if(d.exists()){userProfile={id:d.id,...d.data()};applyProfile();
+    // Apply saved language preference
+    if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
+  }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}
   loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();loadCustomCodes();

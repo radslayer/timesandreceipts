@@ -195,6 +195,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <button class="seg-btn on" id="rpt-time-btn">Time Log</button>
         <button class="seg-btn" id="rpt-rcpt-btn">Receipts &amp; Bills</button>
         <button class="seg-btn" id="rpt-payroll-btn">&#128181; Payroll</button>
+        <button class="seg-btn priv-only" id="rpt-logtime-btn">&#43; Log Time</button>
       </div>
 
       <!-- TIME LOG / RECEIPTS PANEL -->
@@ -240,6 +241,32 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div id="pr-results"></div>
       </div>
+
+      <!-- LOG TIME PANEL -->
+      <div id="rpt-logtime-panel" class="hidden">
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:4px">Log Time Entry</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Enter a completed time entry on behalf of any employee. All fields required.</div>
+          <div class="row2">
+            <div class="field"><label>Employee *</label><select id="lt-employee"><option value="">Select employee...</option></select></div>
+            <div class="field"><label>Project *</label><select id="lt-project"><option value="">Select project...</option></select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Cost Category *</label><select id="lt-cat"><option value="">Select category...</option></select></div>
+            <div class="field"><label>Cost Code *</label><select id="lt-code"><option value="">Select code...</option></select></div>
+          </div>
+          <div class="field"><label>Room *</label><select id="lt-room"><option value="">Select room...</option></select></div>
+          <div class="row2">
+            <div class="field"><label>Clock In *</label><input type="datetime-local" id="lt-clockin"></div>
+            <div class="field"><label>Clock Out (optional)</label><input type="datetime-local" id="lt-clockout"></div>
+          </div>
+          <div class="field"><label>Notes</label><textarea id="lt-notes" rows="2" placeholder="Optional..."></textarea></div>
+          <div id="lt-err" class="err"></div>
+          <button class="btn btn-gold" id="lt-save" style="width:auto;padding:11px 28px;margin-top:4px">Save Time Entry</button>
+          <div id="lt-success" class="hidden" style="color:var(--green);font-size:13px;margin-top:8px"></div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ADMIN TAB -->
@@ -1733,9 +1760,10 @@ $('et-save').onclick=async()=>{
 // populate report category filter
 COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;$('rpt-cat').appendChild(o)});
 
-$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
-$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
-$('rpt-payroll-btn').onclick=()=>{$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');buildPayrollPresets()};
+$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-payroll-btn').onclick=()=>{$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');hide('rpt-logtime-panel');buildPayrollPresets()};
+$('rpt-logtime-btn').onclick=()=>{$('rpt-logtime-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');hide('rpt-standard-panel');hide('rpt-payroll-panel');show('rpt-logtime-panel');initLogTimeForm()};
 
 $('rpt-run-btn').onclick=async()=>{
   const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value;
@@ -2529,12 +2557,82 @@ $('um-save').onclick=async()=>{
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
 function prefillReportEmployees(){
-  const empSel=$('rpt-employee');if(!empSel||empSel.options.length>1)return;
+  const empSel=$('rpt-employee');if(!empSel)return;
+  // Always repopulate — don't skip if already has options
+  empSel.innerHTML='<option value="">All Employees</option>';
   getDocs(collection(db,'users')).then(snap=>{
-    const names=snap.docs.map(d=>d.data()).filter(u=>u.name&&!u.deactivated).map(u=>u.name).sort();
-    names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;empSel.appendChild(o)});
+    const users=snap.docs.map(d=>d.data()).filter(u=>u.name&&u.deactivated!==true).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    users.forEach(u=>{const o=document.createElement('option');o.value=u.name;o.textContent=u.name;empSel.appendChild(o)});
   });
 }
+
+let _ltUsers=[];
+function initLogTimeForm(){
+  // Populate employee dropdown from all active users
+  getDocs(collection(db,'users')).then(snap=>{
+    _ltUsers=snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.name&&u.deactivated!==true).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const sel=$('lt-employee');sel.innerHTML='<option value="">Select employee...</option>';
+    _ltUsers.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;sel.appendChild(o)});
+  });
+  // Populate projects
+  const ps=$('lt-project');ps.innerHTML='<option value="">Select project...</option>';
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ps.appendChild(o)});
+  // Populate category
+  fillCatDropdown('lt-cat','labor');
+  $('lt-cat').onchange=()=>fillCodeDropdown('lt-code',$('lt-cat').value,'labor');
+  $('lt-project').onchange=()=>fillRoomDropdown('lt-room',activeProjects.find(p=>p.id===$('lt-project').value));
+  // Leave times blank
+  $('lt-clockin').value='';$('lt-clockout').value='';
+  $('lt-err').textContent='';$('lt-notes').value='';hide('lt-success');
+}
+
+$('lt-save').onclick=async()=>{
+  const uid=$('lt-employee').value;
+  const pid=$('lt-project').value;
+  const cat=$('lt-cat').value;
+  const code=$('lt-code').value;
+  const rm=$('lt-room').value;
+  const ci=$('lt-clockin').value;
+  const co=$('lt-clockout').value;
+  if(!uid||!pid||!cat||!code||!rm||!ci){$('lt-err').textContent='All fields except Clock Out are required.';return}
+  const ciDate=new Date(ci);
+  const coDate=co?new Date(co):null;
+  if(coDate&&coDate<=ciDate){$('lt-err').textContent='Clock-out must be after clock-in.';return}
+  $('lt-save').disabled=true;$('lt-save').textContent='Saving...';
+  const user=_ltUsers.find(u=>u.id===uid);
+  const proj=activeProjects.find(p=>p.id===pid);
+  try{
+    await addDoc(collection(db,'timeLogs'),{
+      userId:uid,
+      userName:user?.name||'',
+      projectId:pid,
+      projectName:proj?.name||pid,
+      costCodeCategory:cat,
+      costCode:code,
+      room:rm,
+      notes:$('lt-notes').value,
+      clockIn:Timestamp.fromDate(ciDate),
+      clockOut:coDate?Timestamp.fromDate(coDate):null,
+      durationMs:coDate?coDate-ciDate:null,
+      clockInGeo:null,
+      clockInGeoStatus:'manual',
+      clockOutGeo:null,
+      clockOutGeoStatus:'manual',
+      status:coDate?'complete':'active',
+      loggedBy:userProfile?.name||currentUser?.email||'',
+      loggedAt:serverTimestamp()
+    });
+    $('lt-err').textContent='';
+    $('lt-success').textContent='✓ Entry saved for '+user?.name;show('lt-success');
+    setTimeout(()=>hide('lt-success'),4000);
+    // Reset form
+    $('lt-employee').value='';$('lt-project').value='';$('lt-cat').value='';
+    $('lt-code').innerHTML='<option value="">Select code...</option>';
+    $('lt-room').innerHTML='<option value="">Select room...</option>';
+    $('lt-notes').value='';
+  }catch(e){$('lt-err').textContent='Save failed: '+e.message}
+  $('lt-save').disabled=false;$('lt-save').textContent='Save Time Entry';
+};
 
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{

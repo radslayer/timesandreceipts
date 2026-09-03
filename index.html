@@ -161,7 +161,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <h2 style="margin:0" id="time-log-heading">My Time Log</h2>
-          <div id="log-view-toggle" class="hidden">
+          <div id="log-view-toggle" class="hidden" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" id="log-show-archived" style="width:auto;margin:0"> Show archived</label>
             <div class="seg" style="margin-bottom:0">
               <button class="seg-btn on" id="log-mine-btn">My Punches</button>
               <button class="seg-btn" id="log-all-btn">All Employees</button>
@@ -181,7 +182,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div id="tab-receipts" class="hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <h2 style="margin:0">Receipts &amp; Bills</h2>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="priv-only hidden" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-right:6px"><input type="checkbox" id="rcpt-show-archived" style="width:auto;margin:0"> Show archived</label>
           <button class="btn btn-outline priv-only hidden" id="new-bill-btn" style="width:auto;padding:10px 18px">+ Add Bill</button>
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
         </div>
@@ -211,6 +213,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
             <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
             <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
+            <div class="field" style="margin-bottom:0;min-width:120px"><label>Archived</label><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--ink);padding:11px 0"><input type="checkbox" id="rpt-include-archived" style="width:auto;margin:0"> Include</label></div>
             <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button>
           </div>
           <div id="rpt-active-filters" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
@@ -441,10 +444,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <input type="file" id="bm-file" accept="image/*,application/pdf" style="display:none">
       </div>
     </div>
-    <div class="row2">
+    <div class="row3">
       <div class="field"><label>QB Entry Date</label><input type="date" id="bm-qbdate" placeholder="Mark when entered in QB"></div>
       <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
+      <div class="field"><label>Paid Date</label><input type="date" id="bm-paiddate"></div>
     </div>
+    <div class="notice" style="font-size:12px">Once a paid date is set, the bill is locked. Only an admin can change or clear it.</div>
     <div id="bm-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="bm-cancel">Cancel</button>
@@ -548,10 +553,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
     <div class="field"><label>Notes</label><textarea id="er-notes" rows="2"></textarea></div>
     <div class="field"><label>Status</label><select id="er-status"><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
-    <div class="row2 priv-only" id="er-entry-row">
+    <div class="row3 priv-only" id="er-entry-row">
       <div class="field"><label>QB Entry Date</label><input type="date" id="er-qbdate"></div>
       <div class="field"><label>DB Entry Date</label><input type="date" id="er-dbdate"></div>
+      <div class="field" id="er-paid-wrap"><label>Paid Date</label><input type="date" id="er-paiddate"></div>
     </div>
+    <div id="er-lock-notice" class="notice hidden" style="font-size:12px">&#128274; This bill has been paid and is locked. Only an admin can change the paid date or edit it.</div>
     <div id="er-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="er-cancel">Cancel</button>
@@ -792,6 +799,24 @@ function ini(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().sl
 function isPriv(){return['admin','bookkeeper'].includes(userProfile?.role?.toLowerCase())}
 function isAdmin(){return userProfile?.role?.toLowerCase()==='admin'}
 function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
+// ── ARCHIVE / LOCK HELPERS ───────────────────────────────────────────────────
+// A paid vendor bill is locked: bookkeeper cannot edit or archive it. Admin can unlock by clearing the paid date.
+function isLockedBill(r){return r?.billType==='bill'&&!!r.paidDate}
+function isArchivedRec(r){return r?.archived===true}
+window._archiveRec=async(col,id,archive)=>{
+  const list=col==='receipts'?(window._allReceipts||[]):[...(window._allTimeLogs||[]),...(window._rptData||[])];
+  const r=list.find(x=>x.id===id);
+  if(archive&&r&&isLockedBill(r)&&!isAdmin()){alert('This bill has been paid and is locked. Ask an admin to unlock it.');return}
+  const what=col==='receipts'?'record':'time entry';
+  if(archive&&!confirm('Archive this '+what+'? It will be hidden from lists and excluded from reports and payroll. It can be restored later.'))return;
+  try{
+    await updateDoc(doc(db,col,id),archive
+      ?{archived:true,archivedBy:userProfile?.name||'',archivedAt:serverTimestamp()}
+      :{archived:false,restoredBy:userProfile?.name||'',restoredAt:serverTimestamp()});
+  }catch(e){alert((archive?'Archive':'Restore')+' failed: '+e.message)}
+};
+function archivedBadge(r){return isArchivedRec(r)?`<span class="badge" style="background:var(--border);color:var(--muted)" title="${r.archivedBy||''}">Archived</span>`:''}
+function lockBadge(r){return isLockedBill(r)?`<span class="badge" style="background:#d4edd9;color:var(--green)">&#128274; Paid ${r.paidDate}</span>`:''}
 function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
 
 // ── COST CODE HELPERS ────────────────────────────────────────────────────────
@@ -1477,14 +1502,16 @@ function loadMyLog(){
       if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
       return 0;
     };
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
+    const allRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
       const ta=tsMs(a.clockIn);
       const tb=tsMs(b.clockIn);
       return tb-ta;
     });
-    window._allTimeLogs=rows;
+    window._allTimeLogs=allRows;
+    const showArch=isPriv()&&$('log-show-archived')?.checked;
+    const rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
     const tb=$('my-log-body');
-    if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="empty">No entries yet.</td></tr>';return}
+    if(!rows.length){tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">No entries yet.</td></tr>`;return}
     const now=Date.now();
     const hasExpired=!isPriv()&&rows.some(r=>now-tsMs(r.clockIn)>=2592000000);
     if(hasExpired)$('time-edit-notice').style.display='';
@@ -1493,11 +1520,15 @@ function loadMyLog(){
       const entryMs=tsMs(r.clockIn);
       const withinWindow=now-entryMs<2592000000;
       const isOwn=r.userId===currentUser.uid;
-      const canEdit=isAdmin()||isBookkeeper()||(isOwn&&withinWindow);
+      const arch=isArchivedRec(r);
+      const canEdit=!arch&&(isAdmin()||isBookkeeper()||(isOwn&&withinWindow));
       const canDel=isAdmin();
-      const editBtn=`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
-      return`<tr>
-      <td>${fmtDate(r.clockIn)}</td>
+      const editBtn=arch?'':`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
+      const archBtn=isPriv()?(arch
+        ?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`
+        :` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`):'';
+      return`<tr style="${arch?'opacity:.55':''}">
+      <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
       ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
       <td>${r.projectName||'--'}</td>
       <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
@@ -1507,48 +1538,58 @@ function loadMyLog(){
       <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
       <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
       <td style="white-space:nowrap">
-        ${editBtn}
+        ${editBtn}${archBtn}
         ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
       </td>
     </tr>`;
     }).join('');
-    // Fix colspan if showing all employees (extra column)
-    if(!rows.length)tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">No entries yet.</td></tr>`;
   });
 }
+$('log-show-archived').onchange=()=>loadMyLog();
 
 // ── RECEIPTS ──────────────────────────────────────────────────────────────────
 function loadReceipts(){
   if(!currentUser)return;
   const q=isPriv()?query(collection(db,'receipts'),limit(100)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(100));
   onSnapshot(q,snap=>{
-    const list=snap.docs.map(d=>({id:d.id,...d.data()}));
-    window._allReceipts=list;
+    const allList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._allReceipts=allList;
     const el=$('receipts-list');
+    const showArch=isPriv()&&$('rcpt-show-archived')?.checked;
+    const list=showArch?allList:allList.filter(r=>!isArchivedRec(r));
     if(!list.length){el.innerHTML='<div class="empty">No receipts yet.</div>';return}
     el.innerHTML=list.map(r=>{
       const isBill=r.billType==='bill';
+      const arch=isArchivedRec(r);
+      const locked=isLockedBill(r);
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
       const billNumHtml=r.billNumber?`<span class="bill-num">#${r.billNumber}</span> `:'';
       const qbHtml=isPriv()?(r.qbEntryDate?`<span class="entry-date">QB ✓ ${r.qbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','qb')">QB: mark entered</span>`):'';
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
-      return`<div class="receipt-item">
+      const paidHtml=(isPriv()&&isBill)?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
+      const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
+      return`<div class="receipt-item" style="${arch?'opacity:.55':''}">
         ${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div>
             <span class="badge ${r.status}">${r.status}</span>
             ${isBill?'<span class="badge bill">Bill</span>':''}
+            ${lockBadge(r)}${archivedBadge(r)}
           </div>
           <div class="receipt-meta">${billNumHtml}${r.vendor?r.vendor+' · ':''}${r.projectName||''} · ${fmtDate(r.submittedAt||r.createdAt)}${r.submittedByName?' · '+r.submittedByName:''}</div>
           ${r.invoiceDate?`<div style="font-size:11px;color:var(--muted)">Invoice: ${r.invoiceDate}</div>`:''}
           <div style="margin-top:6px">${codes.map(c=>`<span class="tag">${c}</span>`).join('')}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>
           ${r.notes?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${r.notes}</div>`:''}
-          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}</div>`:''}
+          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}</div>`:''}
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            ${isAdmin()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+            ${arch
+              ?(isPriv()?`<button class="btn btn-green btn-sm" onclick="window._archiveRec('receipts','${r.id}',false)">Restore</button>`:'')+(isAdmin()?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:'')
+              :`${canEditRec?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}
             ${isPriv()&&r.status==='submitted'&&r.userId!==currentUser?.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}
-            ${!isAdmin()&&r.status==='submitted'&&r.userId===currentUser?.uid?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+            ${isPriv()&&(isAdmin()||!locked)?`<button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('receipts','${r.id}',true)">Archive</button>`:''}
+            ${isAdmin()?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+            ${!isPriv()&&r.status==='submitted'&&r.userId===currentUser?.uid?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}`}
           </div>
         </div>
       </div>`;
@@ -1561,9 +1602,13 @@ $('lightbox').onclick=()=>hide('lightbox');
 window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
 window._markEntry=async(id,type)=>{
   const today=new Date().toISOString().slice(0,10);
-  const field=type==='qb'?'qbEntryDate':'dbEntryDate';
-  await updateDoc(doc(db,'receipts',id),{[field]:today});
+  const field=type==='qb'?'qbEntryDate':type==='paid'?'paidDate':'dbEntryDate';
+  if(type==='paid'&&!confirm('Mark this bill as paid today ('+today+')? The bill will be locked; only an admin can change it afterward.'))return;
+  const payload={[field]:today};
+  if(type==='paid'){payload.paidBy=userProfile?.name||'';payload.paidAt=serverTimestamp()}
+  try{await updateDoc(doc(db,'receipts',id),payload)}catch(e){alert('Update failed: '+e.message)}
 };
+$('rcpt-show-archived').onchange=()=>loadReceipts();
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
@@ -1603,7 +1648,7 @@ $('new-bill-btn').onclick=async()=>{
   $('bm-project').innerHTML='<option value="">Select project...</option>';
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('bm-project').appendChild(o)});
   ['bm-amount','bm-notes'].forEach(id=>$(id).value='');
-  $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';
+  $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';$('bm-paiddate').value='';
   $('bm-billnum').value='';$('bm-err').textContent='';
   fillRoomDropdown('bm-room',null);
   $('bm-vendor-sel').value='';hide('bm-vendor-new');
@@ -1657,7 +1702,7 @@ $('bm-save').onclick=async()=>{
     }catch(e){console.warn('Bill attachment upload failed:',e)}
   }
   try{
-    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
+    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,paidDate:$('bm-paiddate').value||null,paidBy:$('bm-paiddate').value?(userProfile?.name||''):null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
     hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent='';
   }catch(e){$('bm-err').textContent='Save failed: '+e.message}
   $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';
@@ -1667,10 +1712,17 @@ $('bm-save').onclick=async()=>{
 fillAllCodesDropdown('er-code-pick');
 let editingReceiptId=null;
 window._er=id=>{
-  const receipts=window._allReceipts||[];
+  const receipts=[...(window._allReceipts||[]),...(_rptType==='receipts'?(window._rptData||[]):[])];
   const r=receipts.find(x=>x.id===id);if(!r)return;
+  if(isLockedBill(r)&&!isAdmin()){alert('This bill has been paid and is locked. Ask an admin to unlock it.');return}
   editingReceiptId=id;
   erSelectedCodes=[...(r.costCodes||[r.scope].filter(Boolean))];
+  const isBill=r.billType==='bill';
+  $('er-paid-wrap').style.display=isBill?'':'none';
+  $('er-paiddate').value=r.paidDate||'';
+  // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
+  $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
+  if(isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
   const ep=$('er-project');ep.innerHTML='<option value="">Select project...</option>';
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
@@ -1701,11 +1753,18 @@ $('er-save').onclick=async()=>{
   const pid=$('er-project').value,rm=$('er-room').value,amt=$('er-amount').value;
   const vendor=resolveVendor('er-vendor-sel','er-vendor-new');
   if(!pid||!amt){$('er-err').textContent='Project and amount required.';return}
+  const orig=[...(window._allReceipts||[]),...(window._rptData||[])].find(x=>x.id===editingReceiptId)||{};
+  if(isLockedBill(orig)&&!isAdmin()){$('er-err').textContent='This bill is paid and locked. Only an admin can edit it.';return}
+  const isBill=orig.billType==='bill';
+  const newPaid=isBill?($('er-paiddate').value||null):(orig.paidDate||null);
+  if(isBill&&orig.paidDate&&!newPaid&&!isAdmin()){$('er-err').textContent='Only an admin can clear a paid date.';return}
+  if(isBill&&newPaid&&!orig.paidDate&&!confirm('Setting a paid date locks this bill. Only an admin can change it afterward. Continue?'))return;
   $('er-save').disabled=true;$('er-save').textContent='Saving...';
   if($('er-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const proj=allProjects.find(p=>p.id===pid);
+  const paidMeta=newPaid&&!orig.paidDate?{paidBy:userProfile?.name||'',paidAt:serverTimestamp()}:(!newPaid&&orig.paidDate?{paidBy:null,paidAt:null,unlockedBy:userProfile?.name||'',unlockedAt:serverTimestamp()}:{});
   try{
-    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,updatedAt:serverTimestamp()});
+    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,paidDate:newPaid,...paidMeta,updatedAt:serverTimestamp()});
     hide('edit-receipt-modal');
   }catch(e){$('er-err').textContent='Save failed: '+e.message}
   $('er-save').disabled=false;$('er-save').textContent='Save Changes';
@@ -1796,7 +1855,7 @@ function populateSecondaryFilters(data){
 }
 
 // secondary filters apply client-side
-['rpt-employee','rpt-cat','rpt-room'].forEach(id=>$(id).onchange=applyReportFilters);
+['rpt-employee','rpt-cat','rpt-room','rpt-include-archived'].forEach(id=>$(id).onchange=applyReportFilters);
 
 function applyReportFilters(){
   if(!_rptRawData.length)return;
@@ -1804,6 +1863,8 @@ function applyReportFilters(){
   const cat=$('rpt-cat').value;
   const room=$('rpt-room').value;
   let data=[..._rptRawData];
+  const inclArch=$('rpt-include-archived')?.checked;
+  if(!inclArch)data=data.filter(r=>!isArchivedRec(r));
   if(emp)data=data.filter(r=>(r.userName||r.submittedByName||'')=== emp);
   if(room)data=data.filter(r=>r.room===room);
   if(cat){
@@ -1815,6 +1876,7 @@ function applyReportFilters(){
   if(emp)parts.push('Employee: '+emp);
   if(cat)parts.push('Category: '+cat);
   if(room)parts.push('Room: '+room);
+  if(inclArch)parts.push('Archived records included');
   $('rpt-active-filters').textContent=parts.length?'Filtered by: '+parts.join(' · '):'';
   renderReport(data);
 }
@@ -1834,7 +1896,7 @@ function renderReport(data){
   if(it){
     h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th></th>';
   }else{
-    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th></th>';
+    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th></th>';
   }
   h+='</tr></thead><tbody>';
   data.forEach(r=>{
@@ -1850,7 +1912,9 @@ function renderReport(data){
         <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
         <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
         <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
-        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
+        <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
+          ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
+          :(isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }else{
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
@@ -1868,7 +1932,10 @@ function renderReport(data){
         <td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td>
         <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
-        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.billType==='bill'?(r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'):'--'}</td>
+        <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
+          ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('receipts','${r.id}',false)">Restore</button>`:'')
+          :(isPriv()&&(isAdmin()||!isLockedBill(r))?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('receipts','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }
   });
@@ -1880,16 +1947,16 @@ function renderReport(data){
 window._csv=()=>{
   const data=window._rptData||[];const it=_rptType==='time';
   const headers=it
-    ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']
-    :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Notes','Receipt URL'];
+    ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes','Archived']
+    :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Paid Date','Paid By','Notes','Receipt URL','Archived'];
   const rows=data.map(r=>{
     if(it){
       const billable=isBillableEntry(r);
       const proj=allProjects.find(p=>p.id===r.projectId);
       const billTo=billable?(proj?.name||r.projectName||''):'';
-      return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||''];
+      return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'',isArchivedRec(r)?'Y':''];
     }
-    return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.notes||'',r.imageUrl||''];
+    return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.paidDate||'',r.paidBy||'',r.notes||'',r.imageUrl||'',isArchivedRec(r)?'Y':''];
   });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
@@ -2066,7 +2133,7 @@ $('pr-run-btn').onclick = async () => {
     const toDate = new Date(to); toDate.setDate(toDate.getDate()+1);
     const toTs = Timestamp.fromDate(toDate);
     const snap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',fromTs), where('clockIn','<=',toTs)));
-    const entries = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs);
+    const entries = snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e));
 
     // Fetch users for pay rates
     const usersSnap = await getDocs(collection(db,'users'));
@@ -2079,7 +2146,7 @@ $('pr-run-btn').onclick = async () => {
       const stDate = new Date(spiffTo); stDate.setDate(stDate.getDate()+1);
       const stTs = Timestamp.fromDate(stDate);
       const sSnap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',sfTs), where('clockIn','<=',stTs)));
-      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&isBillableEntry({...e.data?.(),...e}));
+      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&isBillableEntry({...e.data?.(),...e}));
     }
 
     renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo);

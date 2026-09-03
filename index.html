@@ -379,6 +379,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <div id="receipt-modal" class="modal-bg hidden">
   <div class="modal">
     <h2>Submit Receipt</h2>
+    <div style="font-size:12px;color:var(--muted);margin:-8px 0 14px">A bill number is assigned automatically in sequence with the project's vendor bills.</div>
     <div class="field"><label>Project *</label><select id="rm-project"><option value="">Select project...</option></select></div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="rm-amount" placeholder="0.00" inputmode="decimal"></div>
@@ -449,7 +450,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
       <div class="field"><label>Paid Date</label><input type="date" id="bm-paiddate"></div>
     </div>
-    <div class="notice" style="font-size:12px">Once a paid date is set, the bill is locked. Only an admin can change or clear it.</div>
+    <div class="notice" style="font-size:12px">Once a paid date is set, the record is locked. Only an admin can change or clear it.</div>
     <div id="bm-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="bm-cancel">Cancel</button>
@@ -558,7 +559,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>DB Entry Date</label><input type="date" id="er-dbdate"></div>
       <div class="field" id="er-paid-wrap"><label>Paid Date</label><input type="date" id="er-paiddate"></div>
     </div>
-    <div id="er-lock-notice" class="notice hidden" style="font-size:12px">&#128274; This bill has been paid and is locked. Only an admin can change the paid date or edit it.</div>
+    <div id="er-lock-notice" class="notice hidden" style="font-size:12px">&#128274; This record has been paid and is locked. Only an admin can change the paid date or edit it.</div>
     <div id="er-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="er-cancel">Cancel</button>
@@ -801,12 +802,12 @@ function isAdmin(){return userProfile?.role?.toLowerCase()==='admin'}
 function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 // ── ARCHIVE / LOCK HELPERS ───────────────────────────────────────────────────
 // A paid vendor bill is locked: bookkeeper cannot edit or archive it. Admin can unlock by clearing the paid date.
-function isLockedBill(r){return r?.billType==='bill'&&!!r.paidDate}
+function isLockedBill(r){return !!r?.paidDate}
 function isArchivedRec(r){return r?.archived===true}
 window._archiveRec=async(col,id,archive)=>{
   const list=col==='receipts'?(window._allReceipts||[]):[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=list.find(x=>x.id===id);
-  if(archive&&r&&isLockedBill(r)&&!isAdmin()){alert('This bill has been paid and is locked. Ask an admin to unlock it.');return}
+  if(archive&&r&&isLockedBill(r)&&!isAdmin()){alert('This record has been paid and is locked. Ask an admin to unlock it.');return}
   const what=col==='receipts'?'record':'time entry';
   if(archive&&!confirm('Archive this '+what+'? It will be hidden from lists and excluded from reports and payroll. It can be restored later.'))return;
   try{
@@ -815,6 +816,43 @@ window._archiveRec=async(col,id,archive)=>{
       :{archived:false,restoredBy:userProfile?.name||'',restoredAt:serverTimestamp()});
   }catch(e){alert((archive?'Archive':'Restore')+' failed: '+e.message)}
 };
+// ── UNIFIED BILL NUMBERING ───────────────────────────────────────────────────
+// Bills AND receipts share one sequence per project: PREFIX-001, PREFIX-002, ...
+// Number = (highest number already used on that project) + 1, regardless of type or archived state.
+function projPrefix(proj){return (proj?.billPrefix||autoPrefix(proj?.name||'')).toUpperCase()}
+function fmtBillNum(prefix,n){return prefix+'-'+String(n).padStart(3,'0')}
+function maxBillNum(records){
+  let max=0;
+  records.forEach(r=>{const m=String(r.billNumber||'').match(/(\d+)\s*$/);if(m)max=Math.max(max,parseInt(m[1],10))});
+  return max;
+}
+async function nextBillNumber(pid){
+  const proj=allProjects.find(p=>p.id===pid);if(!proj)return null;
+  const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid)));
+  const recs=snap.docs.map(d=>d.data());
+  return fmtBillNum(projPrefix(proj),maxBillNum(recs)+1);
+}
+// Bookkeeper/admin clients fill in numbers for any record that was saved without one
+// (e.g. a crew receipt whose phone wasn't permitted to read the project's other receipts).
+let _assigningNums=false;
+async function assignMissingBillNumbers(list){
+  if(!isPriv()||_assigningNums)return;
+  const missing=list.filter(r=>!r.billNumber&&r.projectId);
+  if(!missing.length)return;
+  _assigningNums=true;
+  try{
+    const byProj={};
+    missing.forEach(r=>{(byProj[r.projectId]=byProj[r.projectId]||[]).push(r)});
+    for(const pid of Object.keys(byProj)){
+      const proj=allProjects.find(p=>p.id===pid);if(!proj)continue;
+      const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid)));
+      let n=maxBillNum(snap.docs.map(d=>d.data()));
+      const ordered=byProj[pid].sort((a,b)=>{const t=v=>v?.toMillis?.()||0;return t(a.submittedAt||a.createdAt)-t(b.submittedAt||b.createdAt)});
+      for(const r of ordered){n+=1;await updateDoc(doc(db,'receipts',r.id),{billNumber:fmtBillNum(projPrefix(proj),n),billNumberAssignedBy:userProfile?.name||''})}
+    }
+  }catch(e){console.warn('Bill number assignment failed:',e)}
+  _assigningNums=false;
+}
 function archivedBadge(r){return isArchivedRec(r)?`<span class="badge" style="background:var(--border);color:var(--muted)" title="${r.archivedBy||''}">Archived</span>`:''}
 function lockBadge(r){return isLockedBill(r)?`<span class="badge" style="background:#d4edd9;color:var(--green)">&#128274; Paid ${r.paidDate}</span>`:''}
 function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
@@ -1554,6 +1592,7 @@ function loadReceipts(){
   onSnapshot(q,snap=>{
     const allList=snap.docs.map(d=>({id:d.id,...d.data()}));
     window._allReceipts=allList;
+    assignMissingBillNumbers(allList);
     const el=$('receipts-list');
     const showArch=isPriv()&&$('rcpt-show-archived')?.checked;
     const list=showArch?allList:allList.filter(r=>!isArchivedRec(r));
@@ -1566,7 +1605,7 @@ function loadReceipts(){
       const billNumHtml=r.billNumber?`<span class="bill-num">#${r.billNumber}</span> `:'';
       const qbHtml=isPriv()?(r.qbEntryDate?`<span class="entry-date">QB ✓ ${r.qbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','qb')">QB: mark entered</span>`):'';
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
-      const paidHtml=(isPriv()&&isBill)?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
+      const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
       const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
       return`<div class="receipt-item" style="${arch?'opacity:.55':''}">
         ${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
@@ -1603,7 +1642,7 @@ window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'
 window._markEntry=async(id,type)=>{
   const today=new Date().toISOString().slice(0,10);
   const field=type==='qb'?'qbEntryDate':type==='paid'?'paidDate':'dbEntryDate';
-  if(type==='paid'&&!confirm('Mark this bill as paid today ('+today+')? The bill will be locked; only an admin can change it afterward.'))return;
+  if(type==='paid'&&!confirm('Mark this record as paid today ('+today+')? It will be locked; only an admin can change it afterward.'))return;
   const payload={[field]:today};
   if(type==='paid'){payload.paidBy=userProfile?.name||'';payload.paidAt=serverTimestamp()}
   try{await updateDoc(doc(db,'receipts',id),payload)}catch(e){alert('Update failed: '+e.message)}
@@ -1636,7 +1675,11 @@ $('rm-submit').onclick=async()=>{
   if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
   if($('rm-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const autoApprove=isAdmin();
-  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('rm-notes').value,imageUrl,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  // Receipts share the bill-number sequence with bills. If this user can't read the project's
+  // other receipts (field crew), leave it blank — a bookkeeper/admin client assigns it on next load.
+  let billNumber=null;
+  try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('rm-notes').value,imageUrl,billNumber,archived:false,paidDate:null,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
 function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
@@ -1673,10 +1716,7 @@ $('bm-project').onchange=async()=>{
   const proj=activeProjects.find(p=>p.id===pid);
   fillRoomDropdown('bm-room',proj);
   if(!pid){$('bm-billnum').value='';return}
-  const prefix=proj?.billPrefix||autoPrefix(proj?.name||'');
-  const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid),where('billType','==','bill')));
-  const next=String(snap.size+1).padStart(3,'0');
-  $('bm-billnum').value=prefix+'-'+next;
+  try{$('bm-billnum').value=(await nextBillNumber(pid))||''}catch(e){$('bm-billnum').value=''}
 };
 $('bm-code-pick').onchange=()=>{
   const v=$('bm-code-pick').value;if(!v)return;
@@ -1701,8 +1741,11 @@ $('bm-save').onclick=async()=>{
       await uploadBytes(r,fileToUp);imageUrl=await getDownloadURL(r);
     }catch(e){console.warn('Bill attachment upload failed:',e)}
   }
+  // Re-compute the number at save time so two entries opened at once don't collide
+  let billNumber=$('bm-billnum').value;
+  try{billNumber=(await nextBillNumber(pid))||billNumber}catch(e){}
   try{
-    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber:$('bm-billnum').value,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,paidDate:$('bm-paiddate').value||null,paidBy:$('bm-paiddate').value?(userProfile?.name||''):null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
+    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,paidDate:$('bm-paiddate').value||null,paidBy:$('bm-paiddate').value?(userProfile?.name||''):null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
     hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent='';
   }catch(e){$('bm-err').textContent='Save failed: '+e.message}
   $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';
@@ -1714,11 +1757,11 @@ let editingReceiptId=null;
 window._er=id=>{
   const receipts=[...(window._allReceipts||[]),...(_rptType==='receipts'?(window._rptData||[]):[])];
   const r=receipts.find(x=>x.id===id);if(!r)return;
-  if(isLockedBill(r)&&!isAdmin()){alert('This bill has been paid and is locked. Ask an admin to unlock it.');return}
+  if(isLockedBill(r)&&!isAdmin()){alert('This record has been paid and is locked. Ask an admin to unlock it.');return}
   editingReceiptId=id;
   erSelectedCodes=[...(r.costCodes||[r.scope].filter(Boolean))];
   const isBill=r.billType==='bill';
-  $('er-paid-wrap').style.display=isBill?'':'none';
+  $('er-paid-wrap').style.display='';
   $('er-paiddate').value=r.paidDate||'';
   // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
   $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
@@ -1754,11 +1797,10 @@ $('er-save').onclick=async()=>{
   const vendor=resolveVendor('er-vendor-sel','er-vendor-new');
   if(!pid||!amt){$('er-err').textContent='Project and amount required.';return}
   const orig=[...(window._allReceipts||[]),...(window._rptData||[])].find(x=>x.id===editingReceiptId)||{};
-  if(isLockedBill(orig)&&!isAdmin()){$('er-err').textContent='This bill is paid and locked. Only an admin can edit it.';return}
-  const isBill=orig.billType==='bill';
-  const newPaid=isBill?($('er-paiddate').value||null):(orig.paidDate||null);
-  if(isBill&&orig.paidDate&&!newPaid&&!isAdmin()){$('er-err').textContent='Only an admin can clear a paid date.';return}
-  if(isBill&&newPaid&&!orig.paidDate&&!confirm('Setting a paid date locks this bill. Only an admin can change it afterward. Continue?'))return;
+  if(isLockedBill(orig)&&!isAdmin()){$('er-err').textContent='This record is paid and locked. Only an admin can edit it.';return}
+  const newPaid=$('er-paiddate').value||null;
+  if(orig.paidDate&&!newPaid&&!isAdmin()){$('er-err').textContent='Only an admin can clear a paid date.';return}
+  if(newPaid&&!orig.paidDate&&!confirm('Setting a paid date locks this record. Only an admin can change it afterward. Continue?'))return;
   $('er-save').disabled=true;$('er-save').textContent='Saving...';
   if($('er-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const proj=allProjects.find(p=>p.id===pid);
@@ -1932,7 +1974,7 @@ function renderReport(data){
         <td><span class="badge ${r.status||'submitted'}">${r.status||'--'}</span></td>
         <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
-        <td style="font-size:11px;white-space:nowrap">${r.billType==='bill'?(r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'):'--'}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'}</td>
         <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
           ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('receipts','${r.id}',false)">Restore</button>`:'')
           :(isPriv()&&(isAdmin()||!isLockedBill(r))?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('receipts','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>

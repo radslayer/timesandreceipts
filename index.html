@@ -398,9 +398,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="upload-zone" id="rm-upload-zone">
       <div style="font-size:28px;margin-bottom:6px">&#128247;</div>
       <div style="font-weight:500">Tap to photo or upload receipt</div>
-      <div style="font-size:12px;margin-top:4px">JPG or PNG</div>
+      <div style="font-size:12px;margin-top:4px">JPG, PNG, or PDF</div>
       <img id="rm-preview" class="hidden upload-preview" alt="preview">
-      <input type="file" id="rm-file" accept="image/*" capture="environment" style="display:none">
+      <div id="rm-filename" style="font-size:12px;color:var(--green);margin-top:6px"></div>
+      <input type="file" id="rm-file" accept="image/*,application/pdf" style="display:none">
     </div>
     <div id="rm-err" class="err"></div>
     <div class="modal-footer">
@@ -1608,7 +1609,7 @@ function loadReceipts(){
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
       const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
       return`<div class="receipt-item" style="${arch?'opacity:.55':''}">
-        ${r.imageUrl?`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`:`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
+        ${r.imageUrl?(/\.pdf($|\?)/i.test(r.imageUrl)?`<div class="receipt-thumb" style="cursor:pointer" onclick="window.open('${r.imageUrl}','_blank')">&#128196;</div>`:`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`):`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div>
@@ -1651,7 +1652,7 @@ $('rcpt-show-archived').onchange=()=>loadReceipts();
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
-$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');show('receipt-modal')};
+$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');rmFile=null;hide('rm-preview');$('rm-filename').textContent='';$('rm-file').value='';show('receipt-modal')};
 window._rmRemove=i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)};
 $('rm-project').onchange=()=>fillRoomDropdown('rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
 $('rm-vendor-sel').onchange=()=>vendorSelChange('rm-vendor-sel','rm-vendor-new');
@@ -1662,7 +1663,15 @@ $('rm-code-pick').onchange=()=>{
 };
 $('rm-cancel').onclick=()=>{hide('receipt-modal');resetRM()};
 $('rm-upload-zone').onclick=()=>$('rm-file').click();
-$('rm-file').onchange=e=>{const f=e.target.files[0];if(f){rmFile=f;const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview')};r.readAsDataURL(f)}};
+$('rm-file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  rmFile=f;
+  if(f.type.startsWith('image/')){
+    const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview');$('rm-filename').textContent=''};r.readAsDataURL(f);
+  }else{
+    hide('rm-preview');$('rm-filename').textContent='📄 '+f.name;
+  }
+};
 function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)})}
 $('rm-submit').onclick=async()=>{
   const pid=$('rm-project').value,amt=$('rm-amount').value,rm=$('rm-room').value;
@@ -1672,7 +1681,14 @@ $('rm-submit').onclick=async()=>{
   if(!rmSelectedCodes.length){$('rm-err').textContent='Select at least one cost code.';return}
   $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
   const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
-  if(rmFile){try{const resized=await resizeImage(rmFile);const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);await uploadBytes(r,resized);imageUrl=await getDownloadURL(r)}catch(e){console.warn(e)}}
+  if(rmFile){
+    try{
+      const isImg=rmFile.type.startsWith('image/');
+      const fileToUp=isImg?await resizeImage(rmFile):rmFile;
+      const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+fileToUp.name);
+      await uploadBytes(r,fileToUp);imageUrl=await getDownloadURL(r);
+    }catch(e){console.warn(e)}
+  }
   if($('rm-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const autoApprove=isAdmin();
   // Receipts share the bill-number sequence with bills. If this user can't read the project's
@@ -1682,7 +1698,7 @@ $('rm-submit').onclick=async()=>{
   await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('rm-notes').value,imageUrl,billNumber,archived:false,paidDate:null,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
-function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
+function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
 
 // ── VENDOR BILL (bookkeeper/admin) ────────────────────────────────────────────
 fillAllCodesDropdown('bm-code-pick');

@@ -124,6 +124,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   <div class="nav" id="nav-bar">
     <div class="nav-tab active" data-tab="clock">&#9201; Time Clock</div>
     <div class="nav-tab" data-tab="receipts">&#129534; Receipts</div>
+    <div class="nav-tab priv-only hidden" data-tab="triage">&#128231; Email Triage <span id="triage-badge" class="hidden" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></div>
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
   </div>
@@ -189,6 +190,15 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
+    </div>
+
+    <!-- EMAIL TRIAGE TAB (admin/bookkeeper) -->
+    <div id="tab-triage" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <h2 style="margin:0">Email Triage</h2>
+      </div>
+      <div class="notice" style="font-size:12px;margin-bottom:12px">Receipts and invoices emailed to lotus@mail.upshiftholdings.com by MOTIF staff land here. Convert each into a receipt or bill, or dismiss it.</div>
+      <div class="card"><div id="triage-list"><div class="empty">No pending emailed receipts.</div></div></div>
     </div>
 
     <!-- REPORTS TAB -->
@@ -456,6 +466,43 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="modal-footer">
       <button class="btn btn-outline" id="bm-cancel">Cancel</button>
       <button class="btn btn-gold" id="bm-save" style="width:auto">Save Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL TRIAGE CONVERT MODAL -->
+<div id="tq-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Convert Emailed Receipt</h2>
+    <div class="card" id="tq-source-info" style="margin-bottom:14px;font-size:13px"></div>
+    <div class="row2">
+      <div class="field"><label>Record Type</label>
+        <select id="tq-type"><option value="receipt">Receipt</option><option value="bill">Vendor Bill</option></select>
+      </div>
+      <div class="field"><label>Project *</label><select id="tq-project"><option value="">Select project...</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Pay To (Vendor) *</label>
+        <select id="tq-vendor-sel"><option value="">Select vendor...</option></select>
+        <input type="text" id="tq-vendor-new" class="hidden" placeholder="Enter new vendor name..." style="margin-top:6px">
+      </div>
+      <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="tq-amount" placeholder="0.00" inputmode="decimal"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Invoice Date</label><input type="date" id="tq-invoicedate"></div>
+      <div class="field"><label>Room</label><select id="tq-room"><option value="">Select...</option></select></div>
+    </div>
+    <div class="field">
+      <label>Cost Codes *</label>
+      <select id="tq-code-pick"><option value="">Search / select cost code...</option></select>
+      <div class="chip-wrap" id="tq-codes-chips" style="margin-top:8px"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="tq-notes" rows="2" placeholder="Optional notes..."></textarea></div>
+    <div class="field" id="tq-attachment-wrap"><label>Emailed Attachment</label><div id="tq-attachment"></div></div>
+    <div id="tq-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="tq-cancel">Cancel</button>
+      <button class="btn btn-gold" id="tq-save" style="width:auto">Save &amp; Convert</button>
     </div>
   </div>
 </div>
@@ -781,7 +828,8 @@ const DEF_ROOMS=['Kitchen','Primary Bath','Primary Suite','Living Room','Dining 
 let currentUser=null,userProfile=null,activeSession=null,elapsedTimer=null,currentPos=null;
 let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
-let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[];
+let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[],tqSelectedCodes=[];
+let triageItems=[],tqCurrentItem=null;
 let _rptRawData=[],_rptType='time';
 let approvedVendors=[],pendingVendors=[],customCodes=[],nonBillableCodes=new Set(),customBillableOverrides=new Map(),archivedCodes=new Set();
 
@@ -919,7 +967,7 @@ function loadVendors(){
   });
 }
 function populateVendorDropdowns(){
-  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel'].forEach(id=>{
+  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel','tq-vendor-sel'].forEach(id=>{
     const el=$(id);if(!el)return;
     const cur=el.value;
     el.innerHTML='<option value="">Select vendor...</option>';
@@ -1307,7 +1355,7 @@ function applyTranslations(){
   const bmCancel=$('bm-cancel');if(bmCancel)bmCancel.textContent=t('cancel');
   const bmSave=$('bm-save');if(bmSave)bmSave.textContent=t('saveBill');
   // Vendor dropdowns placeholder
-  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel'].forEach(id=>{
+  ['rm-vendor-sel','bm-vendor-sel','er-vendor-sel','tq-vendor-sel'].forEach(id=>{
     const el=$(id);if(!el)return;
     if(el.options[0])el.options[0].textContent=t('selectVendor');
     const last=el.options[el.options.length-1];if(last&&last.value==='__new__')last.textContent=t('otherVendor');
@@ -1375,11 +1423,11 @@ onAuthStateChanged(auth,async u=>{
     // Apply saved language preference
     if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
     // Reload receipts if priv status changed (timing fix)
-    if(isPriv()!==wasPriv)loadReceipts();
+    if(isPriv()!==wasPriv){loadReceipts();loadEmailTriage();}
   }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();loadCustomCodes();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();loadCustomCodes();loadEmailTriage();
 });
 
 function applyProfile(){
@@ -1699,6 +1747,97 @@ $('rm-submit').onclick=async()=>{
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
 function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
+
+// ── EMAIL TRIAGE (admin/bookkeeper) ─────────────────────────────────────────
+function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function loadEmailTriage(){
+  if(!currentUser||!isPriv())return;
+  onSnapshot(query(collection(db,'emailTriage'),where('status','==','pending')),snap=>{
+    triageItems=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.receivedAt?.toMillis?.()||0)-(a.receivedAt?.toMillis?.()||0));
+    renderTriageList();
+    const badge=$('triage-badge');
+    if(triageItems.length){badge.textContent=triageItems.length;show('triage-badge')}else hide('triage-badge');
+  },e=>console.warn('Email triage listener error:',e));
+}
+function renderTriageList(){
+  const el=$('triage-list');if(!el)return;
+  if(!triageItems.length){el.innerHTML='<div class="empty">No pending emailed receipts.</div>';return}
+  el.innerHTML=triageItems.map(it=>{
+    const rec=it.receivedAt?.toDate?fmtTs(it.receivedAt):'--';
+    const attCount=(it.attachments||[]).length;
+    return `<div class="list-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${esc(it.subject||'(no subject)')}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(it.fromName||it.fromEmail||'')} &middot; ${rec} &middot; ${attCount} attachment${attCount===1?'':'s'}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn btn-outline" style="width:auto;padding:8px 14px" onclick="window._tqOpen('${it.id}')">Convert</button>
+        <button class="btn btn-outline" style="width:auto;padding:8px 14px;color:#c0392b;border-color:#c0392b" onclick="window._tqDismiss('${it.id}')">Dismiss</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window._tqOpen=id=>{
+  const it=triageItems.find(x=>x.id===id);if(!it)return;
+  tqCurrentItem=it;
+  tqSelectedCodes=[];renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove);
+  $('tq-type').value='receipt';
+  $('tq-project').innerHTML='<option value="">Select project...</option>';
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('tq-project').appendChild(o)});
+  fillRoomDropdown('tq-room',null);
+  $('tq-vendor-sel').value='';hide('tq-vendor-new');
+  $('tq-amount').value='';$('tq-notes').value=(it.bodyPreview||'').slice(0,500);
+  $('tq-invoicedate').value='';$('tq-err').textContent='';
+  $('tq-source-info').innerHTML=`<strong>From:</strong> ${esc(it.fromName||it.fromEmail)}<br><strong>Subject:</strong> ${esc(it.subject||'(no subject)')}`;
+  const att=(it.attachments||[])[0];
+  const attWrap=$('tq-attachment');
+  if(att){
+    const isImg=(att.mimeType||'').startsWith('image/');
+    attWrap.innerHTML=isImg
+      ?`<img src="${att.url}" style="max-width:200px;max-height:200px;border-radius:8px;display:block">`
+      :`<a href="${att.url}" target="_blank" rel="noopener" style="color:var(--green)">&#128196; ${esc(att.filename||'attachment')}</a>`;
+    if((it.attachments||[]).length>1)attWrap.innerHTML+=`<div style="font-size:11px;color:var(--muted);margin-top:4px">+${it.attachments.length-1} more attachment(s) — only the first is linked to the record.</div>`;
+  }else{
+    attWrap.innerHTML='<div style="font-size:12px;color:var(--muted)">No attachment on this email.</div>';
+  }
+  show('tq-modal');
+};
+window._tqRemove=i=>{tqSelectedCodes.splice(i,1);renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove)};
+window._tqDismiss=async id=>{
+  if(!confirm('Dismiss this emailed receipt? It will be removed from the triage queue without creating a record.'))return;
+  try{await updateDoc(doc(db,'emailTriage',id),{status:'dismissed',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()})}
+  catch(e){alert('Failed to dismiss: '+e.message)}
+};
+fillAllCodesDropdown('tq-code-pick');
+$('tq-project').onchange=()=>fillRoomDropdown('tq-room',activeProjects.find(p=>p.id===$('tq-project').value));
+$('tq-vendor-sel').onchange=()=>vendorSelChange('tq-vendor-sel','tq-vendor-new');
+$('tq-code-pick').onchange=()=>{
+  const v=$('tq-code-pick').value;if(!v)return;
+  if(!tqSelectedCodes.includes(v)){tqSelectedCodes.push(v);renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove)}
+  $('tq-code-pick').value='';
+};
+$('tq-cancel').onclick=()=>{hide('tq-modal');tqCurrentItem=null};
+$('tq-save').onclick=async()=>{
+  if(!tqCurrentItem)return;
+  const pid=$('tq-project').value,amt=$('tq-amount').value,type=$('tq-type').value;
+  const vendor=resolveVendor('tq-vendor-sel','tq-vendor-new');
+  if(!pid||!amt||!vendor){$('tq-err').textContent='Project, vendor, and amount are required.';return}
+  if(!tqSelectedCodes.length){$('tq-err').textContent='Select at least one cost code.';return}
+  $('tq-save').disabled=true;$('tq-save').textContent='Saving...';
+  try{
+    if($('tq-vendor-sel').value==='__new__')await submitNewVendor(vendor);
+    const proj=activeProjects.find(p=>p.id===pid);
+    const att=(tqCurrentItem.attachments||[])[0];
+    const imageUrl=att?att.url:null;
+    let billNumber=null;
+    try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+    const payload={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:tqSelectedCodes,room:$('tq-room').value||'',amount:parseFloat(amt),vendor,notes:$('tq-notes').value,invoiceDate:$('tq-invoicedate').value||null,billNumber,billType:type,imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:null,dbEntryDate:null,paidDate:null,paidBy:null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp(),emailTriageSourceId:tqCurrentItem.id};
+    const newDoc=await addDoc(collection(db,'receipts'),payload);
+    await updateDoc(doc(db,'emailTriage',tqCurrentItem.id),{status:'converted',convertedReceiptId:newDoc.id,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
+    hide('tq-modal');tqCurrentItem=null;
+  }catch(e){$('tq-err').textContent='Save failed: '+e.message}
+  $('tq-save').disabled=false;$('tq-save').textContent='Save & Convert';
+};
 
 // ── VENDOR BILL (bookkeeper/admin) ────────────────────────────────────────────
 fillAllCodesDropdown('bm-code-pick');
@@ -2764,7 +2903,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','triage','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
   }

@@ -398,13 +398,6 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <input type="text" id="rm-vendor-new" class="hidden" placeholder="Enter new vendor name..." style="margin-top:6px">
       </div>
     </div>
-    <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
-    <div class="field">
-      <label>Cost Codes *</label>
-      <select id="rm-code-pick"><option value="">Search / select cost code...</option></select>
-      <div class="chip-wrap" id="rm-codes-chips" style="margin-top:8px"></div>
-    </div>
-    <div class="field"><label>Notes</label><textarea id="rm-notes" rows="2" placeholder="What was purchased?"></textarea></div>
     <div class="upload-zone" id="rm-upload-zone">
       <div style="font-size:28px;margin-bottom:6px">&#128247;</div>
       <div style="font-weight:500">Tap to photo or upload receipt</div>
@@ -413,6 +406,25 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div id="rm-filename" style="font-size:12px;color:var(--green);margin-top:6px"></div>
       <input type="file" id="rm-file" accept="image/*,application/pdf" style="display:none">
     </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0">
+      <button class="btn btn-outline hidden" id="rm-ocr-btn" style="width:auto;padding:8px 14px;font-size:13px">&#10024; Scan receipt with AI</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-left:auto"><input type="checkbox" id="rm-li-toggle" style="width:auto;margin:0"> Split into line items</label>
+    </div>
+    <div id="rm-ocr-status" class="hidden" style="font-size:12px;color:var(--muted);margin:-6px 0 10px"></div>
+    <div id="rm-single-fields">
+      <div class="field"><label>Room *</label><select id="rm-room"><option value="">Select...</option></select></div>
+      <div class="field">
+        <label>Cost Codes *</label>
+        <select id="rm-code-pick"><option value="">Search / select cost code...</option></select>
+        <div class="chip-wrap" id="rm-codes-chips" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div id="rm-li-wrap" class="hidden">
+      <div id="rm-li-rows"></div>
+      <button class="btn btn-outline" id="rm-li-add" style="width:auto;padding:8px 14px;font-size:13px;margin-top:6px">+ Add line item</button>
+      <div id="rm-li-remaining" style="font-size:13px;font-weight:600;margin-top:10px"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="rm-notes" rows="2" placeholder="What was purchased?"></textarea></div>
     <div id="rm-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="rm-cancel">Cancel</button>
@@ -436,16 +448,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       </div>
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="bm-amount" placeholder="0.00" inputmode="decimal"></div>
     </div>
-    <div class="row2">
-      <div class="field"><label>Invoice Date *</label><input type="date" id="bm-invoicedate"></div>
-      <div class="field"><label>Room</label><select id="bm-room"><option value="">Select...</option></select></div>
-    </div>
-    <div class="field">
-      <label>Cost Codes *</label>
-      <select id="bm-code-pick"><option value="">Search / select cost code...</option></select>
-      <div class="chip-wrap" id="bm-codes-chips" style="margin-top:8px"></div>
-    </div>
-    <div class="field"><label>Notes</label><textarea id="bm-notes" rows="2" placeholder="Optional notes..."></textarea></div>
+    <div class="field"><label>Invoice Date *</label><input type="date" id="bm-invoicedate"></div>
     <div class="field"><label>Attach Invoice (optional)</label>
       <div class="upload-zone" id="bm-upload-zone">
         <div style="font-size:24px;margin-bottom:4px">📎</div>
@@ -456,6 +459,25 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <input type="file" id="bm-file" accept="image/*,application/pdf" style="display:none">
       </div>
     </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0">
+      <button class="btn btn-outline hidden" id="bm-ocr-btn" style="width:auto;padding:8px 14px;font-size:13px">&#10024; Scan receipt with AI</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-left:auto"><input type="checkbox" id="bm-li-toggle" style="width:auto;margin:0"> Split into line items</label>
+    </div>
+    <div id="bm-ocr-status" class="hidden" style="font-size:12px;color:var(--muted);margin:-6px 0 10px"></div>
+    <div id="bm-single-fields">
+      <div class="field"><label>Room</label><select id="bm-room"><option value="">Select...</option></select></div>
+      <div class="field">
+        <label>Cost Codes *</label>
+        <select id="bm-code-pick"><option value="">Search / select cost code...</option></select>
+        <div class="chip-wrap" id="bm-codes-chips" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div id="bm-li-wrap" class="hidden">
+      <div id="bm-li-rows"></div>
+      <button class="btn btn-outline" id="bm-li-add" style="width:auto;padding:8px 14px;font-size:13px;margin-top:6px">+ Add line item</button>
+      <div id="bm-li-remaining" style="font-size:13px;font-weight:600;margin-top:10px"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="bm-notes" rows="2" placeholder="Optional notes..."></textarea></div>
     <div class="row3">
       <div class="field"><label>QB Entry Date</label><input type="date" id="bm-qbdate" placeholder="Mark when entered in QB"></div>
       <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
@@ -488,17 +510,27 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       </div>
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="tq-amount" placeholder="0.00" inputmode="decimal"></div>
     </div>
-    <div class="row2">
-      <div class="field"><label>Invoice Date</label><input type="date" id="tq-invoicedate"></div>
-      <div class="field"><label>Room</label><select id="tq-room"><option value="">Select...</option></select></div>
+    <div class="field"><label>Invoice Date</label><input type="date" id="tq-invoicedate"></div>
+    <div class="field" id="tq-attachment-wrap"><label>Emailed Attachment</label><div id="tq-attachment"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0">
+      <button class="btn btn-outline hidden" id="tq-ocr-btn" style="width:auto;padding:8px 14px;font-size:13px">&#10024; Scan receipt with AI</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-left:auto"><input type="checkbox" id="tq-li-toggle" style="width:auto;margin:0"> Split into line items</label>
     </div>
-    <div class="field">
-      <label>Cost Codes *</label>
-      <select id="tq-code-pick"><option value="">Search / select cost code...</option></select>
-      <div class="chip-wrap" id="tq-codes-chips" style="margin-top:8px"></div>
+    <div id="tq-ocr-status" class="hidden" style="font-size:12px;color:var(--muted);margin:-6px 0 10px"></div>
+    <div id="tq-single-fields">
+      <div class="field"><label>Room</label><select id="tq-room"><option value="">Select...</option></select></div>
+      <div class="field">
+        <label>Cost Codes *</label>
+        <select id="tq-code-pick"><option value="">Search / select cost code...</option></select>
+        <div class="chip-wrap" id="tq-codes-chips" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div id="tq-li-wrap" class="hidden">
+      <div id="tq-li-rows"></div>
+      <button class="btn btn-outline" id="tq-li-add" style="width:auto;padding:8px 14px;font-size:13px;margin-top:6px">+ Add line item</button>
+      <div id="tq-li-remaining" style="font-size:13px;font-weight:600;margin-top:10px"></div>
     </div>
     <div class="field"><label>Notes</label><textarea id="tq-notes" rows="2" placeholder="Optional notes..."></textarea></div>
-    <div class="field" id="tq-attachment-wrap"><label>Emailed Attachment</label><div id="tq-attachment"></div></div>
     <div id="tq-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="tq-cancel">Cancel</button>
@@ -943,6 +975,156 @@ function fillCodeDropdown(selId,cat,typeFilter){
 function renderCodeChips(containerId,codesArr,onRemove){
   $(containerId).innerHTML=codesArr.map((c,i)=>`<span class="chip-code">${c} <span onclick="(${onRemove})(${i})" style="cursor:pointer;font-size:14px;line-height:1">×</span></span>`).join('');
 }
+
+// ── LINE ITEM SPLITTING (OCR-assisted) ────────────────────────────────────────
+const ocrReceiptFn=httpsCallable(functions,'ocrReceipt');
+let lineItemsMode={rm:false,bm:false,tq:false};
+let lineItemsState={rm:[],bm:[],tq:[]};
+
+function liNewItem(desc,amount){return {description:desc||'',amount:(typeof amount==='number'&&!isNaN(amount)?amount:0),room:'',costCodes:[]}}
+
+function liProjectFor(prefix){return activeProjects.find(p=>p.id===$(prefix+'-project').value)}
+
+function liGetAmount(prefix){const v=parseFloat($(prefix+'-amount').value);return isNaN(v)?0:v}
+
+function liGetRemaining(prefix){
+  const total=liGetAmount(prefix);
+  const sum=(lineItemsState[prefix]||[]).reduce((s,li)=>s+(parseFloat(li.amount)||0),0);
+  return Math.round((total-sum)*100)/100;
+}
+
+function updateLIRemaining(prefix){
+  const rem=liGetRemaining(prefix);
+  const el=$(prefix+'-li-remaining');if(!el)return;
+  const ok=Math.abs(rem)<0.01;
+  el.textContent=ok?'✓ Line items match the total.':`Remaining to allocate: $${rem.toFixed(2)}`;
+  el.style.color=ok?'var(--green)':'#c0392b';
+}
+
+function liRoomOptionsHtml(proj,selected){
+  const rooms=(proj&&proj.rooms)||DEF_ROOMS;
+  let html='<option value="">Room...</option>';
+  rooms.forEach(r=>{html+=`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`});
+  html+=`<option value="N/A" ${selected==='N/A'?'selected':''}>N/A</option>`;
+  return html;
+}
+function liCodeOptionsHtml(){
+  const codes=ALL_CODES.filter(c=>!archivedCodes.has(c.code));
+  let html='<option value="">+ Cost code...</option>';
+  codes.forEach(c=>{html+=`<option value="${c.code}">${c.code}</option>`});
+  return html;
+}
+
+function renderLineItems(prefix){
+  const rows=$(prefix+'-li-rows');if(!rows)return;
+  const proj=liProjectFor(prefix);
+  const items=lineItemsState[prefix]||[];
+  rows.innerHTML=items.map((li,i)=>`<div class="card" style="margin-bottom:10px;padding:12px">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <input type="text" value="${(li.description||'').replace(/"/g,'&quot;')}" placeholder="Description" style="flex:1" oninput="window._liSetField('${prefix}',${i},'description',this.value)">
+        <input type="number" step="0.01" value="${li.amount}" placeholder="0.00" style="width:100px" oninput="window._liSetField('${prefix}',${i},'amount',this.value)">
+        <span onclick="window._liRemoveLine('${prefix}',${i})" style="cursor:pointer;font-size:18px;line-height:1;padding:6px 4px;color:#c0392b">&times;</span>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <select onchange="window._liSetField('${prefix}',${i},'room',this.value)">${liRoomOptionsHtml(proj,li.room)}</select>
+        <select onchange="window._liAddCode('${prefix}',${i},this.value);this.value=''">${liCodeOptionsHtml()}</select>
+      </div>
+      <div class="chip-wrap" style="margin-top:6px">${(li.costCodes||[]).map((c,ci)=>`<span class="chip-code">${c} <span onclick="window._liRemoveCode('${prefix}',${i},${ci})" style="cursor:pointer;font-size:14px;line-height:1">&times;</span></span>`).join('')}</div>
+    </div>`).join('');
+  updateLIRemaining(prefix);
+}
+
+window._liSetField=(prefix,i,field,val)=>{
+  const li=(lineItemsState[prefix]||[])[i];if(!li)return;
+  if(field==='amount'){li.amount=parseFloat(val)||0;updateLIRemaining(prefix)}
+  else li[field]=val;
+};
+window._liAddCode=(prefix,i,code)=>{
+  if(!code)return;
+  const li=(lineItemsState[prefix]||[])[i];if(!li)return;
+  li.costCodes=li.costCodes||[];
+  if(!li.costCodes.includes(code))li.costCodes.push(code);
+  renderLineItems(prefix);
+};
+window._liRemoveCode=(prefix,i,ci)=>{
+  const li=(lineItemsState[prefix]||[])[i];if(!li)return;
+  li.costCodes.splice(ci,1);renderLineItems(prefix);
+};
+window._liRemoveLine=(prefix,i)=>{
+  lineItemsState[prefix].splice(i,1);renderLineItems(prefix);
+};
+function liAddLine(prefix,desc,amount){
+  lineItemsState[prefix]=lineItemsState[prefix]||[];
+  lineItemsState[prefix].push(liNewItem(desc,amount));
+  renderLineItems(prefix);
+}
+
+function toggleLineItemMode(prefix,on){
+  lineItemsMode[prefix]=on;
+  if(on){
+    show(prefix+'-li-wrap');hide(prefix+'-single-fields');
+    if(!(lineItemsState[prefix]||[]).length)liAddLine(prefix,'',liGetAmount(prefix));
+    renderLineItems(prefix);
+  }else{
+    hide(prefix+'-li-wrap');show(prefix+'-single-fields');
+  }
+}
+function resetLineItems(prefix){
+  lineItemsMode[prefix]=false;
+  lineItemsState[prefix]=[];
+  const t=$(prefix+'-li-toggle');if(t)t.checked=false;
+  hide(prefix+'-li-wrap');show(prefix+'-single-fields');
+  const st=$(prefix+'-ocr-status');if(st){st.textContent='';hide(st)}
+  const btn=$(prefix+'-ocr-btn');if(btn)hide(btn);
+}
+
+['rm','bm','tq'].forEach(prefix=>{
+  const toggle=$(prefix+'-li-toggle');
+  if(toggle)toggle.onchange=()=>toggleLineItemMode(prefix,toggle.checked);
+  const addBtn=$(prefix+'-li-add');
+  if(addBtn)addBtn.onclick=()=>liAddLine(prefix,'',0);
+  const amtField=$(prefix+'-amount');
+  if(amtField)amtField.addEventListener('input',()=>{if(lineItemsMode[prefix])updateLIRemaining(prefix)});
+});
+
+function fileToBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file)})}
+
+async function runOcr(prefix,opts){
+  const btn=$(prefix+'-ocr-btn'),status=$(prefix+'-ocr-status');
+  if(btn){btn.disabled=true;btn.textContent='Scanning...'}
+  if(status){status.textContent='Reading receipt with AI...';show(status)}
+  try{
+    let payload;
+    if(opts.imageUrl)payload={imageUrl:opts.imageUrl};
+    else if(opts.file)payload={imageBase64:await fileToBase64(opts.file),mimeType:opts.file.type||'image/jpeg'};
+    else throw new Error('No image to scan.');
+    const result=await ocrReceiptFn(payload);
+    const data=result.data||{};
+    if(data.total!=null && !$(prefix+'-amount').value)$(prefix+'-amount').value=data.total;
+    const idateField=$(prefix+'-invoicedate');
+    if(data.date && idateField && !idateField.value)idateField.value=data.date;
+    if(data.lineItems && data.lineItems.length){
+      lineItemsState[prefix]=data.lineItems.map(li=>liNewItem(li.description,li.amount));
+      const t=$(prefix+'-li-toggle');if(t)t.checked=true;
+      toggleLineItemMode(prefix,true);
+      renderLineItems(prefix);
+      if(status)status.textContent=`Found ${data.lineItems.length} line item(s). Review room/cost code for each below.`;
+    }else{
+      if(status)status.textContent='Scan complete, but no individual line items were found — enter them manually if needed.';
+    }
+  }catch(e){
+    console.error('OCR failed:',e);
+    if(status)status.textContent='AI scan failed: '+(e.message||'unknown error')+'. You can still enter this receipt manually.';
+  }
+  if(btn){btn.disabled=false;btn.innerHTML='&#10024; Scan receipt with AI'}
+}
+
+$('rm-ocr-btn').onclick=()=>{if(rmFile)runOcr('rm',{file:rmFile})};
+$('bm-ocr-btn').onclick=()=>{if(bmFile)runOcr('bm',{file:bmFile})};
+$('tq-ocr-btn').onclick=()=>{
+  const att=(tqCurrentItem&&tqCurrentItem.attachments||[])[0];
+  if(att)runOcr('tq',{imageUrl:att.url});
+};
 
 // ── GEOLOCATION ──────────────────────────────────────────────────────────────
 if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};updateGeoBar()},()=>{},{enableHighAccuracy:true,timeout:10000});
@@ -1700,7 +1882,7 @@ $('rcpt-show-archived').onchange=()=>loadReceipts();
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
-$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');rmFile=null;hide('rm-preview');$('rm-filename').textContent='';$('rm-file').value='';show('receipt-modal')};
+$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');rmFile=null;hide('rm-preview');$('rm-filename').textContent='';$('rm-file').value='';resetLineItems('rm');show('receipt-modal')};
 window._rmRemove=i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)};
 $('rm-project').onchange=()=>fillRoomDropdown('rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
 $('rm-vendor-sel').onchange=()=>vendorSelChange('rm-vendor-sel','rm-vendor-new');
@@ -1714,6 +1896,7 @@ $('rm-upload-zone').onclick=()=>$('rm-file').click();
 $('rm-file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   rmFile=f;
+  show('rm-ocr-btn');
   if(f.type.startsWith('image/')){
     const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview');$('rm-filename').textContent=''};r.readAsDataURL(f);
   }else{
@@ -1722,11 +1905,22 @@ $('rm-file').onchange=e=>{
 };
 function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)})}
 $('rm-submit').onclick=async()=>{
-  const pid=$('rm-project').value,amt=$('rm-amount').value,rm=$('rm-room').value;
+  const pid=$('rm-project').value,amt=$('rm-amount').value;
   const vendor=resolveVendor('rm-vendor-sel','rm-vendor-new');
-  if(!pid||!amt||!rm){$('rm-err').textContent='Project, amount, and room are required.';return}
+  const splitMode=lineItemsMode.rm;
+  const rm=$('rm-room').value;
+  if(!pid||!amt){$('rm-err').textContent='Project and amount are required.';return}
   if(!vendor){$('rm-err').textContent='Select or enter a vendor.';return}
-  if(!rmSelectedCodes.length){$('rm-err').textContent='Select at least one cost code.';return}
+  if(!splitMode){
+    if(!rm){$('rm-err').textContent='Room is required.';return}
+    if(!rmSelectedCodes.length){$('rm-err').textContent='Select at least one cost code.';return}
+  }else{
+    const items=lineItemsState.rm||[];
+    if(!items.length){$('rm-err').textContent='Add at least one line item.';return}
+    if(items.some(li=>!li.room||!(li.costCodes&&li.costCodes.length))){$('rm-err').textContent='Every line item needs a room and at least one cost code.';return}
+    if(Math.abs(liGetRemaining('rm'))>=0.01){$('rm-err').textContent='Line items must add up to the total amount before you can submit.';return}
+  }
+  $('rm-err').textContent='';
   $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
   const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
   if(rmFile){
@@ -1739,14 +1933,24 @@ $('rm-submit').onclick=async()=>{
   }
   if($('rm-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const autoApprove=isAdmin();
-  // Receipts share the bill-number sequence with bills. If this user can't read the project's
-  // other receipts (field crew), leave it blank — a bookkeeper/admin client assigns it on next load.
-  let billNumber=null;
-  try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
-  await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('rm-notes').value,imageUrl,billNumber,archived:false,paidDate:null,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()});
+  const base={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,vendor,imageUrl,archived:false,paidDate:null,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()};
+  if(!splitMode){
+    // Receipts share the bill-number sequence with bills. If this user can't read the project's
+    // other receipts (field crew), leave it blank — a bookkeeper/admin client assigns it on next load.
+    let billNumber=null;
+    try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+    await addDoc(collection(db,'receipts'),{...base,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),notes:$('rm-notes').value,billNumber});
+  }else{
+    const items=lineItemsState.rm;
+    for(const li of items){
+      let billNumber=null;
+      try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+      await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room,amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('rm-notes').value||''),billNumber});
+    }
+  }
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
-function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML=''}
+function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML='';resetLineItems('rm')}
 
 // ── EMAIL TRIAGE (admin/bookkeeper) ─────────────────────────────────────────
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -1788,9 +1992,11 @@ window._tqOpen=id=>{
   $('tq-vendor-sel').value='';hide('tq-vendor-new');
   $('tq-amount').value='';$('tq-notes').value=(it.bodyPreview||'').slice(0,500);
   $('tq-invoicedate').value='';$('tq-err').textContent='';
+  resetLineItems('tq');
   $('tq-source-info').innerHTML=`<strong>From:</strong> ${esc(it.fromName||it.fromEmail)}<br><strong>Subject:</strong> ${esc(it.subject||'(no subject)')}`;
   const att=(it.attachments||[])[0];
   const attWrap=$('tq-attachment');
+  if(att){show('tq-ocr-btn')}else{hide('tq-ocr-btn')}
   if(att){
     const isImg=(att.mimeType||'').startsWith('image/');
     attWrap.innerHTML=isImg
@@ -1821,19 +2027,40 @@ $('tq-save').onclick=async()=>{
   if(!tqCurrentItem)return;
   const pid=$('tq-project').value,amt=$('tq-amount').value,type=$('tq-type').value;
   const vendor=resolveVendor('tq-vendor-sel','tq-vendor-new');
+  const splitMode=lineItemsMode.tq;
   if(!pid||!amt||!vendor){$('tq-err').textContent='Project, vendor, and amount are required.';return}
-  if(!tqSelectedCodes.length){$('tq-err').textContent='Select at least one cost code.';return}
+  if(!splitMode){
+    if(!tqSelectedCodes.length){$('tq-err').textContent='Select at least one cost code.';return}
+  }else{
+    const items=lineItemsState.tq||[];
+    if(!items.length){$('tq-err').textContent='Add at least one line item.';return}
+    if(items.some(li=>!(li.costCodes&&li.costCodes.length))){$('tq-err').textContent='Every line item needs at least one cost code.';return}
+    if(Math.abs(liGetRemaining('tq'))>=0.01){$('tq-err').textContent='Line items must add up to the total amount before you can save.';return}
+  }
+  $('tq-err').textContent='';
   $('tq-save').disabled=true;$('tq-save').textContent='Saving...';
   try{
     if($('tq-vendor-sel').value==='__new__')await submitNewVendor(vendor);
     const proj=activeProjects.find(p=>p.id===pid);
     const att=(tqCurrentItem.attachments||[])[0];
     const imageUrl=att?att.url:null;
-    let billNumber=null;
-    try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
-    const payload={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:tqSelectedCodes,room:$('tq-room').value||'',amount:parseFloat(amt),vendor,notes:$('tq-notes').value,invoiceDate:$('tq-invoicedate').value||null,billNumber,billType:type,imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:null,dbEntryDate:null,paidDate:null,paidBy:null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp(),emailTriageSourceId:tqCurrentItem.id};
-    const newDoc=await addDoc(collection(db,'receipts'),payload);
-    await updateDoc(doc(db,'emailTriage',tqCurrentItem.id),{status:'converted',convertedReceiptId:newDoc.id,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
+    const base={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,vendor,invoiceDate:$('tq-invoicedate').value||null,billType:type,imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:null,dbEntryDate:null,paidDate:null,paidBy:null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp(),emailTriageSourceId:tqCurrentItem.id};
+    let firstNewDocId=null;
+    if(!splitMode){
+      let billNumber=null;
+      try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+      const newDoc=await addDoc(collection(db,'receipts'),{...base,costCodes:tqSelectedCodes,room:$('tq-room').value||'',amount:parseFloat(amt),notes:$('tq-notes').value,billNumber});
+      firstNewDocId=newDoc.id;
+    }else{
+      const items=lineItemsState.tq;
+      for(const li of items){
+        let billNumber=null;
+        try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+        const newDoc=await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room||'',amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('tq-notes').value||''),billNumber});
+        if(!firstNewDocId)firstNewDocId=newDoc.id;
+      }
+    }
+    await updateDoc(doc(db,'emailTriage',tqCurrentItem.id),{status:'converted',convertedReceiptId:firstNewDocId,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
     hide('tq-modal');tqCurrentItem=null;
   }catch(e){$('tq-err').textContent='Save failed: '+e.message}
   $('tq-save').disabled=false;$('tq-save').textContent='Save & Convert';
@@ -1851,6 +2078,7 @@ $('new-bill-btn').onclick=async()=>{
   fillRoomDropdown('bm-room',null);
   $('bm-vendor-sel').value='';hide('bm-vendor-new');
   bmFile=null;hide('bm-preview');$('bm-filename').textContent='';$('bm-file').value='';
+  resetLineItems('bm');
   show('bill-modal');
 };
 let bmFile=null;
@@ -1858,6 +2086,7 @@ $('bm-upload-zone').onclick=()=>$('bm-file').click();
 $('bm-file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   bmFile=f;
+  show('bm-ocr-btn');
   if(f.type.startsWith('image/')){
     const r=new FileReader();r.onload=ev=>{$('bm-preview').src=ev.target.result;show('bm-preview');$('bm-filename').textContent=''};r.readAsDataURL(f);
   }else{
@@ -1882,8 +2111,17 @@ $('bm-cancel').onclick=()=>{hide('bill-modal');bmFile=null;hide('bm-preview');$(
 $('bm-save').onclick=async()=>{
   const pid=$('bm-project').value,amt=$('bm-amount').value,idate=$('bm-invoicedate').value;
   const vnd=resolveVendor('bm-vendor-sel','bm-vendor-new');
+  const splitMode=lineItemsMode.bm;
   if(!pid||!amt||!vnd||!idate){$('bm-err').textContent='Project, vendor, amount, and invoice date are required.';return}
-  if(!bmSelectedCodes.length){$('bm-err').textContent='Select at least one cost code.';return}
+  if(!splitMode){
+    if(!bmSelectedCodes.length){$('bm-err').textContent='Select at least one cost code.';return}
+  }else{
+    const items=lineItemsState.bm||[];
+    if(!items.length){$('bm-err').textContent='Add at least one line item.';return}
+    if(items.some(li=>!(li.costCodes&&li.costCodes.length))){$('bm-err').textContent='Every line item needs at least one cost code.';return}
+    if(Math.abs(liGetRemaining('bm'))>=0.01){$('bm-err').textContent='Line items must add up to the total amount before you can save.';return}
+  }
+  $('bm-err').textContent='';
   $('bm-save').disabled=true;$('bm-save').textContent='Saving...';
   if($('bm-vendor-sel').value==='__new__')await submitNewVendor(vnd);
   const proj=activeProjects.find(p=>p.id===pid);
@@ -1896,11 +2134,21 @@ $('bm-save').onclick=async()=>{
       await uploadBytes(r,fileToUp);imageUrl=await getDownloadURL(r);
     }catch(e){console.warn('Bill attachment upload failed:',e)}
   }
-  // Re-compute the number at save time so two entries opened at once don't collide
-  let billNumber=$('bm-billnum').value;
-  try{billNumber=(await nextBillNumber(pid))||billNumber}catch(e){}
+  const base={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,vendor:vnd,invoiceDate:idate,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,paidDate:$('bm-paiddate').value||null,paidBy:$('bm-paiddate').value?(userProfile?.name||''):null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp()};
   try{
-    await addDoc(collection(db,'receipts'),{userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),vendor:vnd,notes:$('bm-notes').value,invoiceDate:idate,billNumber,billType:'bill',imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:$('bm-qbdate').value||null,dbEntryDate:$('bm-dbdate').value||null,paidDate:$('bm-paiddate').value||null,paidBy:$('bm-paiddate').value?(userProfile?.name||''):null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp()});
+    if(!splitMode){
+      // Re-compute the number at save time so two entries opened at once don't collide
+      let billNumber=$('bm-billnum').value;
+      try{billNumber=(await nextBillNumber(pid))||billNumber}catch(e){}
+      await addDoc(collection(db,'receipts'),{...base,costCodes:bmSelectedCodes,room:$('bm-room').value||'',amount:parseFloat(amt),notes:$('bm-notes').value,billNumber});
+    }else{
+      const items=lineItemsState.bm;
+      for(const li of items){
+        let billNumber=$('bm-billnum').value;
+        try{billNumber=(await nextBillNumber(pid))||billNumber}catch(e){}
+        await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room||'',amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('bm-notes').value||''),billNumber});
+      }
+    }
     hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent='';
   }catch(e){$('bm-err').textContent='Save failed: '+e.message}
   $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';

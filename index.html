@@ -1074,8 +1074,8 @@ function resetLineItems(prefix){
   lineItemsState[prefix]=[];
   const t=$(prefix+'-li-toggle');if(t)t.checked=false;
   hide(prefix+'-li-wrap');show(prefix+'-single-fields');
-  const st=$(prefix+'-ocr-status');if(st){st.textContent='';hide(st)}
-  const btn=$(prefix+'-ocr-btn');if(btn)hide(btn);
+  const st=$(prefix+'-ocr-status');if(st){st.textContent='';hide(prefix+'-ocr-status')}
+  const btn=$(prefix+'-ocr-btn');if(btn)hide(prefix+'-ocr-btn');
 }
 
 ['rm','bm','tq'].forEach(prefix=>{
@@ -1092,7 +1092,7 @@ function fileToBase64(file){return new Promise((res,rej)=>{const r=new FileReade
 async function runOcr(prefix,opts){
   const btn=$(prefix+'-ocr-btn'),status=$(prefix+'-ocr-status');
   if(btn){btn.disabled=true;btn.textContent='Scanning...'}
-  if(status){status.textContent='Reading receipt with AI...';show(status)}
+  if(status){status.textContent='Reading receipt with AI...';show(prefix+'-ocr-status')}
   try{
     let payload;
     if(opts.imageUrl)payload={imageUrl:opts.imageUrl};

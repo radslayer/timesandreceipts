@@ -861,7 +861,7 @@ let currentUser=null,userProfile=null,activeSession=null,elapsedTimer=null,curre
 let allProjects=[],activeProjects=[],currentRptType='time';
 let pmRooms=[...DEF_ROOMS],editingProjectId=null,rmFile=null;
 let rmSelectedCodes=[],bmSelectedCodes=[],erSelectedCodes=[],tqSelectedCodes=[];
-let triageItems=[],tqCurrentItem=null;
+let triageItems=[],tqCurrentItem=null,tqSelectedAttIdx=0;
 let _rptRawData=[],_rptType='time';
 let approvedVendors=[],pendingVendors=[],customCodes=[],nonBillableCodes=new Set(),customBillableOverrides=new Map(),archivedCodes=new Set();
 
@@ -1122,7 +1122,7 @@ async function runOcr(prefix,opts){
 $('rm-ocr-btn').onclick=()=>{if(rmFile)runOcr('rm',{file:rmFile})};
 $('bm-ocr-btn').onclick=()=>{if(bmFile)runOcr('bm',{file:bmFile})};
 $('tq-ocr-btn').onclick=()=>{
-  const att=(tqCurrentItem&&tqCurrentItem.attachments||[])[0];
+  const att=(tqCurrentItem&&tqCurrentItem.attachments||[])[tqSelectedAttIdx];
   if(att)runOcr('tq',{imageUrl:att.url});
 };
 
@@ -1981,6 +1981,48 @@ function renderTriageList(){
     </div>`;
   }).join('');
 }
+// Forwarded emails often carry inline signature/logo images ahead of the actual
+// receipt in attachment order, so don't blindly trust attachments[0]. Prefer a
+// PDF, then the largest file; downrank small images with generic inline-image
+// filenames (image001.png etc.) since those are almost always signature art.
+function pickBestAttachment(atts){
+  if(!atts||!atts.length)return 0;
+  if(atts.length===1)return 0;
+  const scored=atts.map((a,i)=>{
+    let score=0;
+    if((a.mimeType||'')==='application/pdf')score+=1000;
+    if(/^image\d*\.(png|jpe?g|gif)$/i.test(a.filename||''))score-=500;
+    score+=(a.size||0)/100000;
+    return {i,score};
+  });
+  scored.sort((x,y)=>y.score-x.score);
+  return scored[0].i;
+}
+function renderTqAttachments(){
+  const atts=(tqCurrentItem&&tqCurrentItem.attachments)||[];
+  const attWrap=$('tq-attachment');
+  if(!atts.length){
+    attWrap.innerHTML='<div style="font-size:12px;color:var(--muted)">No attachment on this email.</div>';
+    hide('tq-ocr-btn');
+    return;
+  }
+  const att=atts[tqSelectedAttIdx]||atts[0];
+  const isImg=(att.mimeType||'').startsWith('image/');
+  let html=isImg
+    ?`<img src="${att.url}" style="max-width:200px;max-height:200px;border-radius:8px;display:block">`
+    :`<a href="${att.url}" target="_blank" rel="noopener" style="color:var(--green)">&#128196; ${esc(att.filename||'attachment')}</a>`;
+  if(atts.length>1){
+    html+=`<div style="font-size:11px;color:var(--muted);margin:6px 0 4px">This is the file that will be scanned and linked to the record. If it's wrong (e.g. a logo instead of the receipt), pick the right one:</div>`;
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px">'+atts.map((a,i)=>
+      `<button type="button" data-tq-att="${i}" class="btn btn-outline" style="padding:4px 8px;font-size:11px;${i===tqSelectedAttIdx?'border-color:var(--green);color:var(--green)':''}">${esc(a.filename||('Attachment '+(i+1)))}</button>`
+    ).join('')+'</div>';
+  }
+  attWrap.innerHTML=html;
+  attWrap.querySelectorAll('[data-tq-att]').forEach(btn=>{
+    btn.onclick=()=>{tqSelectedAttIdx=parseInt(btn.dataset.tqAtt,10);renderTqAttachments()};
+  });
+  show('tq-ocr-btn');
+}
 window._tqOpen=id=>{
   const it=triageItems.find(x=>x.id===id);if(!it)return;
   tqCurrentItem=it;
@@ -1994,18 +2036,8 @@ window._tqOpen=id=>{
   $('tq-invoicedate').value='';$('tq-err').textContent='';
   resetLineItems('tq');
   $('tq-source-info').innerHTML=`<strong>From:</strong> ${esc(it.fromName||it.fromEmail)}<br><strong>Subject:</strong> ${esc(it.subject||'(no subject)')}`;
-  const att=(it.attachments||[])[0];
-  const attWrap=$('tq-attachment');
-  if(att){show('tq-ocr-btn')}else{hide('tq-ocr-btn')}
-  if(att){
-    const isImg=(att.mimeType||'').startsWith('image/');
-    attWrap.innerHTML=isImg
-      ?`<img src="${att.url}" style="max-width:200px;max-height:200px;border-radius:8px;display:block">`
-      :`<a href="${att.url}" target="_blank" rel="noopener" style="color:var(--green)">&#128196; ${esc(att.filename||'attachment')}</a>`;
-    if((it.attachments||[]).length>1)attWrap.innerHTML+=`<div style="font-size:11px;color:var(--muted);margin-top:4px">+${it.attachments.length-1} more attachment(s) — only the first is linked to the record.</div>`;
-  }else{
-    attWrap.innerHTML='<div style="font-size:12px;color:var(--muted)">No attachment on this email.</div>';
-  }
+  tqSelectedAttIdx=pickBestAttachment(it.attachments||[]);
+  renderTqAttachments();
   show('tq-modal');
 };
 window._tqRemove=i=>{tqSelectedCodes.splice(i,1);renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove)};
@@ -2042,7 +2074,7 @@ $('tq-save').onclick=async()=>{
   try{
     if($('tq-vendor-sel').value==='__new__')await submitNewVendor(vendor);
     const proj=activeProjects.find(p=>p.id===pid);
-    const att=(tqCurrentItem.attachments||[])[0];
+    const att=(tqCurrentItem.attachments||[])[tqSelectedAttIdx];
     const imageUrl=att?att.url:null;
     const base={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,vendor,invoiceDate:$('tq-invoicedate').value||null,billType:type,imageUrl,status:'approved',reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp(),qbEntryDate:null,dbEntryDate:null,paidDate:null,paidBy:null,archived:false,createdAt:serverTimestamp(),submittedAt:serverTimestamp(),emailTriageSourceId:tqCurrentItem.id};
     let firstNewDocId=null;

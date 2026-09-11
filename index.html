@@ -1915,22 +1915,22 @@ function showFilePreview(prefix,file){
   const panel=$(prefix+'-doc-preview'),img=$(prefix+'-preview'),pdf=$(prefix+'-preview-pdf');
   if(!panel)return;
   if(file.type==='application/pdf'){
-    hide(img);
-    pdf.src=URL.createObjectURL(file);show(pdf);
-    show(panel);
+    img.classList.add('hidden');
+    pdf.src=URL.createObjectURL(file);pdf.classList.remove('hidden');
+    panel.classList.remove('hidden');
   }else if(file.type.startsWith('image/')){
-    hide(pdf);
-    const r=new FileReader();r.onload=ev=>{img.src=ev.target.result;show(img);show(panel)};r.readAsDataURL(file);
+    pdf.classList.add('hidden');
+    const r=new FileReader();r.onload=ev=>{img.src=ev.target.result;img.classList.remove('hidden');panel.classList.remove('hidden')};r.readAsDataURL(file);
   }else{
-    hide(panel);
+    panel.classList.add('hidden');
   }
 }
 function hideFilePreview(prefix){
   const panel=$(prefix+'-doc-preview');if(!panel)return;
-  hide(panel);
+  panel.classList.add('hidden');
   const img=$(prefix+'-preview'),pdf=$(prefix+'-preview-pdf');
-  if(img){img.removeAttribute('src');hide(img)}
-  if(pdf){pdf.removeAttribute('src');hide(pdf)}
+  if(img){img.removeAttribute('src');img.classList.add('hidden')}
+  if(pdf){pdf.removeAttribute('src');pdf.classList.add('hidden')}
 }
 $('rm-file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
@@ -2063,11 +2063,15 @@ function renderTqAttachments(){
   // Side-panel preview of whichever attachment is currently selected.
   const panel=$('tq-doc-preview'),pImg=$('tq-preview-img'),pPdf=$('tq-preview-pdf');
   if(isPdf){
-    hide(pImg);pPdf.src=att.url;show(pPdf);show(panel);
+    pImg.classList.add('hidden');
+    pPdf.src=att.url;pPdf.classList.remove('hidden');
+    panel.classList.remove('hidden');
   }else if(isImg){
-    hide(pPdf);pImg.src=att.url;show(pImg);show(panel);
+    pPdf.classList.add('hidden');
+    pImg.src=att.url;pImg.classList.remove('hidden');
+    panel.classList.remove('hidden');
   }else{
-    hide(panel);
+    panel.classList.add('hidden');
   }
 }
 window._tqOpen=id=>{

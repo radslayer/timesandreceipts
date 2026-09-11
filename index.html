@@ -74,10 +74,13 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .receipt-meta{font-size:12px;color:var(--muted);margin-top:3px}
 .upload-zone{border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:all .2s}
 .upload-zone:hover{border-color:var(--gold);background:#faf6f0}
-.upload-preview{max-width:100%;max-height:180px;border-radius:8px;margin-top:12px;object-fit:contain}
-.modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;gap:20px;flex-wrap:wrap}
 .modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
 .modal-wide{max-width:900px}
+.doc-preview-panel{background:var(--surface);border-radius:14px;padding:16px;width:380px;max-width:92vw;max-height:92vh;overflow:auto}
+.doc-preview-panel .dp-title{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.doc-preview-panel img{max-width:100%;border-radius:8px;display:block}
+.doc-preview-panel iframe{width:100%;height:75vh;border:1px solid var(--border);border-radius:8px;background:#fff}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:10px}
 .list-row:last-child{border-bottom:none}
@@ -403,7 +406,6 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div style="font-size:28px;margin-bottom:6px">&#128247;</div>
       <div style="font-weight:500">Tap to photo or upload receipt</div>
       <div style="font-size:12px;margin-top:4px">JPG, PNG, or PDF</div>
-      <img id="rm-preview" class="hidden upload-preview" alt="preview">
       <div id="rm-filename" style="font-size:12px;color:var(--green);margin-top:6px"></div>
       <input type="file" id="rm-file" accept="image/*,application/pdf" style="display:none">
     </div>
@@ -432,6 +434,11 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <button class="btn btn-gold" id="rm-submit" style="width:auto">Submit Receipt</button>
     </div>
   </div>
+  <div class="doc-preview-panel hidden" id="rm-doc-preview">
+    <div class="dp-title">Receipt Preview</div>
+    <img id="rm-preview" class="hidden" alt="receipt preview">
+    <iframe id="rm-preview-pdf" class="hidden"></iframe>
+  </div>
 </div>
 
 <!-- VENDOR BILL MODAL (bookkeeper/admin only) -->
@@ -455,7 +462,6 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <div style="font-size:24px;margin-bottom:4px">📎</div>
         <div style="font-weight:500;font-size:13px">Tap to attach invoice or photo</div>
         <div style="font-size:11px;margin-top:3px">JPG, PNG, or PDF</div>
-        <img id="bm-preview" class="hidden upload-preview" alt="preview">
         <div id="bm-filename" style="font-size:12px;color:var(--green);margin-top:6px"></div>
         <input type="file" id="bm-file" accept="image/*,application/pdf" style="display:none">
       </div>
@@ -490,6 +496,11 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <button class="btn btn-outline" id="bm-cancel">Cancel</button>
       <button class="btn btn-gold" id="bm-save" style="width:auto">Save Bill</button>
     </div>
+  </div>
+  <div class="doc-preview-panel hidden" id="bm-doc-preview">
+    <div class="dp-title">Invoice Preview</div>
+    <img id="bm-preview" class="hidden" alt="invoice preview">
+    <iframe id="bm-preview-pdf" class="hidden"></iframe>
   </div>
 </div>
 
@@ -537,6 +548,11 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <button class="btn btn-outline" id="tq-cancel">Cancel</button>
       <button class="btn btn-gold" id="tq-save" style="width:auto">Save &amp; Convert</button>
     </div>
+  </div>
+  <div class="doc-preview-panel hidden" id="tq-doc-preview">
+    <div class="dp-title">Attachment Preview</div>
+    <img id="tq-preview-img" class="hidden" alt="attachment preview">
+    <iframe id="tq-preview-pdf" class="hidden"></iframe>
   </div>
 </div>
 
@@ -1104,14 +1120,15 @@ async function runOcr(prefix,opts){
     if(data.total!=null && !$(prefix+'-amount').value)$(prefix+'-amount').value=data.total;
     const idateField=$(prefix+'-invoicedate');
     if(data.date && idateField && !idateField.value)idateField.value=data.date;
+    const totalStr=data.total!=null?`$${Number(data.total).toFixed(2)}`:null;
     if(data.lineItems && data.lineItems.length){
       lineItemsState[prefix]=data.lineItems.map(li=>liNewItem(li.description,li.amount));
       const t=$(prefix+'-li-toggle');if(t)t.checked=true;
       toggleLineItemMode(prefix,true);
       renderLineItems(prefix);
-      if(status)status.textContent=`Found ${data.lineItems.length} line item(s). Review room/cost code for each below.`;
+      if(status)status.textContent=`Found ${data.lineItems.length} line item(s)`+(totalStr?` totaling ${totalStr}`:'')+`. Review room/cost code for each below.`;
     }else{
-      if(status)status.textContent='Scan complete, but no individual line items were found — enter them manually if needed.';
+      if(status)status.textContent=(totalStr?`Scan complete — detected total: ${totalStr}. `:'Scan complete. ')+'No individual line items were found — enter them manually if needed.';
     }
   }catch(e){
     console.error('OCR failed:',e);
@@ -1883,7 +1900,7 @@ $('rcpt-show-archived').onchange=()=>loadReceipts();
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
-$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');rmFile=null;hide('rm-preview');$('rm-filename').textContent='';$('rm-file').value='';resetLineItems('rm');show('receipt-modal')};
+$('new-receipt-btn').onclick=()=>{rmSelectedCodes=[];renderCodeChips('rm-codes-chips',rmSelectedCodes,i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove);});$('rm-vendor-sel').value='';hide('rm-vendor-new');rmFile=null;hideFilePreview('rm');$('rm-filename').textContent='';$('rm-file').value='';resetLineItems('rm');show('receipt-modal')};
 window._rmRemove=i=>{rmSelectedCodes.splice(i,1);renderCodeChips('rm-codes-chips',rmSelectedCodes,window._rmRemove)};
 $('rm-project').onchange=()=>fillRoomDropdown('rm-room',activeProjects.find(p=>p.id===$('rm-project').value));
 $('rm-vendor-sel').onchange=()=>vendorSelChange('rm-vendor-sel','rm-vendor-new');
@@ -1894,15 +1911,33 @@ $('rm-code-pick').onchange=()=>{
 };
 $('rm-cancel').onclick=()=>{hide('receipt-modal');resetRM()};
 $('rm-upload-zone').onclick=()=>$('rm-file').click();
+function showFilePreview(prefix,file){
+  const panel=$(prefix+'-doc-preview'),img=$(prefix+'-preview'),pdf=$(prefix+'-preview-pdf');
+  if(!panel)return;
+  if(file.type==='application/pdf'){
+    hide(img);
+    pdf.src=URL.createObjectURL(file);show(pdf);
+    show(panel);
+  }else if(file.type.startsWith('image/')){
+    hide(pdf);
+    const r=new FileReader();r.onload=ev=>{img.src=ev.target.result;show(img);show(panel)};r.readAsDataURL(file);
+  }else{
+    hide(panel);
+  }
+}
+function hideFilePreview(prefix){
+  const panel=$(prefix+'-doc-preview');if(!panel)return;
+  hide(panel);
+  const img=$(prefix+'-preview'),pdf=$(prefix+'-preview-pdf');
+  if(img){img.removeAttribute('src');hide(img)}
+  if(pdf){pdf.removeAttribute('src');hide(pdf)}
+}
 $('rm-file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   rmFile=f;
   show('rm-ocr-btn');
-  if(f.type.startsWith('image/')){
-    const r=new FileReader();r.onload=ev=>{$('rm-preview').src=ev.target.result;show('rm-preview');$('rm-filename').textContent=''};r.readAsDataURL(f);
-  }else{
-    hide('rm-preview');$('rm-filename').textContent='📄 '+f.name;
-  }
+  showFilePreview('rm',f);
+  $('rm-filename').textContent=f.type==='application/pdf'?'📄 '+f.name:'';
 };
 function resizeImage(file,maxPx=1200){return new Promise(res=>{const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w<=maxPx&&h<=maxPx)return res(file);if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88)};img.src=ev.target.result};r.readAsDataURL(file)})}
 $('rm-submit').onclick=async()=>{
@@ -1951,7 +1986,7 @@ $('rm-submit').onclick=async()=>{
   }
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
-function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hide('rm-preview');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML='';resetLineItems('rm')}
+function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hideFilePreview('rm');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML='';resetLineItems('rm')}
 
 // ── EMAIL TRIAGE (admin/bookkeeper) ─────────────────────────────────────────
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -2005,10 +2040,12 @@ function renderTqAttachments(){
   if(!atts.length){
     attWrap.innerHTML='<div style="font-size:12px;color:var(--muted)">No attachment on this email.</div>';
     hide('tq-ocr-btn');
+    hide('tq-doc-preview');
     return;
   }
   const att=atts[tqSelectedAttIdx]||atts[0];
   const isImg=(att.mimeType||'').startsWith('image/');
+  const isPdf=(att.mimeType||'')==='application/pdf';
   let html=isImg
     ?`<img src="${att.url}" style="max-width:200px;max-height:200px;border-radius:8px;display:block">`
     :`<a href="${att.url}" target="_blank" rel="noopener" style="color:var(--green)">&#128196; ${esc(att.filename||'attachment')}</a>`;
@@ -2023,6 +2060,15 @@ function renderTqAttachments(){
     btn.onclick=()=>{tqSelectedAttIdx=parseInt(btn.dataset.tqAtt,10);renderTqAttachments()};
   });
   show('tq-ocr-btn');
+  // Side-panel preview of whichever attachment is currently selected.
+  const panel=$('tq-doc-preview'),pImg=$('tq-preview-img'),pPdf=$('tq-preview-pdf');
+  if(isPdf){
+    hide(pImg);pPdf.src=att.url;show(pPdf);show(panel);
+  }else if(isImg){
+    hide(pPdf);pImg.src=att.url;show(pImg);show(panel);
+  }else{
+    hide(panel);
+  }
 }
 window._tqOpen=id=>{
   const it=triageItems.find(x=>x.id===id);if(!it)return;
@@ -2055,7 +2101,7 @@ $('tq-code-pick').onchange=()=>{
   if(!tqSelectedCodes.includes(v)){tqSelectedCodes.push(v);renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove)}
   $('tq-code-pick').value='';
 };
-$('tq-cancel').onclick=()=>{hide('tq-modal');tqCurrentItem=null};
+$('tq-cancel').onclick=()=>{hide('tq-modal');hide('tq-doc-preview');tqCurrentItem=null};
 $('tq-save').onclick=async()=>{
   if(!tqCurrentItem)return;
   const pid=$('tq-project').value,amt=$('tq-amount').value,type=$('tq-type').value;
@@ -2094,7 +2140,7 @@ $('tq-save').onclick=async()=>{
       }
     }
     await updateDoc(doc(db,'emailTriage',tqCurrentItem.id),{status:'converted',convertedReceiptId:firstNewDocId,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
-    hide('tq-modal');tqCurrentItem=null;
+    hide('tq-modal');hide('tq-doc-preview');tqCurrentItem=null;
   }catch(e){$('tq-err').textContent='Save failed: '+e.message}
   $('tq-save').disabled=false;$('tq-save').textContent='Save & Convert';
 };
@@ -2110,7 +2156,7 @@ $('new-bill-btn').onclick=async()=>{
   $('bm-billnum').value='';$('bm-err').textContent='';
   fillRoomDropdown('bm-room',null);
   $('bm-vendor-sel').value='';hide('bm-vendor-new');
-  bmFile=null;hide('bm-preview');$('bm-filename').textContent='';$('bm-file').value='';
+  bmFile=null;hideFilePreview('bm');$('bm-filename').textContent='';$('bm-file').value='';
   resetLineItems('bm');
   show('bill-modal');
 };
@@ -2120,11 +2166,8 @@ $('bm-file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   bmFile=f;
   show('bm-ocr-btn');
-  if(f.type.startsWith('image/')){
-    const r=new FileReader();r.onload=ev=>{$('bm-preview').src=ev.target.result;show('bm-preview');$('bm-filename').textContent=''};r.readAsDataURL(f);
-  }else{
-    hide('bm-preview');$('bm-filename').textContent='📄 '+f.name;
-  }
+  showFilePreview('bm',f);
+  $('bm-filename').textContent=f.type==='application/pdf'?'📄 '+f.name:'';
 };
 window._bmRemove=i=>{bmSelectedCodes.splice(i,1);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)};
 $('bm-vendor-sel').onchange=()=>vendorSelChange('bm-vendor-sel','bm-vendor-new');
@@ -2140,7 +2183,7 @@ $('bm-code-pick').onchange=()=>{
   if(!bmSelectedCodes.includes(v)){bmSelectedCodes.push(v);renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove)}
   $('bm-code-pick').value='';
 };
-$('bm-cancel').onclick=()=>{hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent=''};
+$('bm-cancel').onclick=()=>{hide('bill-modal');bmFile=null;hideFilePreview('bm');$('bm-filename').textContent=''};
 $('bm-save').onclick=async()=>{
   const pid=$('bm-project').value,amt=$('bm-amount').value,idate=$('bm-invoicedate').value;
   const vnd=resolveVendor('bm-vendor-sel','bm-vendor-new');
@@ -2182,7 +2225,7 @@ $('bm-save').onclick=async()=>{
         await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room||'',amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('bm-notes').value||''),billNumber});
       }
     }
-    hide('bill-modal');bmFile=null;hide('bm-preview');$('bm-filename').textContent='';
+    hide('bill-modal');bmFile=null;hideFilePreview('bm');$('bm-filename').textContent='';
   }catch(e){$('bm-err').textContent='Save failed: '+e.message}
   $('bm-save').disabled=false;$('bm-save').textContent='Save Bill';
 };

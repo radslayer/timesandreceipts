@@ -77,6 +77,7 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .upload-preview{max-width:100%;max-height:180px;border-radius:8px;margin-top:12px;object-fit:contain}
 .modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
+.modal-wide{max-width:900px}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:10px}
 .list-row:last-child{border-bottom:none}
@@ -387,7 +388,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 
 <!-- RECEIPT SUBMIT MODAL (field crew) -->
 <div id="receipt-modal" class="modal-bg hidden">
-  <div class="modal">
+  <div class="modal modal-wide">
     <h2>Submit Receipt</h2>
     <div style="font-size:12px;color:var(--muted);margin:-8px 0 14px">A bill number is assigned automatically in sequence with the project's vendor bills.</div>
     <div class="field"><label>Project *</label><select id="rm-project"><option value="">Select project...</option></select></div>
@@ -435,7 +436,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 
 <!-- VENDOR BILL MODAL (bookkeeper/admin only) -->
 <div id="bill-modal" class="modal-bg hidden">
-  <div class="modal">
+  <div class="modal modal-wide">
     <h2>Add Vendor Bill</h2>
     <div class="row2">
       <div class="field"><label>Project *</label><select id="bm-project"><option value="">Select project...</option></select></div>
@@ -494,7 +495,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 
 <!-- EMAIL TRIAGE CONVERT MODAL -->
 <div id="tq-modal" class="modal-bg hidden">
-  <div class="modal">
+  <div class="modal modal-wide">
     <h2>Convert Emailed Receipt</h2>
     <div class="card" id="tq-source-info" style="margin-bottom:14px;font-size:13px"></div>
     <div class="row2">

@@ -77,6 +77,13 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .modal-bg{position:fixed;inset:0;background:rgba(26,23,20,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;gap:20px;flex-wrap:wrap}
 .modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
 .modal-wide{max-width:900px}
+.search-hit{display:block;text-align:left;width:100%;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-family:inherit}
+.search-hit:hover{border-color:var(--gold,#b8963f)}
+.search-hit .sh-type{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.search-hit .sh-title{font-weight:600;margin-top:2px}
+.search-hit .sh-meta{font-size:12px;color:var(--muted);margin-top:2px}
+@keyframes searchFlash{0%{background:#fff3cd}100%{background:transparent}}
+.search-flash{animation:searchFlash 1.8s ease-out}
 .doc-preview-panel{background:var(--surface);border-radius:14px;padding:16px;width:380px;max-width:92vw;max-height:92vh;overflow:auto}
 .doc-preview-panel .dp-title{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .doc-preview-panel img{max-width:100%;border-radius:8px;display:block}
@@ -119,6 +126,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   <div class="topbar">
     <div class="topbar-brand">MOTIF</div>
     <div class="topbar-right">
+      <button id="global-search-btn" title="Search" style="background:transparent;border:1px solid #444;color:#aaa;font-size:14px;padding:4px 10px;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif">&#128269;</button>
       <button id="lang-toggle" onclick="window._toggleLang()" style="background:transparent;border:1px solid #444;color:#aaa;font-size:12px;padding:4px 8px;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif">ES</button>
       <span class="role-badge" id="tb-role">user</span>
       <span class="username" id="tb-name"></span>
@@ -722,6 +730,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <!-- LIGHTBOX -->
 <div id="lightbox" class="modal-bg hidden" style="cursor:pointer">
   <img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:8px" alt="receipt">
+</div>
+
+<!-- GLOBAL SEARCH -->
+<div id="search-modal" class="modal-bg hidden" style="align-items:flex-start;padding-top:8vh">
+  <div class="modal modal-wide" style="max-height:82vh;display:flex;flex-direction:column">
+    <div style="display:flex;gap:10px;align-items:center">
+      <input id="search-input" type="text" placeholder="Search projects, receipts, bills, time log..." style="flex:1;font-size:16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px" autocomplete="off">
+      <button class="btn btn-outline" id="search-close" style="width:auto">Close</button>
+    </div>
+    <div id="search-results" style="overflow-y:auto;margin-top:14px;flex:1"></div>
+  </div>
 </div>
 
 <script type="module">
@@ -1814,7 +1833,7 @@ function loadMyLog(){
       const archBtn=isPriv()?(arch
         ?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`
         :` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`):'';
-      return`<tr style="${arch?'opacity:.55':''}">
+      return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':''}">
       <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
       ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
       <td>${r.projectName||'--'}</td>
@@ -1856,7 +1875,7 @@ function loadReceipts(){
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
       const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
-      return`<div class="receipt-item" style="${arch?'opacity:.55':''}">
+      return`<div class="receipt-item" id="receipt-row-${r.id}" style="${arch?'opacity:.55':''}">
         ${r.imageUrl?(/\.pdf($|\?)/i.test(r.imageUrl)?`<div class="receipt-thumb" style="cursor:pointer" onclick="window.open('${r.imageUrl}','_blank')">&#128196;</div>`:`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`):`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1887,6 +1906,114 @@ function loadReceipts(){
 window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
 window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
 $('lightbox').onclick=()=>hide('lightbox');
+
+// ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
+function scrollToAndFlash(elId){
+  const el=$(elId);
+  if(!el)return false;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.add('search-flash');
+  setTimeout(()=>el.classList.remove('search-flash'),1800);
+  return true;
+}
+function goToReceiptResult(id){
+  hide('search-modal');
+  document.querySelector('[data-tab="receipts"]')?.click();
+  setTimeout(()=>{
+    if(scrollToAndFlash('receipt-row-'+id))return;
+    // Might be archived and hidden — reveal archived items then retry.
+    const cb=$('rcpt-show-archived');
+    if(cb&&!cb.checked){cb.checked=true;loadReceipts();setTimeout(()=>scrollToAndFlash('receipt-row-'+id),300)}
+  },80);
+}
+function goToTimeLogResult(id){
+  hide('search-modal');
+  document.querySelector('[data-tab="clock"]')?.click();
+  setTimeout(()=>{
+    if(scrollToAndFlash('tl-row-'+id))return;
+    const cb=$('log-show-archived');
+    if(cb&&!cb.checked){cb.checked=true;loadMyLog();setTimeout(()=>scrollToAndFlash('tl-row-'+id),300)}
+  },80);
+}
+function goToProjectResult(id){
+  if(!isAdmin()){hide('search-modal');return}
+  hide('search-modal');
+  document.querySelector('[data-tab="admin"]')?.click();
+  setTimeout(()=>{
+    scrollToAndFlash('project-row-'+id);
+    window._ep(id);
+  },80);
+}
+function runGlobalSearch(qRaw){
+  const results=$('search-results');
+  const q=(qRaw||'').trim().toLowerCase();
+  if(!q){results.innerHTML='<div class="empty">Type to search projects, receipts, bills, and time log entries.</div>';return}
+  const hits=q.split(/\s+/).filter(Boolean);
+  const matchesAll=hay=>hits.every(h=>hay.includes(h));
+
+  const projMatches=(allProjects||[]).filter(p=>matchesAll([p.name,p.address,p.billPrefix].filter(Boolean).join(' ').toLowerCase())).slice(0,8);
+
+  const rcptMatches=(window._allReceipts||[]).filter(r=>{
+    const codes=(r.costCodes||[r.scope]).filter(Boolean).join(' ');
+    const hay=[r.vendor,r.projectName,r.notes,r.billNumber?'#'+r.billNumber:'',codes,r.room,r.status,r.amount!=null?'$'+parseFloat(r.amount).toFixed(2):'',r.invoiceDate].filter(Boolean).join(' ').toLowerCase();
+    return matchesAll(hay);
+  }).slice(0,8);
+
+  const logMatches=(window._allTimeLogs||[]).filter(r=>{
+    const hay=[r.projectName,r.costCode||r.scope,r.room,r.userName,fmtDate(r.clockIn)].filter(Boolean).join(' ').toLowerCase();
+    return matchesAll(hay);
+  }).slice(0,8);
+
+  if(!projMatches.length&&!rcptMatches.length&&!logMatches.length){results.innerHTML='<div class="empty">No matches found.</div>';return}
+
+  let html='';
+  if(projMatches.length){
+    html+=projMatches.map(p=>`<button class="search-hit" onclick="window._goProj('${p.id}')" style="${isAdmin()?'':'cursor:default'}">
+      <div class="sh-type">Project</div>
+      <div class="sh-title">${esc(p.name||'')}</div>
+      <div class="sh-meta">${esc(p.address||'')}</div>
+    </button>`).join('');
+  }
+  if(rcptMatches.length){
+    html+=rcptMatches.map(r=>{
+      const isBill=r.billType==='bill';
+      return`<button class="search-hit" onclick="window._goRcpt('${r.id}')">
+      <div class="sh-type">${isBill?'Bill':'Receipt'}</div>
+      <div class="sh-title">${esc(r.vendor||'(no vendor)')} &mdash; $${parseFloat(r.amount||0).toFixed(2)}</div>
+      <div class="sh-meta">${esc(r.projectName||'')}${r.billNumber?' · #'+esc(r.billNumber):''} · ${esc(r.status||'')}</div>
+    </button>`;
+    }).join('');
+  }
+  if(logMatches.length){
+    html+=logMatches.map(r=>`<button class="search-hit" onclick="window._goLog('${r.id}')">
+      <div class="sh-type">Time Log</div>
+      <div class="sh-title">${esc(r.projectName||'')} &mdash; ${esc(r.costCode||r.scope||'')}</div>
+      <div class="sh-meta">${fmtDate(r.clockIn)}${r.userName?' · '+esc(r.userName):''}${r.room?' · '+esc(r.room):''}</div>
+    </button>`).join('');
+  }
+  results.innerHTML=html;
+}
+window._goProj=goToProjectResult;
+window._goRcpt=goToReceiptResult;
+window._goLog=goToTimeLogResult;
+let _searchDebounce=null;
+$('search-input').oninput=e=>{
+  clearTimeout(_searchDebounce);
+  const v=e.target.value;
+  _searchDebounce=setTimeout(()=>runGlobalSearch(v),120);
+};
+$('global-search-btn').onclick=()=>{
+  $('search-input').value='';
+  runGlobalSearch('');
+  show('search-modal');
+  setTimeout(()=>$('search-input').focus(),50);
+};
+$('search-close').onclick=()=>hide('search-modal');
+$('search-modal').addEventListener('click',e=>{if(e.target.id==='search-modal')hide('search-modal')});
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();$('global-search-btn').click();}
+  if(e.key==='Escape'&&!$('search-modal').classList.contains('hidden'))hide('search-modal');
+});
 window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
 window._markEntry=async(id,type)=>{
   const today=new Date().toISOString().slice(0,10);
@@ -2904,7 +3031,7 @@ function renderProjectsList(){
   });
   el.innerHTML=sorted.map(p=>{
     const isClient=p.clientProject!==false;
-    return`<div class="list-row">
+    return`<div class="list-row" id="project-row-${p.id}">
     <div>
       <div style="font-weight:600">${p.name} <span class="badge" style="background:${isClient?'#d4edd9':'var(--cream)'};color:${isClient?'var(--green)':'var(--muted)'};border:1px solid ${isClient?'var(--green)':'var(--border)'};font-size:9px">${isClient?'Billable':'Internal'}</span></div>
       <div style="font-size:12px;color:var(--muted)">${p.address||''} · Prefix: ${p.billPrefix||autoPrefix(p.name)} · ${(p.rooms||[]).length} rooms</div>

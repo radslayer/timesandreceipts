@@ -84,6 +84,12 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .search-hit .sh-meta{font-size:12px;color:var(--muted);margin-top:2px}
 @keyframes searchFlash{0%{background:#fff3cd}100%{background:transparent}}
 .search-flash{animation:searchFlash 1.8s ease-out}
+.sp-thumb{position:relative;width:74px;height:74px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.sp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.sp-thumb .sp-thumb-x{position:absolute;top:2px;right:2px;background:rgba(26,23,20,.7);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0}
+.photo-entry{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px}
+.photo-entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px}
+.photo-entry-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--border)}
 .doc-preview-panel{background:var(--surface);border-radius:14px;padding:16px;width:380px;max-width:92vw;max-height:92vh;overflow:auto}
 .doc-preview-panel .dp-title{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .doc-preview-panel img{max-width:100%;border-radius:8px;display:block}
@@ -136,6 +142,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   <div class="nav" id="nav-bar">
     <div class="nav-tab active" data-tab="clock">&#9201; Time Clock</div>
     <div class="nav-tab" data-tab="receipts">&#129534; Receipts</div>
+    <div class="nav-tab" data-tab="photos">&#128247; Photos</div>
     <div class="nav-tab priv-only hidden" data-tab="triage">&#128231; Email Triage <span id="triage-badge" class="hidden" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></div>
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
@@ -202,6 +209,19 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
+    </div>
+
+    <!-- JOB SITE PHOTOS TAB -->
+    <div id="tab-photos" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <h2 style="margin:0">Job Site Photos</h2>
+        <button class="btn btn-gold" id="new-photo-btn" style="width:auto;padding:10px 18px">+ Add Photos</button>
+      </div>
+      <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div class="field" style="margin-bottom:0"><select id="sp-filter-project"><option value="">All Projects</option></select></div>
+        <div class="field" style="margin-bottom:0"><select id="sp-filter-room"><option value="">All Rooms</option></select></div>
+      </div>
+      <div class="card"><div id="site-photos-list"><div class="empty">No job site photos yet.</div></div></div>
     </div>
 
     <!-- EMAIL TRIAGE TAB (admin/bookkeeper) -->
@@ -446,6 +466,34 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="dp-title">Receipt Preview</div>
     <img id="rm-preview" class="hidden" alt="receipt preview">
     <iframe id="rm-preview-pdf" class="hidden"></iframe>
+  </div>
+</div>
+
+<!-- JOB SITE PHOTO UPLOAD MODAL -->
+<div id="photo-modal" class="modal-bg hidden">
+  <div class="modal modal-wide">
+    <h2>Add Job Site Photos</h2>
+    <div class="field"><label>Project *</label><select id="sp-project"><option value="">Select project...</option></select></div>
+    <div class="field"><label>Room / Area *</label><select id="sp-room"><option value="">Select...</option></select></div>
+    <div class="field">
+      <label>Photos *</label>
+      <div class="upload-zone" id="sp-upload-zone">
+        <div style="font-size:28px;margin-bottom:6px">&#128247;</div>
+        <div style="font-weight:500">Tap to choose photos</div>
+        <div style="font-size:12px;margin-top:4px">You can select multiple at once</div>
+        <input type="file" id="sp-files" accept="image/*" multiple style="display:none">
+      </div>
+      <div id="sp-thumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+    </div>
+    <div class="field">
+      <label>Job Site Notes <span id="sp-word-count" style="font-weight:400;color:var(--muted)">(0/50 words)</span></label>
+      <textarea id="sp-notes" rows="3" placeholder="What's happening on site today..."></textarea>
+    </div>
+    <div id="sp-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="sp-cancel">Cancel</button>
+      <button class="btn btn-gold" id="sp-submit" style="width:auto">Upload Photos</button>
+    </div>
   </div>
 </div>
 
@@ -736,7 +784,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <div id="search-modal" class="modal-bg hidden" style="align-items:flex-start;padding-top:8vh">
   <div class="modal modal-wide" style="max-height:82vh;display:flex;flex-direction:column">
     <div style="display:flex;gap:10px;align-items:center">
-      <input id="search-input" type="text" placeholder="Search projects, receipts, bills, time log..." style="flex:1;font-size:16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px" autocomplete="off">
+      <input id="search-input" type="text" placeholder="Search projects, receipts, bills, time log, photos..." style="flex:1;font-size:16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px" autocomplete="off">
       <button class="btn btn-outline" id="search-close" style="width:auto">Close</button>
     </div>
     <div id="search-results" style="overflow-y:auto;margin-top:14px;flex:1"></div>
@@ -747,7 +795,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+import{getStorage,ref as sRef,uploadBytes,getDownloadURL,deleteObject}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
 const app=initializeApp({apiKey:"AIzaSyCfCholttfnLxgJwaxGwTu1-FDmO0Ob1hs",authDomain:"motif-times-and-receipts.firebaseapp.com",projectId:"motif-times-and-receipts",storageBucket:"motif-times-and-receipts.firebasestorage.app",messagingSenderId:"837311030358",appId:"1:837311030358:web:a7a391ecf6b2302d6a07f7"});
@@ -1646,7 +1694,7 @@ onAuthStateChanged(auth,async u=>{
   }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadVendors();loadCustomCodes();loadEmailTriage();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadSitePhotos();loadVendors();loadCustomCodes();loadEmailTriage();
 });
 
 function applyProfile(){
@@ -1667,7 +1715,7 @@ function loadProjects(){
   onSnapshot(query(collection(db,'projects')),snap=>{
     allProjects=snap.docs.map(d=>({id:d.id,...d.data()}));
     activeProjects=allProjects.filter(p=>p.active!==false);
-    ['ci-project','rm-project','bm-project'].forEach(id=>{
+    ['ci-project','rm-project','bm-project','sp-project'].forEach(id=>{
       const el=$(id);if(!el)return;
       const v=el.value;el.innerHTML='<option value="">Select project...</option>';
       activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
@@ -1944,10 +1992,18 @@ function goToProjectResult(id){
     window._ep(id);
   },80);
 }
+function goToPhotoResult(id){
+  hide('search-modal');
+  document.querySelector('[data-tab="photos"]')?.click();
+  setTimeout(()=>{
+    $('sp-filter-project').value='';$('sp-filter-room').value='';renderSitePhotos();
+    setTimeout(()=>scrollToAndFlash('photo-row-'+id),50);
+  },80);
+}
 function runGlobalSearch(qRaw){
   const results=$('search-results');
   const q=(qRaw||'').trim().toLowerCase();
-  if(!q){results.innerHTML='<div class="empty">Type to search projects, receipts, bills, and time log entries.</div>';return}
+  if(!q){results.innerHTML='<div class="empty">Type to search projects, receipts, bills, time log entries, and job site photos.</div>';return}
   const hits=q.split(/\s+/).filter(Boolean);
   const matchesAll=hay=>hits.every(h=>hay.includes(h));
 
@@ -1964,7 +2020,12 @@ function runGlobalSearch(qRaw){
     return matchesAll(hay);
   }).slice(0,8);
 
-  if(!projMatches.length&&!rcptMatches.length&&!logMatches.length){results.innerHTML='<div class="empty">No matches found.</div>';return}
+  const photoMatches=(window._allSitePhotos||[]).filter(r=>{
+    const hay=[r.projectName,r.room,r.notes,r.uploadedByName].filter(Boolean).join(' ').toLowerCase();
+    return matchesAll(hay);
+  }).slice(0,8);
+
+  if(!projMatches.length&&!rcptMatches.length&&!logMatches.length&&!photoMatches.length){results.innerHTML='<div class="empty">No matches found.</div>';return}
 
   let html='';
   if(projMatches.length){
@@ -1991,11 +2052,19 @@ function runGlobalSearch(qRaw){
       <div class="sh-meta">${fmtDate(r.clockIn)}${r.userName?' · '+esc(r.userName):''}${r.room?' · '+esc(r.room):''}</div>
     </button>`).join('');
   }
+  if(photoMatches.length){
+    html+=photoMatches.map(r=>`<button class="search-hit" onclick="window._goPhoto('${r.id}')">
+      <div class="sh-type">Job Site Photo</div>
+      <div class="sh-title">${esc(r.projectName||'')} &mdash; ${esc(r.room||'')}</div>
+      <div class="sh-meta">${fmtDate(r.uploadedAt)}${r.uploadedByName?' · '+esc(r.uploadedByName):''}${r.notes?' · '+esc(r.notes.slice(0,60)):''}</div>
+    </button>`).join('');
+  }
   results.innerHTML=html;
 }
 window._goProj=goToProjectResult;
 window._goRcpt=goToReceiptResult;
 window._goLog=goToTimeLogResult;
+window._goPhoto=goToPhotoResult;
 let _searchDebounce=null;
 $('search-input').oninput=e=>{
   clearTimeout(_searchDebounce);
@@ -2114,6 +2183,130 @@ $('rm-submit').onclick=async()=>{
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
 };
 function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hideFilePreview('rm');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML='';resetLineItems('rm')}
+
+// ── JOB SITE PHOTOS ────────────────────────────────────────────────────────────
+let spFiles=[];
+function resetSpForm(){
+  $('sp-project').value='';$('sp-room').innerHTML='<option value="">Select...</option>';
+  $('sp-notes').value='';$('sp-word-count').textContent='(0/50 words)';$('sp-word-count').style.color='';
+  $('sp-files').value='';spFiles=[];renderSpThumbs();$('sp-err').textContent='';
+}
+function renderSpThumbs(){
+  $('sp-thumbs').innerHTML=spFiles.map((f,i)=>`<div class="sp-thumb"><img src="${URL.createObjectURL(f)}" alt="photo ${i+1}"><button type="button" class="sp-thumb-x" onclick="window._spRemoveThumb(${i})">&times;</button></div>`).join('');
+}
+window._spRemoveThumb=i=>{spFiles.splice(i,1);renderSpThumbs()};
+$('new-photo-btn').onclick=()=>{resetSpForm();show('photo-modal')};
+$('sp-cancel').onclick=()=>{hide('photo-modal');resetSpForm()};
+$('sp-upload-zone').onclick=()=>$('sp-files').click();
+$('sp-project').onchange=()=>fillRoomDropdown('sp-room',activeProjects.find(p=>p.id===$('sp-project').value));
+$('sp-files').onchange=e=>{
+  const picked=Array.from(e.target.files||[]);
+  spFiles=spFiles.concat(picked);
+  renderSpThumbs();
+  e.target.value='';
+};
+$('sp-notes').oninput=()=>{
+  const words=$('sp-notes').value.trim().split(/\s+/).filter(Boolean).length;
+  $('sp-word-count').textContent=`(${words}/50 words)`;
+  $('sp-word-count').style.color=words>50?'var(--amber)':'';
+};
+function populatePhotoFilterProjects(){
+  const el=$('sp-filter-project');if(!el)return;
+  const v=el.value;el.innerHTML='<option value="">All Projects</option>';
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
+  el.value=v;
+}
+function populatePhotoFilterRooms(rows){
+  const el=$('sp-filter-room');if(!el)return;
+  const v=el.value;
+  const rooms=[...new Set(rows.map(r=>r.room||'').filter(Boolean))].sort();
+  el.innerHTML='<option value="">All Rooms</option>';
+  rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;el.appendChild(o)});
+  el.value=v;
+}
+$('sp-filter-project').onchange=renderSitePhotos;
+$('sp-filter-room').onchange=renderSitePhotos;
+$('sp-submit').onclick=async()=>{
+  const pid=$('sp-project').value,room=$('sp-room').value;
+  if(!pid){$('sp-err').textContent='Project is required.';return}
+  if(!room){$('sp-err').textContent='Room / area is required.';return}
+  if(!spFiles.length){$('sp-err').textContent='Add at least one photo.';return}
+  $('sp-err').textContent='';
+  $('sp-submit').disabled=true;$('sp-submit').textContent='Uploading...';
+  try{
+    const proj=activeProjects.find(p=>p.id===pid);
+    const photos=[];
+    for(let i=0;i<spFiles.length;i++){
+      const isImg=spFiles[i].type.startsWith('image/');
+      const fileToUp=isImg?await resizeImage(spFiles[i]):spFiles[i];
+      const storagePath='sitePhotos/'+currentUser.uid+'/'+Date.now()+'_'+i+'_'+fileToUp.name;
+      const r=sRef(storage,storagePath);
+      await uploadBytes(r,fileToUp);
+      const url=await getDownloadURL(r);
+      photos.push({url,storagePath});
+    }
+    await addDoc(collection(db,'sitePhotos'),{
+      projectId:pid,projectName:proj?.name||pid,room,
+      notes:($('sp-notes').value||'').trim(),
+      photos,
+      uploadedBy:currentUser.uid,uploadedByName:userProfile?.name||currentUser.email,
+      uploadedAt:serverTimestamp(),archived:false,visibleToClient:false
+    });
+    hide('photo-modal');resetSpForm();
+  }catch(e){$('sp-err').textContent='Upload failed: '+e.message}
+  $('sp-submit').disabled=false;$('sp-submit').textContent='Upload Photos';
+};
+function loadSitePhotos(){
+  if(!currentUser)return;
+  onSnapshot(query(collection(db,'sitePhotos'),limit(200)),snap=>{
+    const tsMs=v=>{
+      if(!v)return 0;
+      if(typeof v.toMillis==='function')return v.toMillis();
+      if(typeof v.toDate==='function')return v.toDate().getTime();
+      if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000+((v.nanoseconds||0)/1e6);
+      if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
+      return 0;
+    };
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>tsMs(b.uploadedAt)-tsMs(a.uploadedAt));
+    window._allSitePhotos=rows;
+    populatePhotoFilterRooms(rows);
+    renderSitePhotos();
+  });
+}
+function renderSitePhotos(){
+  const el=$('site-photos-list');if(!el)return;
+  const rows=window._allSitePhotos||[];
+  const fp=$('sp-filter-project')?.value||'',fr=$('sp-filter-room')?.value||'';
+  const list=rows.filter(r=>(!fp||r.projectId===fp)&&(!fr||r.room===fr));
+  if(!list.length){el.innerHTML='<div class="empty">No job site photos yet.</div>';return}
+  el.innerHTML=list.map(r=>{
+    const photos=r.photos||[];
+    return`<div class="photo-entry" id="photo-row-${r.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:600">${esc(r.projectName||'')} <span class="tag">${esc(r.room||'')}</span></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${fmtDate(r.uploadedAt)}${r.uploadedByName?' · '+esc(r.uploadedByName):''} · ${photos.length} photo${photos.length===1?'':'s'}</div>
+        </div>
+        ${isAdmin()?`<button class="btn btn-outline btn-sm" style="color:var(--red,#b02a2a);border-color:var(--red,#b02a2a)" onclick="window._dsp('${r.id}')">Delete</button>`:''}
+      </div>
+      ${r.notes?`<div style="font-size:13px;margin-top:8px">${esc(r.notes)}</div>`:''}
+      <div class="photo-entry-grid">${photos.map(p=>`<img src="${p.url}" onclick="window._lb('${p.url}')" alt="site photo">`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+window._dsp=async(id)=>{
+  if(!confirm('Delete this photo entry? This cannot be undone.'))return;
+  const entry=(window._allSitePhotos||[]).find(x=>x.id===id);
+  try{
+    if(entry&&entry.photos){
+      for(const p of entry.photos){
+        if(!p.storagePath)continue;
+        try{await deleteObject(sRef(storage,p.storagePath))}catch(e){console.warn('storage delete failed',e)}
+      }
+    }
+    await deleteDoc(doc(db,'sitePhotos',id));
+  }catch(e){alert('Delete failed: '+e.message)}
+};
 
 // ── EMAIL TRIAGE (admin/bookkeeper) ─────────────────────────────────────────
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -3358,9 +3551,10 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','triage','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','photos','triage','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
+    if(t==='photos'){populatePhotoFilterProjects();}
   }
 });
 $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};

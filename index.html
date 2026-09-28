@@ -90,6 +90,10 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .photo-entry{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px}
 .photo-entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px}
 .photo-entry-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--border)}
+.photo-list-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border)}
+.photo-list-row:last-child{border-bottom:none}
+.photo-list-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;cursor:pointer;border:1px solid var(--border)}
+.photo-list-thumb-empty{display:flex;align-items:center;justify-content:center;background:var(--cream);font-size:18px;cursor:default}
 .doc-preview-panel{background:var(--surface);border-radius:14px;padding:16px;width:380px;max-width:92vw;max-height:92vh;overflow:auto}
 .doc-preview-panel .dp-title{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .doc-preview-panel img{max-width:100%;border-radius:8px;display:block}
@@ -217,9 +221,23 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <h2 style="margin:0">Job Site Photos</h2>
         <button class="btn btn-gold" id="new-photo-btn" style="width:auto;padding:10px 18px">+ Add Photos</button>
       </div>
-      <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
         <div class="field" style="margin-bottom:0"><select id="sp-filter-project"><option value="">All Projects</option></select></div>
         <div class="field" style="margin-bottom:0"><select id="sp-filter-room"><option value="">All Rooms</option></select></div>
+        <div class="field" style="margin-bottom:0"><select id="sp-filter-user"><option value="">All Contributors</option></select></div>
+        <div class="field" style="margin-bottom:0">
+          <select id="sp-sort">
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="user">Contributor (A–Z)</option>
+            <option value="project">Project (A–Z)</option>
+            <option value="room">Room (A–Z)</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:0;margin-left:auto;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <button type="button" class="btn-sm" id="sp-view-gallery" style="border:none;padding:9px 14px;cursor:pointer;background:var(--gold);color:#fff;font-family:inherit;font-size:13px">&#9638; Gallery</button>
+          <button type="button" class="btn-sm" id="sp-view-list" style="border:none;padding:9px 14px;cursor:pointer;background:var(--cream);color:var(--ink);font-family:inherit;font-size:13px">&#9776; List</button>
+        </div>
       </div>
       <div class="card"><div id="site-photos-list"><div class="empty">No job site photos yet.</div></div></div>
     </div>
@@ -1996,7 +2014,7 @@ function goToPhotoResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="photos"]')?.click();
   setTimeout(()=>{
-    $('sp-filter-project').value='';$('sp-filter-room').value='';renderSitePhotos();
+    $('sp-filter-project').value='';$('sp-filter-room').value='';$('sp-filter-user').value='';renderSitePhotos();
     setTimeout(()=>scrollToAndFlash('photo-row-'+id),50);
   },80);
 }
@@ -2224,8 +2242,29 @@ function populatePhotoFilterRooms(rows){
   rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;el.appendChild(o)});
   el.value=v;
 }
+function populatePhotoFilterUsers(rows){
+  const el=$('sp-filter-user');if(!el)return;
+  const v=el.value;
+  const users=[...new Set(rows.map(r=>r.uploadedByName||'').filter(Boolean))].sort();
+  el.innerHTML='<option value="">All Contributors</option>';
+  users.forEach(u=>{const o=document.createElement('option');o.value=u;o.textContent=u;el.appendChild(o)});
+  el.value=v;
+}
+let spView='gallery';
+function setSpView(v){
+  spView=v;
+  $('sp-view-gallery').style.background=v==='gallery'?'var(--gold)':'var(--cream)';
+  $('sp-view-gallery').style.color=v==='gallery'?'#fff':'var(--ink)';
+  $('sp-view-list').style.background=v==='list'?'var(--gold)':'var(--cream)';
+  $('sp-view-list').style.color=v==='list'?'#fff':'var(--ink)';
+  renderSitePhotos();
+}
+$('sp-view-gallery').onclick=()=>setSpView('gallery');
+$('sp-view-list').onclick=()=>setSpView('list');
 $('sp-filter-project').onchange=renderSitePhotos;
 $('sp-filter-room').onchange=renderSitePhotos;
+$('sp-filter-user').onchange=renderSitePhotos;
+$('sp-sort').onchange=renderSitePhotos;
 $('sp-submit').onclick=async()=>{
   const pid=$('sp-project').value,room=$('sp-room').value;
   if(!pid){$('sp-err').textContent='Project is required.';return}
@@ -2267,18 +2306,48 @@ function loadSitePhotos(){
       if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
       return 0;
     };
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>tsMs(b.uploadedAt)-tsMs(a.uploadedAt));
+    const rows=snap.docs.map(d=>({id:d.id,...d.data(),_ts:tsMs(d.data().uploadedAt)})).sort((a,b)=>b._ts-a._ts);
     window._allSitePhotos=rows;
     populatePhotoFilterRooms(rows);
+    populatePhotoFilterUsers(rows);
     renderSitePhotos();
   });
 }
 function renderSitePhotos(){
   const el=$('site-photos-list');if(!el)return;
   const rows=window._allSitePhotos||[];
-  const fp=$('sp-filter-project')?.value||'',fr=$('sp-filter-room')?.value||'';
-  const list=rows.filter(r=>(!fp||r.projectId===fp)&&(!fr||r.room===fr));
+  const fp=$('sp-filter-project')?.value||'',fr=$('sp-filter-room')?.value||'',fu=$('sp-filter-user')?.value||'';
+  const sortBy=$('sp-sort')?.value||'date-desc';
+  let list=rows.filter(r=>(!fp||r.projectId===fp)&&(!fr||r.room===fr)&&(!fu||r.uploadedByName===fu));
+  const cmp={
+    'date-desc':(a,b)=>b._ts-a._ts,
+    'date-asc':(a,b)=>a._ts-b._ts,
+    'user':(a,b)=>(a.uploadedByName||'').localeCompare(b.uploadedByName||'')||b._ts-a._ts,
+    'project':(a,b)=>(a.projectName||'').localeCompare(b.projectName||'')||b._ts-a._ts,
+    'room':(a,b)=>(a.room||'').localeCompare(b.room||'')||b._ts-a._ts,
+  }[sortBy]||((a,b)=>b._ts-a._ts);
+  list=[...list].sort(cmp);
   if(!list.length){el.innerHTML='<div class="empty">No job site photos yet.</div>';return}
+  if(spView==='list'){
+    el.innerHTML=list.map(r=>{
+      const photos=r.photos||[];
+      const thumb=photos[0]?.url;
+      return`<div class="photo-list-row" id="photo-row-${r.id}">
+        ${thumb?`<img src="${thumb}" class="photo-list-thumb" onclick="window._lb('${thumb}')" alt="site photo">`:`<div class="photo-list-thumb photo-list-thumb-empty">&#128247;</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:600">${esc(r.projectName||'')}</span>
+            <span class="tag">${esc(r.room||'')}</span>
+            <span style="font-size:12px;color:var(--muted)">${photos.length} photo${photos.length===1?'':'s'}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${fmtDate(r.uploadedAt)}${r.uploadedByName?' · '+esc(r.uploadedByName):''}</div>
+          ${r.notes?`<div style="font-size:12px;margin-top:3px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.notes)}</div>`:''}
+        </div>
+        ${isAdmin()?`<button class="btn btn-outline btn-sm" style="color:var(--red,#b02a2a);border-color:var(--red,#b02a2a);flex-shrink:0" onclick="window._dsp('${r.id}')">Delete</button>`:''}
+      </div>`;
+    }).join('');
+    return;
+  }
   el.innerHTML=list.map(r=>{
     const photos=r.photos||[];
     return`<div class="photo-entry" id="photo-row-${r.id}">

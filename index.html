@@ -1708,7 +1708,7 @@ onAuthStateChanged(auth,async u=>{
     // Apply saved language preference
     if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
     // Reload receipts if priv status changed (timing fix)
-    if(isPriv()!==wasPriv){loadReceipts();loadEmailTriage();}
+    if(isPriv()!==wasPriv){loadReceipts();loadEmailTriage();loadMyLog();}
   }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}

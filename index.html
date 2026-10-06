@@ -1554,6 +1554,7 @@ const T={
     searchVendor:'Search / select cost code...',selectVendor:'Select vendor...',
     otherVendor:'Other / New Vendor...',enterVendor:'Enter new vendor name...',
     signOut:'Sign Out',
+    locationOffWarning:'Your phone\'s location is turned off. The app wishes to verify your clock-in/out location. Please turn it on.',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1586,6 +1587,7 @@ const T={
     searchVendor:'Buscar / seleccionar código de costo...',selectVendor:'Seleccionar proveedor...',
     otherVendor:'Otro / Nuevo Proveedor...',enterVendor:'Ingresar nombre del proveedor...',
     signOut:'Cerrar Sesión',
+    locationOffWarning:'La ubicación de tu teléfono está desactivada. La aplicación desea verificar tu ubicación de entrada/salida. Por favor actívala.',
   }
 };
 
@@ -1813,9 +1815,11 @@ function renderClockUI(){
     if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null}
   }
 }
+function checkLocationWarn(){if(!currentPos){alert(t('locationOffWarning'))}}
 $('clock-in-btn').onclick=async()=>{
   const pid=$('ci-project').value,cat=$('ci-cat').value,code=$('ci-code').value,rm=$('ci-room').value;
   if(!pid||!cat||!code||!rm){alert('Select a project, cost category, cost code, and room.');return}
+  checkLocationWarn();
   const proj=activeProjects.find(p=>p.id===pid);
   $('clock-in-btn').disabled=true;$('clock-in-btn').textContent='Clocking in...';
   await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
@@ -1824,6 +1828,7 @@ $('clock-in-btn').onclick=async()=>{
 };
 window._quickClockOut=async(mode)=>{
   if(!activeSession)return;
+  checkLocationWarn();
   let clockOutTime;
   if(mode==='now'){
     clockOutTime=new Date();
@@ -1848,6 +1853,7 @@ window._quickClockOut=async(mode)=>{
 };
 $('clock-out-btn').onclick=async()=>{
   if(!activeSession)return;
+  checkLocationWarn();
   $('clock-out-btn').disabled=true;$('clock-out-btn').textContent='Clocking out...';
   const now=new Date(),start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn),proj=allProjects.find(p=>p.id===activeSession.projectId);
   await updateDoc(doc(db,'timeLogs',activeSession.id),{clockOut:Timestamp.fromDate(now),clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockOutGeoStatus:geoSt(currentPos,proj),durationMs:now-start,status:'complete'});

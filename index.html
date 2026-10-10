@@ -149,6 +149,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="nav-tab" data-tab="photos">&#128247; Photos</div>
     <div class="nav-tab priv-only hidden" data-tab="triage">&#128231; Email Triage <span id="triage-badge" class="hidden" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></div>
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
+    <div class="nav-tab est-only hidden" data-tab="estimating">&#128208; Estimating</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
   </div>
   <div class="main">
@@ -334,6 +335,110 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
 
     <!-- ADMIN TAB -->
+    <!-- ESTIMATING TAB -->
+    <div id="tab-estimating" class="hidden">
+      <h2>Estimating</h2>
+      <div id="est-admin-note" class="notice hidden">&#9432; Rates and the cost library can be changed by an admin only. You can view them here.</div>
+      <div class="seg">
+        <button class="seg-btn on" id="est-est-btn">Estimates</button>
+        <button class="seg-btn" id="est-rates-btn">Rates</button>
+        <button class="seg-btn" id="est-lib-btn">Cost Library</button>
+      </div>
+            <div id="est-est-panel">
+        <div id="es-listview">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <input type="text" id="es-q" placeholder="Search by number, client or address" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;flex:1;min-width:160px">
+            <button class="btn btn-gold" id="es-new" style="width:auto">New estimate</button>
+          </div>
+          <div class="card" id="es-list"><div class="empty">Loading...</div></div>
+        </div>
+        <div id="es-editor" class="hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" id="ee-back">&larr; Estimates</button>
+            <div id="ee-title" style="font-family:'DM Serif Display',serif;font-size:20px"></div>
+            <span id="ee-saved" style="font-size:12px;color:var(--green)"></span>
+          </div>
+          <div class="card">
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
+              <div class="field"><label>Estimate number</label><input type="text" id="ee-number" placeholder="e.g. ES1450-JO"></div>
+              <div class="field"><label>Client</label><input type="text" id="ee-client"></div>
+            </div>
+            <div class="field"><label>Project address</label><input type="text" id="ee-address"></div>
+            <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px">
+              <div class="field"><label>Sales tax %</label><input type="number" step="0.01" id="ee-tax" placeholder="9.15"></div>
+              <div class="field"><label>Tax rate source</label><input type="text" id="ee-taxsrc" placeholder="e.g. Avalara lookup"></div>
+              <div class="field"><label>Looked up on</label><input type="text" id="ee-taxdate" placeholder="10/9/26"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="field"><label>Valid through</label><input type="text" id="ee-valid" placeholder="e.g. November 9, 2026"></div>
+              <div class="field"><label>Spaces to measure</label><input type="number" min="1" step="1" id="ee-spaces" placeholder="4"></div>
+              <div class="field"><label>Status</label><select id="ee-status"><option value="draft">draft</option><option value="ready">ready</option><option value="sent from QuickBooks">sent from QuickBooks</option><option value="signed">signed</option></select></div>
+            </div>
+            <div class="field"><label>Notes / terms shown on the client document (optional)</label><textarea id="ee-terms" rows="2"></textarea></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+              <select id="ee-newsec" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit"><option value="labor">Labor</option><option value="designMaterial">Design materials</option><option value="constructionMaterial">Construction materials</option><option value="subcontractor">Subcontractor</option><option value="fee">Fee / pass-through</option><option value="other">Other</option></select>
+              <button class="btn btn-outline btn-sm" id="ee-add">Add blank line</button>
+              <button class="btn btn-outline btn-sm" id="ee-lib">Add from cost library</button>
+            </div>
+            <div id="ee-drawer" class="hidden" style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;max-height:320px;overflow:auto">
+              <div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="ed-q" placeholder="Search library" style="padding:6px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;flex:1"><select id="ed-sec" style="padding:6px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit"><option value="">All</option><option value="labor">Labor</option><option value="designMaterial">Design materials</option><option value="constructionMaterial">Construction materials</option><option value="subcontractor">Subcontractor</option><option value="fee">Fee</option><option value="other">Other</option></select></div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Library items are past jobs' lines. Adding one copies it as a starting point: change the quantity or cost for this job.</div>
+              <div id="ed-list"></div>
+            </div>
+            <datalist id="ee-rooms"></datalist>
+            <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Room</th><th>Type</th><th>Description</th><th>Qty / hrs</th><th>MOTIF cost each / rate</th><th style="text-align:right">Client price</th><th style="text-align:right">MOTIF cost</th><th>Tax</th><th></th></tr></thead><tbody id="ee-lines"></tbody></table></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">Client price: labor = hours × rate; materials = cost ÷ materials divisor; subcontractors = cost ÷ sub divisor; fees at cost. Rates are the snapshot taken when the estimate was created.</div>
+          </div>
+          <div class="card" id="ee-totals"></div>
+          <div id="ee-err" class="err"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn btn-gold" id="ee-save" style="width:auto">Save</button>
+            <button class="btn btn-outline" id="ee-doc">Client document (print / PDF)</button>
+            <button class="btn btn-outline" id="ee-dup">Duplicate as new</button>
+          </div>
+        </div>
+      </div>
+      <div id="est-rates-panel" class="hidden">
+        <div id="er-form"></div>
+        <div id="er-err" class="err"></div>
+      </div>
+      <div id="est-lib-panel" class="hidden">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <select id="el-sec" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit"><option value="">All sections</option><option value="labor">Labor</option><option value="designMaterial">Design materials</option><option value="constructionMaterial">Construction materials</option><option value="subcontractor">Subcontractor</option><option value="fee">Fee / pass-through</option><option value="other">Other</option></select>
+          <input type="text" id="el-q" placeholder="Search" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;flex:1;min-width:140px">
+          <label style="font-size:13px"><input type="checkbox" id="el-prov"> Only items to check (*)</label>
+          <span id="el-count" style="font-size:12px;color:var(--muted)"></span>
+          <span class="est-adm" style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" id="el-add">Add item</button>
+            <label class="btn btn-outline btn-sm" style="cursor:pointer">Import seed file<input type="file" id="el-import" accept=".json,application/json" style="display:none"></label>
+          </span>
+        </div>
+        <div id="el-form" class="card hidden">
+          <div style="font-weight:600;margin-bottom:10px">Library item</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="field"><label>Section</label><select id="el-f-sec"><option value="labor">Labor</option><option value="designMaterial">Design materials</option><option value="constructionMaterial">Construction materials</option><option value="subcontractor">Subcontractor</option><option value="fee">Fee / pass-through</option><option value="other">Other</option></select></div>
+            <div class="field"><label>QuickBooks item name</label><input type="text" id="el-f-qbo"></div>
+          </div>
+          <div class="field"><label>Name / description</label><input type="text" id="el-f-name"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="field"><label>Hours (labor)</label><input type="number" step="0.25" id="el-f-hours"></div>
+            <div class="field"><label>Rate $/h (blank = default)</label><input type="number" step="0.01" id="el-f-rate"></div>
+            <div class="field"><label>MOTIF actual cost $</label><input type="number" step="0.01" id="el-f-cost"></div>
+            <div class="field"><label>Quoted client price $ (reference)</label><input type="number" step="0.01" id="el-f-price"></div>
+          </div>
+          <div class="field"><label>Source (estimate / job)</label><input type="text" id="el-f-job"></div>
+          <div class="field"><label>Notes</label><input type="text" id="el-f-notes"></div>
+          <label style="font-size:13px;margin-right:16px"><input type="checkbox" id="el-f-prov"> Needs checking (*)</label>
+          <label style="font-size:13px"><input type="checkbox" id="el-f-pass"> Pass-through at cost</label>
+          <div id="el-f-err" class="err"></div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-gold" id="el-f-save" style="width:auto">Save</button><button class="btn btn-outline" id="el-f-cancel">Cancel</button><button class="btn btn-red hidden" id="el-f-del" style="margin-left:auto">Delete</button></div>
+        </div>
+        <div class="card" id="el-list"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
     <div id="tab-admin" class="hidden">
       <h2>Admin</h2>
       <div id="whos-clocked-in" class="card" style="margin-bottom:16px">
@@ -690,6 +795,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <select id="um-role">
         <option value="user">User (field crew)</option>
         <option value="bookkeeper">Bookkeeper</option>
+        <option value="designer">Designer (estimating)</option>
         <option value="admin">Admin</option>
       </select>
     </div>
@@ -812,7 +918,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp,writeBatch}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import{getStorage,ref as sRef,uploadBytes,getDownloadURL,deleteObject}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
@@ -1723,6 +1829,7 @@ function applyProfile(){
   $('tb-role').textContent=(userProfile.role||'user').toLowerCase();
   const priv=isPriv(),adm=isAdmin();
   document.querySelectorAll('.priv-only').forEach(el=>priv?el.classList.remove('hidden'):el.classList.add('hidden'));
+  document.querySelectorAll('.est-only').forEach(el=>isEstimator()?el.classList.remove('hidden'):el.classList.add('hidden'));
   document.querySelectorAll('.admin-only').forEach(el=>adm?el.classList.remove('hidden'):el.classList.add('hidden'));
   const rptTab=document.querySelector('[data-tab="reports"]');
   const admTab=document.querySelector('[data-tab="admin"]');
@@ -3500,6 +3607,7 @@ function loadUsers(){
         <select class="role-sel" onchange="window._ur('${u.id}',this.value)" ${isDeactivated?'disabled':''}>
           <option value="user" ${(u.role||'').toLowerCase()==='user'?'selected':''}>User</option>
           <option value="bookkeeper" ${(u.role||'').toLowerCase()==='bookkeeper'?'selected':''}>Bookkeeper</option>
+          <option value="designer" ${(u.role||'').toLowerCase()==='designer'?'selected':''}>Designer</option>
           <option value="admin" ${(u.role||'').toLowerCase()==='admin'?'selected':''}>Admin</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="window._editPay('${u.id}')" ${isDeactivated?'disabled':''}>Pay Rates</button>
@@ -3626,7 +3734,8 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','photos','triage','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','photos','triage','reports','estimating','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    if(t==='estimating'){estInit();}
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
     if(t==='photos'){populatePhotoFilterProjects();}
@@ -3636,6 +3745,348 @@ $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-user
 $('adm-users-btn').onclick=()=>{$('adm-users-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');show('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};
 $('adm-vendors-btn').onclick=()=>{$('adm-vendors-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');show('adm-vendors-panel');hide('adm-codes-panel')};
 $('adm-codes-btn').onclick=()=>{$('adm-codes-btn').classList.add('on');$('adm-proj-btn').classList.remove('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');hide('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');show('adm-codes-panel');if(ALL_CODES.length>130)renderCodesMasterList();};
+
+// ── ESTIMATING (rates + cost library) ────────────────────────────────────────
+// Visible to admin + designer. Rules: only admin edits rates/library. QuickBooks is never written to.
+function isEstimator(){return['admin','designer'].includes(userProfile?.role?.toLowerCase())}
+const EST_DEF_RATES={laborRates:{construction:85,design:145},materialsDivisor:0.65,subDivisor:0.75,contingencyLabor:0.10,contingencyMaterials:0.10,contingencyIncludesDesign:true,
+  measure:{baseHours:20,baseSpaces:4,extraPerSpace:2.4},
+  pay:{materialsUpfront:1,laborUpfront:0.5,drywall:0.25,countertop:0.20,punch:0.05},
+  company:{name:'MOTIF Design Solutions',address:'2679 W Main Street, Littleton, CO 80120',suite:'',phone:'303-325-5916'}};
+const EST_SECTIONS={labor:'Labor',designMaterial:'Design materials',constructionMaterial:'Construction materials',subcontractor:'Subcontractor',fee:'Fee / pass-through',other:'Other'};
+let estRates=JSON.parse(JSON.stringify(EST_DEF_RATES)),estLib=[],estLibUnsub=null,estEditId=null,estLoaded=false;
+const $m=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+// Core price rule for one library item (used by the editor later). Returns {cost,client,note}
+function estPrice(it,r){
+  r=r||estRates;const s=it.section;
+  if(s==='labor'){const rate=Number(it.rate)||r.laborRates.construction;const h=Number(it.hours)||0;return{cost:h*rate,client:h*rate,note:h+' h × $'+rate}}
+  const cost=it.actualCost!=null&&it.actualCost!==''?Number(it.actualCost):null;
+  if(s==='designMaterial'||s==='constructionMaterial'){if(cost==null)return{cost:null,client:Number(it.clientPrice)||0,note:'no actual cost; quoted price shown'};return{cost,client:cost/r.materialsDivisor,note:'cost ÷ '+r.materialsDivisor}}
+  if(s==='subcontractor'){if(cost==null)return{cost:null,client:Number(it.clientPrice)||0,note:'no actual cost; quoted price shown'};return{cost,client:cost/r.subDivisor,note:'cost ÷ '+r.subDivisor}}
+  return{cost:cost,client:cost!=null?cost:(Number(it.clientPrice)||0),note:'at cost'};
+}
+async function estInit(){
+  if(!isEstimator())return;
+  $('est-admin-note').classList.toggle('hidden',isAdmin());
+  document.querySelectorAll('#tab-estimating .est-adm').forEach(el=>el.classList.toggle('hidden',!isAdmin()));
+  if(estLoaded)return;estLoaded=true;
+  try{const s=await getDoc(doc(db,'estRates','current'));if(s.exists()){const d=s.data();estRates={...EST_DEF_RATES,...d,laborRates:{...EST_DEF_RATES.laborRates,...(d.laborRates||{})},pay:{...EST_DEF_RATES.pay,...(d.pay||{})},company:{...EST_DEF_RATES.company,...(d.company||{})}}}}catch(e){$('er-err').textContent='Could not load rates: '+e.message}
+  renderRates();estStartList();
+  estLibUnsub=onSnapshot(collection(db,'estLibrary'),snap=>{estLib=snap.docs.map(d=>({id:d.id,...d.data()}));renderEstLib()},e=>{$('el-list').innerHTML='<div class="empty">Could not load the library: '+esc(e.message)+'</div>'});
+}
+function renderRates(){
+  const r=estRates,ro=!isAdmin();
+  const f=(id,v,step)=>`<input type="number" step="${step||'0.01'}" id="${id}" value="${v}" ${ro?'disabled':''}>`;
+  $('er-form').innerHTML=`
+   <div class="card"><div style="font-weight:600;margin-bottom:10px">Labor rates ($ / hour)</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Construction</label>${f('er-lab-con',r.laborRates.construction)}</div>
+      <div class="field"><label>Design</label>${f('er-lab-des',r.laborRates.design)}</div></div></div>
+   <div class="card"><div style="font-weight:600;margin-bottom:10px">Pricing rules</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Materials: client price = cost ÷</label>${f('er-mat',r.materialsDivisor,'0.01')}</div>
+      <div class="field"><label>Subcontractors: client price = cost ÷</label>${f('er-sub',r.subDivisor,'0.01')}</div>
+      <div class="field"><label>Contingency on labor lines (%)</label>${f('er-cl',+(r.contingencyLabor*100).toFixed(2),'0.5')}</div>
+      <div class="field"><label>Contingency on materials lines (%)</label>${f('er-cm',+(r.contingencyMaterials*100).toFixed(2),'0.5')}</div>
+      <label style="font-size:13px;grid-column:1/-1"><input type="checkbox" id="er-cd" ${r.contingencyIncludesDesign!==false?'checked':''} ${ro?'disabled':''}> Labor contingency also applies to design labor (confirm with Jennifer *)</label></div>
+     <div style="font-size:12px;color:var(--muted)">Permits and cabinet delivery pass through at cost. Tax is set per job on taxable lines only (materials and shipping).</div></div>
+   <div class="card"><div style="font-weight:600;margin-bottom:10px">Payment schedule (% )</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Materials before work</label>${f('er-p-mat',r.pay.materialsUpfront*100,'1')}</div>
+      <div class="field"><label>Labor before work</label>${f('er-p-lab',r.pay.laborUpfront*100,'1')}</div>
+      <div class="field"><label>Labor at drywall completion</label>${f('er-p-dry',r.pay.drywall*100,'1')}</div>
+      <div class="field"><label>Labor at countertop install</label>${f('er-p-ct',r.pay.countertop*100,'1')}</div>
+      <div class="field"><label>Labor at punch list</label>${f('er-p-pl',r.pay.punch*100,'1')}</div></div>
+     <div id="er-paysum" style="font-size:12px;color:var(--muted)"></div></div>
+   <div class="card"><div style="font-weight:600;margin-bottom:10px">Company block on client documents</div>
+     <div class="field"><label>Name</label><input type="text" id="er-co-name" value="${esc(r.company.name)}" ${ro?'disabled':''}></div>
+     <div class="field"><label>Address</label><input type="text" id="er-co-addr" value="${esc(r.company.address)}" ${ro?'disabled':''}></div>
+     <div class="field"><label>Suite / box (confirm exact text)</label><input type="text" id="er-co-suite" value="${esc(r.company.suite)}" placeholder="* confirm: 300-211 or 300-225" ${ro?'disabled':''}></div>
+     <div class="field"><label>Phone</label><input type="text" id="er-co-phone" value="${esc(r.company.phone)}" ${ro?'disabled':''}></div></div>
+   ${ro?'':'<button class="btn btn-gold" id="er-save" style="width:auto">Save rates</button>'}
+   <div style="font-size:12px;color:var(--muted);margin-top:10px">${r.updatedBy?'Last saved by '+esc(r.updatedBy)+' '+fmtDate(r.updatedAt):'Showing defaults; nothing saved yet.'}</div>`;
+  const sum=()=>{const s=['er-p-lab','er-p-dry','er-p-ct','er-p-pl'];const t=['er-p-dry','er-p-ct','er-p-pl','er-p-lab'].reduce((a,i)=>a+(parseFloat($(i).value)||0),0);$('er-paysum').textContent='Labor percentages add to '+t+'%'+(Math.abs(t-100)>0.001?' — should be 100%':'')};
+  ['er-p-lab','er-p-dry','er-p-ct','er-p-pl'].forEach(i=>$(i).oninput=sum);sum();
+  if(!ro)$('er-save').onclick=saveRates;
+}
+async function saveRates(){
+  $('er-err').textContent='';
+  const n=id=>parseFloat($(id).value);
+  const nr={laborRates:{construction:n('er-lab-con'),design:n('er-lab-des')},materialsDivisor:n('er-mat'),subDivisor:n('er-sub'),contingencyLabor:n('er-cl')/100,contingencyMaterials:n('er-cm')/100,contingencyIncludesDesign:$('er-cd').checked,
+    pay:{materialsUpfront:n('er-p-mat')/100,laborUpfront:n('er-p-lab')/100,drywall:n('er-p-dry')/100,countertop:n('er-p-ct')/100,punch:n('er-p-pl')/100},
+    company:{name:$('er-co-name').value.trim(),address:$('er-co-addr').value.trim(),suite:$('er-co-suite').value.trim(),phone:$('er-co-phone').value.trim()}};
+  const bad=[nr.laborRates.construction,nr.laborRates.design,nr.materialsDivisor,nr.subDivisor].some(x=>!(x>0))||nr.materialsDivisor>=1.5||nr.subDivisor>=1.5;
+  if(bad){$('er-err').textContent='Check the numbers: rates and divisors must be positive (a divisor is normally 0.65 or 0.75).';return}
+  const laborSum=nr.pay.laborUpfront+nr.pay.drywall+nr.pay.countertop+nr.pay.punch;
+  if(Math.abs(laborSum-1)>0.0001){$('er-err').textContent='The labor payment percentages must add to 100%.';return}
+  $('er-save').disabled=true;
+  try{
+    const who=userProfile?.name||currentUser.email;
+    const before=JSON.parse(JSON.stringify(estRates));
+    await setDoc(doc(db,'estRates','current'),{...nr,version:(estRates.version||0)+1,updatedBy:who,updatedAt:serverTimestamp()});
+    await addDoc(collection(db,'estHistory'),{type:'rates',by:who,uid:currentUser.uid,at:serverTimestamp(),before:JSON.stringify(before),after:JSON.stringify(nr)});
+    estRates={...nr,version:(estRates.version||0)+1,updatedBy:who,updatedAt:new Date()};renderRates();renderEstLib();
+  }catch(e){$('er-err').textContent='Save failed: '+e.message}
+  if($('er-save'))$('er-save').disabled=false;
+}
+function renderEstLib(){
+  const sec=$('el-sec').value,q=($('el-q').value||'').toLowerCase(),prov=$('el-prov').checked;
+  let rows=estLib.filter(i=>(!sec||i.section===sec)&&(!prov||i.provisional)&&(!q||((i.name||'')+' '+(i.qboItem||'')+' '+(i.job||'')).toLowerCase().includes(q)));
+  rows.sort((a,b)=>(a.section||'').localeCompare(b.section||'')||(a.name||'').localeCompare(b.name||''));
+  $('el-count').textContent=rows.length+' of '+estLib.length+' items';
+  if(!estLib.length){$('el-list').innerHTML='<div class="empty">The library is empty. '+(isAdmin()?'Use “Import seed file” to load the draft library, or “Add item”.':'An admin needs to load it.')+'</div>';return}
+  $('el-list').innerHTML='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Item</th><th>Section</th><th>MOTIF cost</th><th>Client price</th><th>Basis</th><th>Source</th>'+(isAdmin()?'<th></th>':'')+'</tr></thead><tbody>'+
+   rows.map(i=>{const p=estPrice(i);return`<tr><td style="max-width:320px">${esc(i.name)}${i.provisional?' <span class="badge submitted" title="'+esc(i.flags)+'">* check</span>':''}${i.passThrough?' <span class="badge bill">at cost</span>':''}<div style="font-size:11px;color:var(--muted)">${esc(i.qboItem||'')}</div></td><td>${esc(EST_SECTIONS[i.section]||i.section)}</td><td>${p.cost==null?'—':$m(p.cost)}</td><td>${$m(p.client)}</td><td style="font-size:12px;color:var(--muted)">${esc(p.note)}</td><td style="font-size:12px">${esc(i.estimate||i.job||'')}</td>${isAdmin()?`<td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="window._elEdit('${i.id}')">Edit</button></td>`:''}</tr>`}).join('')+'</tbody></table></div>';
+}
+function elFormFill(i){
+  i=i||{section:'labor'};
+  $('el-f-sec').value=i.section||'labor';$('el-f-name').value=i.name||'';$('el-f-qbo').value=i.qboItem||'';
+  $('el-f-hours').value=i.hours??'';$('el-f-rate').value=i.rate??'';$('el-f-cost').value=i.actualCost??'';$('el-f-price').value=i.clientPrice??'';
+  $('el-f-job').value=i.estimate||i.job||'';$('el-f-prov').checked=!!i.provisional;$('el-f-pass').checked=!!i.passThrough;$('el-f-notes').value=i.flags||'';
+}
+window._elEdit=id=>{estEditId=id;elFormFill(estLib.find(x=>x.id===id));$('el-form').classList.remove('hidden');$('el-f-del').classList.remove('hidden');$('el-form').scrollIntoView({behavior:'smooth'})};
+async function elSave(){
+  $('el-f-err').textContent='';
+  const num=id=>{const v=$(id).value;return v===''?null:parseFloat(v)};
+  const d={section:$('el-f-sec').value,name:$('el-f-name').value.trim(),qboItem:$('el-f-qbo').value.trim(),hours:num('el-f-hours'),rate:num('el-f-rate'),actualCost:num('el-f-cost'),clientPrice:num('el-f-price'),estimate:$('el-f-job').value.trim(),provisional:$('el-f-prov').checked,passThrough:$('el-f-pass').checked,flags:$('el-f-notes').value.trim()};
+  if(!d.name){$('el-f-err').textContent='Give the item a name.';return}
+  try{
+    const who=userProfile?.name||currentUser.email;
+    if(estEditId)await updateDoc(doc(db,'estLibrary',estEditId),{...d,updatedBy:who,updatedAt:serverTimestamp()});
+    else await addDoc(collection(db,'estLibrary'),{...d,createdBy:who,createdAt:serverTimestamp()});
+    await addDoc(collection(db,'estHistory'),{type:'library',action:estEditId?'edit':'add',item:d.name,by:who,uid:currentUser.uid,at:serverTimestamp()});
+    $('el-form').classList.add('hidden');estEditId=null;
+  }catch(e){$('el-f-err').textContent='Save failed: '+e.message}
+}
+async function elDelete(){
+  if(!estEditId||!confirm('Delete this library item? Saved estimates are not affected.'))return;
+  try{await deleteDoc(doc(db,'estLibrary',estEditId));await addDoc(collection(db,'estHistory'),{type:'library',action:'delete',item:$('el-f-name').value,by:userProfile?.name||currentUser.email,uid:currentUser.uid,at:serverTimestamp()});$('el-form').classList.add('hidden');estEditId=null}catch(e){$('el-f-err').textContent='Delete failed: '+e.message}
+}
+async function elImport(file){
+  try{
+    const items=JSON.parse(await file.text());
+    if(!Array.isArray(items))throw new Error('File is not a list of items');
+    if(estLib.length&&!confirm('The library already has '+estLib.length+' items. Importing adds '+items.length+' more (duplicates are not checked). Continue?'))return;
+    const who=userProfile?.name||currentUser.email;let n=0;
+    for(let i=0;i<items.length;i+=400){const b=writeBatch(db);items.slice(i,i+400).forEach(it=>{b.set(doc(collection(db,'estLibrary')),{...it,seeded:true,createdBy:who,createdAt:serverTimestamp()});n++});await b.commit()}
+    await addDoc(collection(db,'estHistory'),{type:'library',action:'import',item:n+' items',by:who,uid:currentUser.uid,at:serverTimestamp()});
+    alert('Imported '+n+' items.');
+  }catch(e){alert('Import failed: '+e.message)}
+}
+function estSub(w){['est','rates','lib'].forEach(k=>{$('est-'+k+'-btn').classList.toggle('on',k===w);$('est-'+k+'-panel').classList.toggle('hidden',k!==w)})}
+$('est-est-btn').onclick=()=>estSub('est');$('est-rates-btn').onclick=()=>estSub('rates');$('est-lib-btn').onclick=()=>estSub('lib');
+['el-sec','el-q','el-prov'].forEach(i=>{$(i).oninput=renderEstLib;$(i).onchange=renderEstLib});
+$('el-add').onclick=()=>{estEditId=null;elFormFill(null);$('el-f-del').classList.add('hidden');$('el-form').classList.remove('hidden')};
+$('el-f-cancel').onclick=()=>{$('el-form').classList.add('hidden');estEditId=null};
+$('el-f-save').onclick=elSave;$('el-f-del').onclick=elDelete;
+$('el-import').onchange=e=>{if(e.target.files[0])elImport(e.target.files[0]);e.target.value=''};
+// Pure calculation. Used by the editor and the client document. Client prices only leave via estClientView().
+function estCalcLine(l,r){
+  const sec=l.section,q=Number(l.qty)||0;
+  if(sec==='labor'){
+    const rate=Number(l.rate)||(l.trade==='design'?r.laborRates.design:r.laborRates.construction);
+    const amt=q*rate;return{client:amt,cost:null,taxable:false,rate};
+  }
+  const unit=Number(l.unitCost)||0,cost=q*unit;
+  if(sec==='designMaterial'||sec==='constructionMaterial')return{client:cost/r.materialsDivisor,cost,taxable:l.taxable!==false};
+  if(sec==='subcontractor')return{client:cost/r.subDivisor,cost,taxable:!!l.taxable};
+  if(sec==='fee')return{client:cost,cost,taxable:!!l.taxable};
+  // 'other': manual client price entered as unitCost x qty
+  return{client:cost,cost,taxable:!!l.taxable};
+}
+function estCalc(est,r){
+  const t={labor:0,designLabor:0,constructionLabor:0,materials:0,subs:0,fees:0,other:0,cost:0,taxableBase:0,lines:[]};
+  (est.lines||[]).forEach(l=>{
+    const c=estCalcLine(l,r);t.lines.push(c);
+    if(l.section==='labor'){t.labor+=c.client;if(l.trade==='design')t.designLabor+=c.client;else t.constructionLabor+=c.client}
+    else if(l.section==='designMaterial'||l.section==='constructionMaterial'){t.materials+=c.client;t.cost+=c.cost}
+    else if(l.section==='subcontractor'){t.subs+=c.client;t.cost+=c.cost}
+    else if(l.section==='fee'){t.fees+=c.client;t.cost+=c.cost}
+    else{t.other+=c.client;t.cost+=c.cost}
+    if(c.taxable)t.taxableBase+=c.client;
+  });
+  const laborBase=r.contingencyIncludesDesign===false?t.constructionLabor:t.labor;
+  t.contLabor=laborBase*r.contingencyLabor;
+  t.contMaterials=t.materials*r.contingencyMaterials;
+  // contingency on materials is taxable along with materials
+  t.taxableBase+=t.contMaterials;
+  t.subtotal=t.labor+t.materials+t.subs+t.fees+t.other+t.contLabor+t.contMaterials;
+  t.tax=t.taxableBase*(Number(est.taxRate)||0);
+  t.total=t.subtotal+t.tax;
+  t.marginMatSub=(t.materials+t.subs)-t.cost+0; // client minus cost on materials+subs (fees at cost add 0)
+  // payment schedule (design labor billed separately; subs/fees/other not covered by the stated schedule)
+  const p=r.pay,constrLabor=t.constructionLabor+(r.contingencyIncludesDesign===false?t.contLabor:t.contLabor*(t.labor?t.constructionLabor/t.labor:0));
+  const designLaborPart=t.contLabor-(constrLabor-t.constructionLabor);
+  t.pay={
+    materialsAndTaxUpfront:(t.materials+t.contMaterials)*p.materialsUpfront+t.tax,
+    laborUpfront:constrLabor*p.laborUpfront,
+    laborDrywall:constrLabor*p.drywall,
+    laborCountertop:constrLabor*p.countertop,
+    laborPunch:constrLabor*p.punch,
+    designBilledSeparately:t.designLabor+designLaborPart,
+    unscheduled:t.subs+t.fees+t.other
+  };
+  return t;
+}
+
+
+// ── ESTIMATES (list, editor, client document) ───────────────────────────────
+let estList=[],estCur=null,estListUnsub=null,estDirty=false;
+const EST_STATUS=['draft','ready','sent from QuickBooks','signed'];
+function estR(){return(estCur&&estCur.ratesSnapshot)||estRates}
+function estMeasureHours(n){const m=(estRates&&estRates.measure)||EST_DEF_RATES.measure;return Math.round((m.baseHours+Math.max(0,(n||m.baseSpaces)-m.baseSpaces)*m.extraPerSpace)*100)/100}
+function estMeasureLine(n){return{room:'Project',section:'labor',trade:'design',desc:'Site measure, CAD drawings of the spaces, and formal estimate based on the home',qty:estMeasureHours(n),auto:'measure',taxable:false}}
+function estNewBlank(){return{spaces:4,id:null,number:'',client:'',address:'',taxRate:0,taxSource:'',taxDate:'',validThrough:'',status:'draft',terms:'',lines:[estMeasureLine(4)],ratesSnapshot:JSON.parse(JSON.stringify(estRates))}}
+function estStartList(){
+  if(estListUnsub)return;
+  estListUnsub=onSnapshot(collection(db,'estimates'),snap=>{estList=snap.docs.map(d=>({id:d.id,...d.data()}));renderEstList()},e=>{$('es-list').innerHTML='<div class="empty">Could not load estimates: '+esc(e.message)+'</div>'});
+}
+function renderEstList(){
+  const q=($('es-q').value||'').toLowerCase();
+  const rows=estList.filter(e=>!q||((e.number||'')+' '+(e.client||'')+' '+(e.address||'')).toLowerCase().includes(q)).sort((a,b)=>(b.updatedAt?.seconds||0)-(a.updatedAt?.seconds||0));
+  if(!rows.length){$('es-list').innerHTML='<div class="empty">'+(estList.length?'No match.':'No estimates yet. Tap “New estimate”.')+'</div>';return}
+  $('es-list').innerHTML='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Number</th><th>Client</th><th>Status</th><th>Total</th><th>Updated</th></tr></thead><tbody>'+rows.map(e=>`<tr style="cursor:pointer" onclick="window._esOpen('${e.id}')"><td>${esc(e.number||'(no number)')}</td><td>${esc(e.client||'')}<div style="font-size:11px;color:var(--muted)">${esc(e.address||'')}</div></td><td><span class="badge submitted">${esc(e.status||'draft')}</span></td><td>${$m(e.total||0)}</td><td style="font-size:12px;color:var(--muted)">${fmtDate(e.updatedAt)}</td></tr>`).join('')+'</tbody></table></div>';
+}
+window._esOpen=id=>{const e=estList.find(x=>x.id===id);if(!e)return;estCur=JSON.parse(JSON.stringify({...e,lines:e.lines||[]}));estDirty=false;showEstEditor()};
+function showEstEditor(){
+  hide('es-listview');show('es-editor');
+  $('ee-title').textContent=estCur.id?('Estimate '+(estCur.number||'')):'New estimate';
+  $('ee-number').value=estCur.number||'';$('ee-client').value=estCur.client||'';$('ee-address').value=estCur.address||'';
+  $('ee-tax').value=estCur.taxRate?+(estCur.taxRate*100).toFixed(4):'';$('ee-taxsrc').value=estCur.taxSource||'';$('ee-taxdate').value=estCur.taxDate||'';
+  $('ee-valid').value=estCur.validThrough||'';$('ee-spaces').value=estCur.spaces||'';$('ee-status').value=estCur.status||'draft';$('ee-terms').value=estCur.terms||'';
+  $('ee-err').textContent='';$('ee-saved').textContent='';
+  renderEstLines();renderEstTotals();
+}
+function estHeaderRead(){
+  estCur.number=$('ee-number').value.trim();estCur.client=$('ee-client').value.trim();estCur.address=$('ee-address').value.trim();
+  estCur.taxRate=(parseFloat($('ee-tax').value)||0)/100;estCur.taxSource=$('ee-taxsrc').value.trim();estCur.taxDate=$('ee-taxdate').value.trim();
+  estCur.validThrough=$('ee-valid').value.trim();estCur.spaces=parseInt($('ee-spaces').value)||null;estCur.status=$('ee-status').value;estCur.terms=$('ee-terms').value;
+}
+const EST_SEC_OPTS=Object.entries(EST_SECTIONS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+function renderEstLines(){
+  const body=$('ee-lines');
+  body.innerHTML=estCur.lines.map((l,i)=>`<tr data-i="${i}">
+   <td><input data-f="room" value="${esc(l.room||'')}" list="ee-rooms" style="width:90px"></td>
+   <td><select data-f="section">${EST_SEC_OPTS.replace('value="'+l.section+'"','value="'+l.section+'" selected')}</select>${l.section==='labor'?`<select data-f="trade" style="margin-top:4px"><option value="construction"${l.trade!=='design'?' selected':''}>construction</option><option value="design"${l.trade==='design'?' selected':''}>design</option></select>`:''}</td>
+   <td><input data-f="desc" value="${esc(l.desc||'')}" style="min-width:200px">${l.provisional?'<span class="badge submitted" title="'+esc(l.flagNote||'check this number')+'">* check</span>':''}</td>
+   <td><input data-f="qty" type="number" step="0.25" value="${l.qty??''}" style="width:70px"></td>
+   <td><input data-f="unitCost" type="number" step="0.01" value="${l.unitCost??''}" placeholder="${l.section==='labor'?'default rate':''}" style="width:100px"${l.section==='labor'?' disabled':''}>${l.section==='labor'?`<input data-f="rate" type="number" step="0.01" value="${l.rate??''}" placeholder="rate" style="width:70px;margin-top:4px">`:''}</td>
+   <td data-c="client" style="text-align:right;white-space:nowrap"></td>
+   <td data-c="cost" style="text-align:right;white-space:nowrap;color:var(--muted)"></td>
+   <td style="text-align:center"><input data-f="taxable" type="checkbox"${(l.section==='labor')?' disabled':''}${(l.taxable!==false&&(l.section==='designMaterial'||l.section==='constructionMaterial')||l.taxable===true)?' checked':''}></td>
+   <td><button class="btn btn-outline btn-sm" data-del="${i}">✕</button></td></tr>`).join('');
+  const rooms=[...new Set(estCur.lines.map(l=>l.room).filter(Boolean))];
+  $('ee-rooms').innerHTML=rooms.map(r=>`<option value="${esc(r)}">`).join('');
+  body.querySelectorAll('input,select').forEach(el=>{
+    const tr=el.closest('tr'),i=+tr.dataset.i,f=el.dataset.f;if(!f)return;
+    const h=()=>{const l=estCur.lines[i];
+      if(f==='taxable')l.taxable=el.checked;
+      else if(f==='qty'||f==='unitCost'||f==='rate')l[f]=el.value===''?null:parseFloat(el.value);
+      else l[f]=el.value;
+      if(f==='section'||f==='trade'){if(f==='section'&&l.section!=='labor')l.trade=null;renderEstLines()}
+      estDirty=true;renderEstTotals()};
+    el.oninput=h;el.onchange=h;
+  });
+  body.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{estCur.lines.splice(+b.dataset.del,1);estDirty=true;renderEstLines();renderEstTotals()});
+}
+function renderEstTotals(){
+  const r=estR(),t=estCalc(estCur,r);
+  $('ee-lines').querySelectorAll('tr').forEach((tr,i)=>{const c=t.lines[i];if(!c)return;tr.querySelector('[data-c="client"]').textContent=$m(c.client);tr.querySelector('[data-c="cost"]').textContent=c.cost==null?'':$m(c.cost)});
+  const row=(a,b,s)=>`<tr><td style="padding:3px 0${s||''}">${a}</td><td style="text-align:right;padding:3px 0${s||''}">${b}</td></tr>`;
+  const p=t.pay,pc=((estCur.taxRate||0)*100).toFixed(2);
+  $('ee-totals').innerHTML=`<table style="width:100%;font-size:13px">
+   ${row('Labor',$m(t.labor))}${row('Materials',$m(t.materials))}${row('Subcontractors',$m(t.subs))}${row('Permits / fees (at cost)',$m(t.fees))}${t.other?row('Other',$m(t.other)):''}
+   ${row('Contingency on labor ('+(r.contingencyLabor*100)+'%)',$m(t.contLabor))}${row('Contingency on materials ('+(r.contingencyMaterials*100)+'%)',$m(t.contMaterials))}
+   ${row('Tax ('+pc+'% on '+$m(t.taxableBase)+')',$m(t.tax))}
+   ${row('<b>Total</b>','<b>'+$m(t.total)+'</b>',';border-top:1px solid var(--border)')}
+   </table>
+   <div style="font-size:12px;color:var(--muted);margin-top:8px;border-top:1px solid var(--border);padding-top:8px">INTERNAL ONLY<br>MOTIF cost (materials, subs, fees): ${$m(t.cost)}<br>Margin on materials + subs: ${$m(t.marginMatSub)}${t.materials+t.subs?' ('+(t.marginMatSub/(t.materials+t.subs)*100).toFixed(1)+'% of client price)':''}</div>
+   <div style="font-weight:600;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px">Payment schedule</div>
+   <table style="width:100%;font-size:13px">
+   ${row('Before work: materials + contingency + tax, and ' +(r.pay.laborUpfront*100)+'% of construction labor',$m(p.materialsAndTaxUpfront+p.laborUpfront))}
+   ${row('At drywall completion ('+(r.pay.drywall*100)+'% of labor)',$m(p.laborDrywall))}
+   ${row('At countertop install ('+(r.pay.countertop*100)+'% of labor)',$m(p.laborCountertop))}
+   ${row('At punch list ('+(r.pay.punch*100)+'% of labor)',$m(p.laborPunch))}
+   ${row('Design services (billed separately)',$m(p.designBilledSeparately))}
+   ${row('Subcontractors, fees, other: schedule not set *',$m(p.unscheduled))}</table>
+   <div style="font-size:11px;color:var(--muted);margin-top:6px">* The stated schedule covers materials and labor only. Decide when subcontractors and fees are billed.</div>`;
+}
+function estLibInsert(it){
+  const r=estR(),sec=it.section,l={room:'',section:sec,desc:it.name,qty:1,unitCost:null,taxable:undefined,provisional:!!it.provisional,flagNote:it.flags||''};
+  if(sec==='labor'){l.qty=it.hours||1;l.trade=(Number(it.rate)>=145)?'design':'construction';l.rate=null}
+  else if(sec==='designMaterial'||sec==='constructionMaterial'){l.unitCost=it.actualCost!=null?it.actualCost:(it.clientPrice!=null?+(it.clientPrice*r.materialsDivisor).toFixed(2):null);if(it.actualCost==null)l.provisional=true}
+  else if(sec==='subcontractor'){l.unitCost=it.actualCost!=null?it.actualCost:(it.clientPrice!=null?+(it.clientPrice*r.subDivisor).toFixed(2):null);if(it.actualCost==null)l.provisional=true;l.taxable=false}
+  else{l.unitCost=it.actualCost!=null?it.actualCost:it.clientPrice;l.taxable=false}
+  estCur.lines.push(l);estDirty=true;renderEstLines();renderEstTotals();
+}
+function renderEstDrawer(){
+  const q=($('ed-q').value||'').toLowerCase(),sec=$('ed-sec').value;
+  const rows=estLib.filter(i=>(!sec||i.section===sec)&&(!q||((i.name||'')+' '+(i.qboItem||'')+' '+(i.estimate||'')).toLowerCase().includes(q))).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).slice(0,60);
+  $('ed-list').innerHTML=rows.length?rows.map(i=>{const p=estPrice(i);return`<div class="list-row" style="padding:8px 0"><div style="min-width:0"><div style="font-size:13px">${esc((i.name||'').slice(0,110))}${i.provisional?' <span class="badge submitted">*</span>':''}</div><div style="font-size:11px;color:var(--muted)">${esc(EST_SECTIONS[i.section]||i.section)} · ${esc(i.estimate||'')} · ${$m(p.client)}</div></div><button class="btn btn-outline btn-sm" data-lib="${i.id}">Add</button></div>`}).join(''):'<div class="empty" style="padding:12px">'+(estLib.length?'No match.':'Library is empty — an admin needs to import it.')+'</div>';
+  $('ed-list').querySelectorAll('[data-lib]').forEach(b=>b.onclick=()=>estLibInsert(estLib.find(x=>x.id===b.dataset.lib)));
+}
+async function estSave(){
+  estHeaderRead();$('ee-err').textContent='';
+  if(!estCur.number){$('ee-err').textContent='Enter an estimate number (assigned by you for now).';return}
+  if(!estCur.client){$('ee-err').textContent='Enter the client name.';return}
+  const t=estCalc(estCur,estR()),who=userProfile?.name||currentUser.email;
+  const data={number:estCur.number,client:estCur.client,address:estCur.address,taxRate:estCur.taxRate,taxSource:estCur.taxSource,taxDate:estCur.taxDate,validThrough:estCur.validThrough,status:estCur.status,terms:estCur.terms,
+    lines:estCur.lines.map(l=>({room:l.room||'',section:l.section,trade:l.trade||null,desc:l.desc||'',qty:l.qty??null,unitCost:l.unitCost??null,rate:l.rate??null,taxable:l.taxable===undefined?null:l.taxable,provisional:!!l.provisional,flagNote:l.flagNote||''})),
+    ratesSnapshot:estCur.ratesSnapshot,total:+t.total.toFixed(2),updatedBy:who,updatedAt:serverTimestamp()};
+  $('ee-save').disabled=true;
+  try{
+    if(estCur.id){await updateDoc(doc(db,'estimates',estCur.id),data)}
+    else{const ref=await addDoc(collection(db,'estimates'),{...data,createdBy:who,createdAt:serverTimestamp()});estCur.id=ref.id}
+    await addDoc(collection(db,'estimates',estCur.id,'history'),{by:who,uid:currentUser.uid,at:serverTimestamp(),status:data.status,total:data.total,lineCount:data.lines.length});
+    estDirty=false;$('ee-saved').textContent='Saved '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});$('ee-title').textContent='Estimate '+estCur.number;
+  }catch(e){$('ee-err').textContent='Save failed: '+e.message}
+  $('ee-save').disabled=false;
+}
+function estClientHTML(){
+  estHeaderRead();
+  const r=estR(),t=estCalc(estCur,r),co=r.company||{};
+  const rooms=[];estCur.lines.forEach((l,i)=>{const k=l.room||'General';let g=rooms.find(x=>x.k===k);if(!g){g={k,items:[]};rooms.push(g)}g.items.push({l,c:t.lines[i]})});
+  const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const row=(a,b,cls)=>`<tr class="${cls||''}"><td>${a}</td><td class="n">${b}</td></tr>`;
+  const roomHtml=rooms.map(g=>`<h3>${esc(g.k)}</h3><table>${g.items.filter(x=>x.l.section!=='labor'||!x.l.trade||x.l.trade!=='design').map(x=>row(esc(x.l.desc||''),$m(x.c.client))).join('')}</table>`).join('');
+  const design=t.designLabor;
+  const p=t.pay,pc=((estCur.taxRate||0)*100).toFixed(2);
+  const sched=[['Before work begins',p.materialsAndTaxUpfront+p.laborUpfront],['At drywall completion',p.laborDrywall],['At countertop installation',p.laborCountertop],['At punch list',p.laborPunch]];
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Estimate ${esc(estCur.number)} — ${esc(estCur.client)}</title><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>body{font:15px/1.5 'Source Sans 3',Arial,sans-serif;color:#222;background:#fff;margin:0}.page{max-width:780px;margin:0 auto;padding:40px 32px}
+.mark{font:300 40px Montserrat,sans-serif;letter-spacing:.28em;text-align:center}.mark i{font-style:italic;color:#db9d39}.sub{font:400 11px Montserrat,sans-serif;letter-spacing:.3em;text-transform:uppercase;text-align:center;color:#6b6862;margin-top:2px}
+.co{text-align:center;font-size:12px;color:#6b6862;margin:10px 0 28px}h1{font:400 13px Montserrat,sans-serif;letter-spacing:.24em;text-transform:uppercase;text-align:center;margin:0 0 22px}
+.meta{display:flex;justify-content:space-between;gap:20px;font-size:14px;margin-bottom:8px}h3{font:500 12px Montserrat,sans-serif;letter-spacing:.24em;text-transform:uppercase;margin:28px 0 8px;padding-bottom:6px;border-bottom:1px solid #db9d39}
+table{width:100%;border-collapse:collapse}td{padding:5px 0;vertical-align:top;border-bottom:1px solid #eee}td.n{text-align:right;white-space:nowrap;padding-left:16px}tr.tot td{font-weight:600;border-top:1px solid #222;border-bottom:none}
+.note{font-size:12px;color:#6b6862;margin-top:10px;white-space:pre-wrap}.bar{position:sticky;top:0;background:#fff;padding:10px;text-align:center;border-bottom:1px solid #eee}.bar button{font:600 13px Arial;padding:8px 18px;border:1px solid #222;background:#fff;cursor:pointer}
+@media print{.bar{display:none}.page{padding:0}}</style></head><body><div class="bar"><button onclick="window.print()">Print / Save as PDF</button></div><div class="page">
+<div class="mark">M<i>O</i>TIF</div><div class="sub">design solutions</div>
+<div class="co">${esc(co.name||'')} · ${esc(co.address||'')}${co.suite?', '+esc(co.suite):''} · ${esc(co.phone||'')}</div>
+<h1>Estimate</h1>
+<div class="meta"><div><b>Prepared for</b><br>${esc(estCur.client)}<br>${esc(estCur.address||'')}</div><div style="text-align:right"><b>Estimate</b> ${esc(estCur.number)}<br>${today}${estCur.validThrough?'<br>Valid through '+esc(estCur.validThrough):''}</div></div>
+${roomHtml}
+<h3>Summary</h3><table>
+${row('Labor (construction)',$m(t.constructionLabor))}${row('Materials',$m(t.materials))}${t.subs?row('Subcontractors',$m(t.subs)):''}${t.fees?row('Permits and fees',$m(t.fees)):''}${t.other?row('Other',$m(t.other)):''}
+${t.contLabor?row('Contingency on labor ('+(r.contingencyLabor*100)+'%) for unforeseen circumstances',$m(t.contLabor)):''}${t.contMaterials?row('Contingency on materials ('+(r.contingencyMaterials*100)+'%) for unforeseen circumstances',$m(t.contMaterials)):''}
+${design?row('Design services (billed separately)',$m(design)):''}
+${row('Sales tax ('+pc+'%)',$m(t.tax))}${row('Total',$m(t.total),'tot')}</table>
+<h3>Payment schedule</h3><table>${sched.map(s=>row(s[0],$m(s[1]))).join('')}${design?row('Design services (billed separately)',$m(p.designBilledSeparately)):''}</table>
+<div class="note">This is an estimate, not a contract.${estCur.taxSource?' Sales tax rate '+pc+'% ('+esc(estCur.taxSource)+(estCur.taxDate?', '+esc(estCur.taxDate):'')+').':''}</div>
+${estCur.terms?'<div class="note">'+esc(estCur.terms)+'</div>':''}
+</div></body></html>`;
+}
+$('ee-spaces').oninput=()=>{const n=parseInt($('ee-spaces').value);estCur.spaces=n||null;const l=(estCur.lines||[]).find(x=>x.auto==='measure');if(l&&n){l.qty=estMeasureHours(n);estDirty=true;renderEstLines();renderEstTotals()}};
+$('es-new').onclick=()=>{estCur=estNewBlank();estDirty=true;showEstEditor()};
+$('es-q').oninput=renderEstList;
+$('ee-back').onclick=()=>{if(estDirty&&!confirm('You have unsaved changes. Leave without saving?'))return;estCur=null;hide('es-editor');show('es-listview')};
+$('ee-add').onclick=()=>{estCur.lines.push({room:'',section:$('ee-newsec').value,trade:$('ee-newsec').value==='labor'?'construction':null,desc:'',qty:1,unitCost:null});estDirty=true;renderEstLines();renderEstTotals()};
+$('ee-save').onclick=estSave;
+$('ee-lib').onclick=()=>{$('ee-drawer').classList.toggle('hidden');renderEstDrawer()};
+['ed-q','ed-sec'].forEach(i=>{$(i).oninput=renderEstDrawer;$(i).onchange=renderEstDrawer});
+['ee-number','ee-client','ee-address','ee-tax','ee-taxsrc','ee-taxdate','ee-valid','ee-status','ee-terms'].forEach(i=>{$(i).oninput=()=>{estDirty=true;estHeaderRead();renderEstTotals()};$(i).onchange=$(i).oninput});
+$('ee-doc').onclick=()=>{const w=window.open('','_blank');if(!w){$('ee-err').textContent='Allow pop-ups for this site to open the client document.';return}w.document.open();w.document.write(estClientHTML());w.document.close()};
+$('ee-dup').onclick=()=>{estHeaderRead();const c=JSON.parse(JSON.stringify(estCur));c.id=null;c.number='';c.status='draft';c.ratesSnapshot=JSON.parse(JSON.stringify(estRates));estCur=c;estDirty=true;showEstEditor();$('ee-title').textContent='New estimate (copy)'};
 </script>
 </body>
 </html>

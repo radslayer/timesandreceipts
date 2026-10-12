@@ -1230,7 +1230,8 @@ $('tq-ocr-btn').onclick=()=>{
 };
 
 // ── GEOLOCATION ──────────────────────────────────────────────────────────────
-if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};updateGeoBar()},()=>{},{enableHighAccuracy:true,timeout:10000});
+let lastGeoErrorCode=null;
+if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};lastGeoErrorCode=null;updateGeoBar()},e=>{lastGeoErrorCode=e&&e.code||null},{enableHighAccuracy:true,timeout:20000});
 function updateGeoBar(){
   const proj=activeProjects.find(p=>p.id===$('ci-project').value);
   const st=geoSt(currentPos,proj);
@@ -1555,6 +1556,7 @@ const T={
     otherVendor:'Other / New Vendor...',enterVendor:'Enter new vendor name...',
     signOut:'Sign Out',
     locationOffWarning:'Your phone\'s location is turned off. The app wishes to verify your clock-in/out location. Please turn it on.',
+    locationBlockedWarning:'Location access is blocked for this site in your browser. The app wishes to verify your clock-in/out location. Please open your browser\'s site settings and allow Location for this page.',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1588,6 +1590,7 @@ const T={
     otherVendor:'Otro / Nuevo Proveedor...',enterVendor:'Ingresar nombre del proveedor...',
     signOut:'Cerrar Sesión',
     locationOffWarning:'La ubicación de tu teléfono está desactivada. La aplicación desea verificar tu ubicación de entrada/salida. Por favor actívala.',
+    locationBlockedWarning:'El acceso a la ubicación está bloqueado para este sitio en tu navegador. La aplicación desea verificar tu ubicación de entrada/salida. Por favor abre la configuración del sitio en tu navegador y permite la Ubicación para esta página.',
   }
 };
 
@@ -1815,7 +1818,7 @@ function renderClockUI(){
     if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null}
   }
 }
-function checkLocationWarn(){if(!currentPos){alert(t('locationOffWarning'))}}
+function checkLocationWarn(){if(!currentPos){alert(lastGeoErrorCode===1?t('locationBlockedWarning'):t('locationOffWarning'))}}
 $('clock-in-btn').onclick=async()=>{
   const pid=$('ci-project').value,cat=$('ci-cat').value,code=$('ci-code').value,rm=$('ci-room').value;
   if(!pid||!cat||!code||!rm){alert('Select a project, cost category, cost code, and room.');return}

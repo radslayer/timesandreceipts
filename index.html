@@ -197,6 +197,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             </div>
           </div>
         </div>
+        <div class="filter-row" id="tl-filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+          <div class="field" style="margin-bottom:0"><select id="tl-filter-project"><option value="">All Projects</option></select></div>
+          <div class="field" style="margin-bottom:0"><input type="text" id="tl-filter-costcode" placeholder="Cost Code..." style="width:130px"></div>
+          <div class="field" style="margin-bottom:0"><input type="text" id="tl-filter-room" placeholder="Room..." style="width:110px"></div>
+          <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-from-lbl">From</span><input type="date" id="tl-filter-date-from" style="width:140px"></div>
+          <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-to-lbl">To</span><input type="date" id="tl-filter-date-to" style="width:140px"></div>
+          <div class="field" style="margin-bottom:0"><select id="tl-filter-location"><option value="">All Locations</option><option value="onsite">On Site</option><option value="offsite">Off Site</option></select></div>
+          <div class="field" style="margin-bottom:0"><input type="number" id="tl-filter-dur-min" placeholder="Min min" style="width:90px"></div>
+          <div class="field" style="margin-bottom:0"><input type="number" id="tl-filter-dur-max" placeholder="Max min" style="width:90px"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="tl-filter-clear" style="margin-left:auto">Clear Filters</button>
+        </div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location">Location</th><th></th></tr></thead>
@@ -1601,6 +1612,8 @@ const T={
     addMissedEntry:'+ Add Missed Entry',addEntryTitle:'Add Missed Entry',saveEntry:'Save Entry',myself:'Myself',
     fieldsRequiredExceptNotes:'All fields except Notes are required.',clockOutAfterIn:'Clock-out must be after clock-in.',
     noFutureTimes:'Clock-in and clock-out cannot be in the future.',saving:'Saving...',saveFailed:'Save failed: ',
+    costCodeFilter:'Cost Code...',roomFilter:'Room...',allLocations:'All Locations',
+    minDuration:'Min min',maxDuration:'Max min',noMatchingEntries:'No entries match these filters.',
     logTimeTitle:'Log Time Entry',logTimeDesc:'Enter a completed time entry on behalf of any employee. All fields required.',
     saveTimeEntry:'Save Time Entry',ltFieldsRequired:'All fields except Clock Out are required.',
     clockOutOptional:'Clock Out (optional)',
@@ -1648,6 +1661,8 @@ const T={
     addMissedEntry:'+ Agregar Registro Olvidado',addEntryTitle:'Agregar Registro Olvidado',saveEntry:'Guardar Registro',myself:'Yo mismo',
     fieldsRequiredExceptNotes:'Todos los campos excepto Notas son obligatorios.',clockOutAfterIn:'La hora de salida debe ser posterior a la hora de entrada.',
     noFutureTimes:'La hora de entrada y salida no pueden ser en el futuro.',saving:'Guardando...',saveFailed:'Error al guardar: ',
+    costCodeFilter:'Codigo de Costo...',roomFilter:'Habitacion...',allLocations:'Todas las Ubicaciones',
+    minDuration:'Min min',maxDuration:'Max min',noMatchingEntries:'Ningun registro coincide con estos filtros.',
     logTimeTitle:'Registrar Entrada de Tiempo',logTimeDesc:'Ingrese una entrada de tiempo completa para cualquier empleado. Todos los campos son obligatorios.',
     saveTimeEntry:'Guardar Registro de Tiempo',ltFieldsRequired:'Todos los campos excepto Hora de Salida son obligatorios.',
     clockOutOptional:'Hora de Salida (opcional)',
@@ -1784,6 +1799,17 @@ function applyTranslations(){
   const thOut=$('th-out');if(thOut)thOut.textContent=t('outTime');
   const thDur=$('th-duration');if(thDur)thDur.textContent=t('duration');
   const thLoc=$('th-location');if(thLoc)thLoc.textContent=t('location');
+  // Time Log filter row
+  const tlFP=$('tl-filter-project');if(tlFP&&tlFP.options[0])tlFP.options[0].textContent=t('allProjectsFilter');
+  const tlFCC=$('tl-filter-costcode');if(tlFCC)tlFCC.placeholder=t('costCodeFilter');
+  const tlFRoom=$('tl-filter-room');if(tlFRoom)tlFRoom.placeholder=t('roomFilter');
+  const tlFLbl=$('tl-filter-from-lbl');if(tlFLbl)tlFLbl.textContent=t('dateFrom');
+  const tlTLbl=$('tl-filter-to-lbl');if(tlTLbl)tlTLbl.textContent=t('dateTo');
+  const tlFLoc=$('tl-filter-location');
+  if(tlFLoc&&tlFLoc.options.length===3){tlFLoc.options[0].textContent=t('allLocations');tlFLoc.options[1].textContent=t('onSite');tlFLoc.options[2].textContent=t('offSite');}
+  const tlFDMin=$('tl-filter-dur-min');if(tlFDMin)tlFDMin.placeholder=t('minDuration');
+  const tlFDMax=$('tl-filter-dur-max');if(tlFDMax)tlFDMax.placeholder=t('maxDuration');
+  const tlFClear=$('tl-filter-clear');if(tlFClear)tlFClear.textContent=t('clearFilters');
   // Notice
   const notice=$('time-edit-notice');if(notice)notice.innerHTML='&#9432; '+t('recordsNotice');
   // Receipts tab
@@ -1913,6 +1939,12 @@ function loadProjects(){
     });
     const rp=$('rpt-project');const rv=rp.value;rp.innerHTML='<option value="">All Projects</option>';
     allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;rp.appendChild(o)});rp.value=rv;
+    ['rcpt-filter-project','tl-filter-project'].forEach(id=>{
+      const el=$(id);if(!el)return;
+      const v=el.value;el.innerHTML=`<option value="">${t('allProjectsFilter')}</option>`;
+      activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
+      el.value=v;
+    });
     renderProjectsList();
   });
 }
@@ -2030,6 +2062,14 @@ $('clock-out-btn').onclick=async()=>{
   $('clock-out-btn').disabled=false;$('clock-out-btn').textContent='Clock Out';
 };
 let _logViewAll=false;
+function tlTsMs(v){
+  if(!v)return 0;
+  if(typeof v.toMillis==='function')return v.toMillis();
+  if(typeof v.toDate==='function')return v.toDate().getTime();
+  if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000+((v.nanoseconds||0)/1e6);
+  if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
+  return 0;
+}
 function loadMyLog(){
   if(!currentUser)return;
   // Show toggle for admin and bookkeeper
@@ -2042,17 +2082,9 @@ function loadMyLog(){
     ?query(collection(db,'timeLogs'),limit(200))
     :query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(50));
   onSnapshot(q,snap=>{
-    const tsMs=v=>{
-      if(!v)return 0;
-      if(typeof v.toMillis==='function')return v.toMillis();
-      if(typeof v.toDate==='function')return v.toDate().getTime();
-      if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000+((v.nanoseconds||0)/1e6);
-      if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
-      return 0;
-    };
     const allRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
-      const ta=tsMs(a.clockIn);
-      const tb=tsMs(b.clockIn);
+      const ta=tlTsMs(a.clockIn);
+      const tb=tlTsMs(b.clockIn);
       return tb-ta;
     });
     window._allTimeLogs=allRows;
@@ -2063,47 +2095,80 @@ function loadMyLog(){
       empSel.innerHTML=`<option value="">${t('allEmployees')}</option>`+employees.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
       empSel.value=employees.includes(ev)?ev:'';
     }
-    const showArch=isPriv()&&$('log-show-archived')?.checked;
-    let rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
-    const empFilter=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
-    if(empFilter)rows=rows.filter(r=>r.userName===empFilter);
-    const tb=$('my-log-body');
-    if(!rows.length){tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">No entries yet.</td></tr>`;return}
-    const now=Date.now();
-    const hasExpired=!isPriv()&&rows.some(r=>now-tsMs(r.clockIn)>=2592000000);
-    if(hasExpired)$('time-edit-notice').style.display='';
-    else $('time-edit-notice').style.display='none';
-    tb.innerHTML=rows.map(r=>{
-      const entryMs=tsMs(r.clockIn);
-      const withinWindow=now-entryMs<2592000000;
-      const isOwn=r.userId===currentUser.uid;
-      const arch=isArchivedRec(r);
-      const canEdit=!arch&&(isAdmin()||isBookkeeper()||(isOwn&&withinWindow));
-      const canDel=isAdmin();
-      const editBtn=arch?'':`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
-      const archBtn=isPriv()?(arch
-        ?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`
-        :` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`):'';
-      return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':''}">
-      <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
-      ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
-      <td>${r.projectName||'--'}</td>
-      <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
-      <td>${r.room||'--'}</td>
-      <td style="font-size:12px">${fmtTime(r.clockIn)}</td>
-      <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
-      <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
-      <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
-      <td style="white-space:nowrap">
-        ${editBtn}${archBtn}
-        ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
-      </td>
-    </tr>`;
-    }).join('');
+    renderMyLog();
   });
 }
-$('log-show-archived').onchange=()=>loadMyLog();
-$('log-emp-filter').onchange=()=>loadMyLog();
+function renderMyLog(){
+  const allRows=window._allTimeLogs||[];
+  const showArch=isPriv()&&$('log-show-archived')?.checked;
+  let rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
+  const empFilter=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
+  if(empFilter)rows=rows.filter(r=>r.userName===empFilter);
+  const fProj=$('tl-filter-project')?.value||'';
+  const fCC=($('tl-filter-costcode')?.value||'').trim().toLowerCase();
+  const fRoom=($('tl-filter-room')?.value||'').trim().toLowerCase();
+  const fDateFrom=$('tl-filter-date-from')?.value||'';
+  const fDateTo=$('tl-filter-date-to')?.value||'';
+  const fLoc=$('tl-filter-location')?.value||'';
+  const fDurMin=parseFloat($('tl-filter-dur-min')?.value);
+  const fDurMax=parseFloat($('tl-filter-dur-max')?.value);
+  const filtersActive=fProj||fCC||fRoom||fDateFrom||fDateTo||fLoc||!isNaN(fDurMin)||!isNaN(fDurMax);
+  if(fProj)rows=rows.filter(r=>r.projectId===fProj);
+  if(fCC)rows=rows.filter(r=>(r.costCode||r.scope||'').toLowerCase().includes(fCC));
+  if(fRoom)rows=rows.filter(r=>(r.room||'').toLowerCase().includes(fRoom));
+  if(fDateFrom){const fromMs=new Date(fDateFrom+'T00:00:00').getTime();rows=rows.filter(r=>tlTsMs(r.clockIn)>=fromMs)}
+  if(fDateTo){const toMs=new Date(fDateTo+'T23:59:59').getTime();rows=rows.filter(r=>tlTsMs(r.clockIn)<=toMs)}
+  if(fLoc)rows=rows.filter(r=>r.clockInGeoStatus===fLoc);
+  if(!isNaN(fDurMin))rows=rows.filter(r=>(r.durationMs||0)/60000>=fDurMin);
+  if(!isNaN(fDurMax))rows=rows.filter(r=>(r.durationMs||0)/60000<=fDurMax);
+  const tb=$('my-log-body');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">${filtersActive?t('noMatchingEntries'):'No entries yet.'}</td></tr>`;return}
+  const now=Date.now();
+  const hasExpired=!isPriv()&&rows.some(r=>now-tlTsMs(r.clockIn)>=2592000000);
+  if(hasExpired)$('time-edit-notice').style.display='';
+  else $('time-edit-notice').style.display='none';
+  tb.innerHTML=rows.map(r=>{
+    const entryMs=tlTsMs(r.clockIn);
+    const withinWindow=now-entryMs<2592000000;
+    const isOwn=r.userId===currentUser.uid;
+    const arch=isArchivedRec(r);
+    const canEdit=!arch&&(isAdmin()||isBookkeeper()||(isOwn&&withinWindow));
+    const canDel=isAdmin();
+    const editBtn=arch?'':`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
+    const archBtn=isPriv()?(arch
+      ?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`
+      :` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`):'';
+    return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':''}">
+    <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
+    ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
+    <td>${r.projectName||'--'}</td>
+    <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
+    <td>${r.room||'--'}</td>
+    <td style="font-size:12px">${fmtTime(r.clockIn)}</td>
+    <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
+    <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
+    <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
+    <td style="white-space:nowrap">
+      ${editBtn}${archBtn}
+      ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
+    </td>
+  </tr>`;
+  }).join('');
+}
+$('log-show-archived').onchange=()=>renderMyLog();
+$('log-emp-filter').onchange=()=>renderMyLog();
+$('tl-filter-project').onchange=renderMyLog;
+$('tl-filter-costcode').oninput=renderMyLog;
+$('tl-filter-room').oninput=renderMyLog;
+$('tl-filter-date-from').onchange=renderMyLog;
+$('tl-filter-date-to').onchange=renderMyLog;
+$('tl-filter-location').onchange=renderMyLog;
+$('tl-filter-dur-min').oninput=renderMyLog;
+$('tl-filter-dur-max').oninput=renderMyLog;
+$('tl-filter-clear').onclick=()=>{
+  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  renderMyLog();
+};
 
 // ── RECEIPTS ──────────────────────────────────────────────────────────────────
 function populateReceiptFilterProjects(){
@@ -2214,10 +2279,12 @@ function goToReceiptResult(id){
 function goToTimeLogResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="clock"]')?.click();
+  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  renderMyLog();
   setTimeout(()=>{
     if(scrollToAndFlash('tl-row-'+id))return;
     const cb=$('log-show-archived');
-    if(cb&&!cb.checked){cb.checked=true;loadMyLog();setTimeout(()=>scrollToAndFlash('tl-row-'+id),300)}
+    if(cb&&!cb.checked){cb.checked=true;renderMyLog();setTimeout(()=>scrollToAndFlash('tl-row-'+id),300)}
   },80);
 }
 function goToProjectResult(id){
@@ -3112,7 +3179,7 @@ function renderReport(data){
         <td style="font-size:12px;white-space:nowrap">${fmtTs(r.clockIn)}</td>
         <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
         <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
-        <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?'On Site':r.clockInGeoStatus==='offsite'?'Off Site':'--'}</span></td>
+        <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
         <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
           ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
           :(isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>

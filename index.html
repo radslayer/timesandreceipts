@@ -195,7 +195,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>Date</th><th id="log-emp-col" style="display:none">Employee</th><th>Project</th><th>Cost Code</th><th>Room</th><th>In</th><th>Out</th><th>Duration</th><th>Location</th><th></th></tr></thead>
+            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location">Location</th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
@@ -1557,6 +1557,7 @@ const T={
     signOut:'Sign Out',
     locationOffWarning:'Your phone\'s location is turned off. The app wishes to verify your clock-in/out location. Please turn it on.',
     locationBlockedWarning:'Location access is blocked for this site in your browser. The app wishes to verify your clock-in/out location. Please open your browser\'s site settings and allow Location for this page.',
+    employee:'Employee',allTimeLogs:'All Time Logs',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1591,6 +1592,7 @@ const T={
     signOut:'Cerrar Sesión',
     locationOffWarning:'La ubicación de tu teléfono está desactivada. La aplicación desea verificar tu ubicación de entrada/salida. Por favor actívala.',
     locationBlockedWarning:'El acceso a la ubicación está bloqueado para este sitio en tu navegador. La aplicación desea verificar tu ubicación de entrada/salida. Por favor abre la configuración del sitio en tu navegador y permite la Ubicación para esta página.',
+    employee:'Empleado',allTimeLogs:'Todos los Registros de Tiempo',
   }
 };
 
@@ -1625,6 +1627,15 @@ function applyTranslations(){
   const tlH=$('time-log-heading');if(tlH&&!tlH.textContent.includes('All')&&!tlH.textContent.includes('Todos'))tlH.textContent=t('myTimeLog');
   const mineBtn=$('log-mine-btn');if(mineBtn)mineBtn.textContent=t('myPunches');
   const allBtn=$('log-all-btn');if(allBtn)allBtn.textContent=t('allEmployees');
+  const thDate=$('th-date');if(thDate)thDate.textContent=t('date');
+  const thEmp=$('log-emp-col');if(thEmp)thEmp.textContent=t('employee');
+  const thProj=$('th-project');if(thProj)thProj.textContent=t('project');
+  const thCC=$('th-costcode');if(thCC)thCC.textContent=t('costCode');
+  const thRoom=$('th-room');if(thRoom)thRoom.textContent=t('room');
+  const thIn=$('th-in');if(thIn)thIn.textContent=t('inTime');
+  const thOut=$('th-out');if(thOut)thOut.textContent=t('outTime');
+  const thDur=$('th-duration');if(thDur)thDur.textContent=t('duration');
+  const thLoc=$('th-location');if(thLoc)thLoc.textContent=t('location');
   // Notice
   const notice=$('time-edit-notice');if(notice)notice.innerHTML='&#9432; '+t('recordsNotice');
   // Receipts tab
@@ -1868,8 +1879,8 @@ function loadMyLog(){
   // Show toggle for admin and bookkeeper
   if(isPriv()){
     show('log-view-toggle');
-    $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent='My Time Log';$('log-emp-col').style.display='none';loadMyLog()};
-    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent='All Time Logs';$('log-emp-col').style.display='';loadMyLog()};
+    $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent=t('myTimeLog');$('log-emp-col').style.display='none';loadMyLog()};
+    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';loadMyLog()};
   }
   const q=(_logViewAll&&isPriv())
     ?query(collection(db,'timeLogs'),limit(200))

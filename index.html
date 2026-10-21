@@ -185,13 +185,16 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <h2 style="margin:0" id="time-log-heading">My Time Log</h2>
-          <div id="log-view-toggle" class="hidden" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" id="add-time-btn" style="width:auto;padding:8px 14px;font-size:13px">+ Add Missed Entry</button>
+            <div id="log-view-toggle" class="hidden" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" id="log-show-archived" style="width:auto;margin:0"> Show archived</label>
             <div class="seg" style="margin-bottom:0">
               <button class="seg-btn on" id="log-mine-btn">My Punches</button>
               <button class="seg-btn" id="log-all-btn">All Employees</button>
             </div>
             <select id="log-emp-filter" class="hidden" style="font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:#fff"><option value="">All Employees</option></select>
+            </div>
           </div>
         </div>
         <div style="overflow-x:auto">
@@ -790,6 +793,30 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="modal-footer">
       <button class="btn btn-outline" id="et-cancel">Cancel</button>
       <button class="btn btn-gold" id="et-save" style="width:auto">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD TIME ENTRY MODAL (self-service, any user, for themselves) -->
+<div id="add-time-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Add Missed Entry</h2>
+    <div class="field priv-only hidden"><label>Employee</label><select id="at-employee"><option value="">Myself</option></select></div>
+    <div class="field"><label>Project *</label><select id="at-project"><option value="">Select project...</option></select></div>
+    <div class="row2">
+      <div class="field"><label>Cost Category *</label><select id="at-cat"><option value="">Select category...</option></select></div>
+      <div class="field"><label>Cost Code *</label><select id="at-code"><option value="">Select code...</option></select></div>
+    </div>
+    <div class="field"><label>Room *</label><select id="at-room"><option value="">Select room...</option></select></div>
+    <div class="row2">
+      <div class="field"><label>Clock In *</label><input type="datetime-local" id="at-clockin"></div>
+      <div class="field"><label>Clock Out *</label><input type="datetime-local" id="at-clockout"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="at-notes" rows="2" placeholder="Optional..."></textarea></div>
+    <div id="at-err" class="err"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="at-cancel">Cancel</button>
+      <button class="btn btn-gold" id="at-save" style="width:auto">Save Entry</button>
     </div>
   </div>
 </div>
@@ -1562,6 +1589,9 @@ const T={
     whatPurchased:'What was purchased?',selectEmployee:'Select employee...',addCostCode:'Add cost code...',
     addJobSitePhotos:'Add Job Site Photos',roomArea:'Room / Area',jobSiteNotes:'Job Site Notes',
     whatsHappeningToday:'What\'s happening on site today...',uploadPhotos:'Upload Photos',
+    addMissedEntry:'+ Add Missed Entry',addEntryTitle:'Add Missed Entry',saveEntry:'Save Entry',myself:'Myself',
+    fieldsRequiredExceptNotes:'All fields except Notes are required.',clockOutAfterIn:'Clock-out must be after clock-in.',
+    noFutureTimes:'Clock-in and clock-out cannot be in the future.',saving:'Saving...',saveFailed:'Save failed: ',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1600,6 +1630,9 @@ const T={
     whatPurchased:'¿Qué se compró?',selectEmployee:'Seleccionar empleado...',addCostCode:'Agregar código de costo...',
     addJobSitePhotos:'Agregar Fotos del Sitio',roomArea:'Habitación / Área',jobSiteNotes:'Notas del Sitio',
     whatsHappeningToday:'¿Qué está pasando hoy en la obra?',uploadPhotos:'Subir Fotos',
+    addMissedEntry:'+ Agregar Registro Olvidado',addEntryTitle:'Agregar Registro Olvidado',saveEntry:'Guardar Registro',myself:'Yo mismo',
+    fieldsRequiredExceptNotes:'Todos los campos excepto Notas son obligatorios.',clockOutAfterIn:'La hora de salida debe ser posterior a la hora de entrada.',
+    noFutureTimes:'La hora de entrada y salida no pueden ser en el futuro.',saving:'Guardando...',saveFailed:'Error al guardar: ',
   }
 };
 
@@ -1628,16 +1661,16 @@ function applyTranslations(){
   setLabel('ci-notes',t('notes'));
   const ciBtn=$('clock-in-btn');if(ciBtn)ciBtn.textContent=t('clockInBtn');
   // Project/category/code/room/vendor-search dropdown placeholder text, all forms
-  ['ci-project','lt-project','rm-project','sp-project','bm-project','tq-project','er-project','et-project'].forEach(id=>{
+  ['ci-project','lt-project','rm-project','sp-project','bm-project','tq-project','er-project','et-project','at-project'].forEach(id=>{
     const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectProject');
   });
-  ['ci-cat','lt-cat','et-cat'].forEach(id=>{
+  ['ci-cat','lt-cat','et-cat','at-cat'].forEach(id=>{
     const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectCategory');
   });
-  ['ci-code','lt-code','et-code'].forEach(id=>{
+  ['ci-code','lt-code','et-code','at-code'].forEach(id=>{
     const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectCode');
   });
-  ['ci-room','lt-room','rm-room','sp-room','bm-room','tq-room','er-room','et-room'].forEach(id=>{
+  ['ci-room','lt-room','rm-room','sp-room','bm-room','tq-room','er-room','et-room','at-room'].forEach(id=>{
     const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectRoom');
   });
   ['rm-code-pick','bm-code-pick','tq-code-pick'].forEach(id=>{
@@ -1646,7 +1679,7 @@ function applyTranslations(){
   const erCodePick=$('er-code-pick');if(erCodePick&&erCodePick.options[0])erCodePick.options[0].textContent=t('addCostCode');
   const ltEmp=$('lt-employee');if(ltEmp&&ltEmp.options[0])ltEmp.options[0].textContent=t('selectEmployee');
   // Notes placeholders
-  ['ci-notes','lt-notes','bm-notes','tq-notes'].forEach(id=>{
+  ['ci-notes','lt-notes','bm-notes','tq-notes','at-notes'].forEach(id=>{
     const el=$(id);if(el)el.placeholder=t('notesOptional');
   });
   const rmNotes=$('rm-notes');if(rmNotes)rmNotes.placeholder=t('whatPurchased');
@@ -1695,6 +1728,20 @@ function applyTranslations(){
   setLabel('et-code',t('costCode')+' *');
   setLabel('et-room',t('room')+' *');
   setLabel('et-notes',t('notes'));
+  // Add Missed Entry modal (self-service)
+  const atBtn=$('add-time-btn');if(atBtn)atBtn.textContent=t('addMissedEntry');
+  const atH=document.querySelector('#add-time-modal h2');if(atH)atH.textContent=t('addEntryTitle');
+  setLabel('at-employee',t('employee'));
+  const atEmpDefault=$('at-employee');if(atEmpDefault&&atEmpDefault.options[0])atEmpDefault.options[0].textContent=t('myself');
+  setLabel('at-project',t('project')+' *');
+  setLabel('at-cat',t('selectCategory').replace('...','')+' *');
+  setLabel('at-code',t('costCode')+' *');
+  setLabel('at-room',t('room')+' *');
+  setLabel('at-clockin',t('clockInTime')+' *');
+  setLabel('at-clockout',t('clockOutTime')+' *');
+  setLabel('at-notes',t('notes'));
+  const atCancel=$('at-cancel');if(atCancel)atCancel.textContent=t('cancel');
+  const atSave=$('at-save');if(atSave)atSave.textContent=t('saveEntry');
   // Active session
   const asH=$('clock-out-form')?.querySelector('h2');if(asH)asH.textContent=t('activeSession');
   const coBtn=$('clock-out-btn');if(coBtn)coBtn.textContent=t('clockOutBtn');
@@ -2833,6 +2880,64 @@ $('et-save').onclick=async()=>{
     hide('edit-time-modal');
   }catch(e){$('et-err').textContent='Save failed: '+e.message}
   $('et-save').disabled=false;$('et-save').textContent='Save Changes';
+};
+
+// ── ADD MISSED TIME ENTRY (self-service: any user, for themselves) ────────────
+$('add-time-btn').onclick=async()=>{
+  if(isPriv()){
+    const aeSel=$('at-employee');aeSel.innerHTML=`<option value="">${t('myself')}</option>`;
+    try{
+      const snap=await getDocs(collection(db,'users'));
+      snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.name&&u.deactivated!==true&&u.id!==currentUser.uid)
+        .sort((a,b)=>(a.name||'').localeCompare(b.name||''))
+        .forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;aeSel.appendChild(o)});
+    }catch(e){}
+  }
+  const ap=$('at-project');ap.innerHTML=`<option value="">${t('selectProject')}</option>`;
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ap.appendChild(o)});
+  fillCatDropdown('at-cat','labor');
+  fillCodeDropdown('at-code','','labor');
+  fillRoomDropdown('at-room',null);
+  $('at-employee').value='';$('at-clockin').value='';$('at-clockout').value='';$('at-notes').value='';$('at-err').textContent='';
+  show('add-time-modal');
+};
+$('at-project').onchange=()=>fillRoomDropdown('at-room',activeProjects.find(p=>p.id===$('at-project').value));
+$('at-cat').onchange=()=>fillCodeDropdown('at-code',$('at-cat').value,'labor');
+$('at-cancel').onclick=()=>hide('add-time-modal');
+$('at-save').onclick=async()=>{
+  const pid=$('at-project').value,cat=$('at-cat').value,code=$('at-code').value,rm=$('at-room').value,ci=$('at-clockin').value,co=$('at-clockout').value;
+  if(!pid||!cat||!code||!rm||!ci||!co){$('at-err').textContent=t('fieldsRequiredExceptNotes');return}
+  const ciDate=new Date(ci),coDate=new Date(co),nowDate=new Date();
+  if(coDate<=ciDate){$('at-err').textContent=t('clockOutAfterIn');return}
+  if(ciDate>nowDate||coDate>nowDate){$('at-err').textContent=t('noFutureTimes');return}
+  $('at-save').disabled=true;$('at-save').textContent=t('saving');
+  const proj=activeProjects.find(p=>p.id===pid);
+  const targetUid=(isPriv()&&$('at-employee').value)||currentUser.uid;
+  const targetName=(isPriv()&&$('at-employee').value)?$('at-employee').selectedOptions[0].textContent:(userProfile?.name||currentUser.email);
+  try{
+    await addDoc(collection(db,'timeLogs'),{
+      userId:targetUid,
+      userName:targetName,
+      projectId:pid,
+      projectName:proj?.name||pid,
+      costCodeCategory:cat,
+      costCode:code,
+      room:rm,
+      notes:$('at-notes').value,
+      clockIn:Timestamp.fromDate(ciDate),
+      clockOut:Timestamp.fromDate(coDate),
+      durationMs:coDate-ciDate,
+      clockInGeo:null,
+      clockInGeoStatus:'manual',
+      clockOutGeo:null,
+      clockOutGeoStatus:'manual',
+      status:'complete',
+      loggedBy:userProfile?.name||currentUser.email||'',
+      loggedAt:serverTimestamp()
+    });
+    hide('add-time-modal');
+  }catch(e){$('at-err').textContent=t('saveFailed')+e.message}
+  $('at-save').disabled=false;$('at-save').textContent=t('saveEntry');
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

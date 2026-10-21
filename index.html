@@ -191,6 +191,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
               <button class="seg-btn on" id="log-mine-btn">My Punches</button>
               <button class="seg-btn" id="log-all-btn">All Employees</button>
             </div>
+            <select id="log-emp-filter" class="hidden" style="font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:#fff"><option value="">All Employees</option></select>
           </div>
         </div>
         <div style="overflow-x:auto">
@@ -1953,8 +1954,8 @@ function loadMyLog(){
   // Show toggle for admin and bookkeeper
   if(isPriv()){
     show('log-view-toggle');
-    $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent=t('myTimeLog');$('log-emp-col').style.display='none';loadMyLog()};
-    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';loadMyLog()};
+    $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent=t('myTimeLog');$('log-emp-col').style.display='none';hide('log-emp-filter');$('log-emp-filter').value='';loadMyLog()};
+    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';show('log-emp-filter');loadMyLog()};
   }
   const q=(_logViewAll&&isPriv())
     ?query(collection(db,'timeLogs'),limit(200))
@@ -1974,8 +1975,17 @@ function loadMyLog(){
       return tb-ta;
     });
     window._allTimeLogs=allRows;
+    if(_logViewAll&&isPriv()){
+      const empSel=$('log-emp-filter');
+      const employees=[...new Set(allRows.map(r=>r.userName||'').filter(Boolean))].sort();
+      const ev=empSel.value;
+      empSel.innerHTML=`<option value="">${t('allEmployees')}</option>`+employees.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+      empSel.value=employees.includes(ev)?ev:'';
+    }
     const showArch=isPriv()&&$('log-show-archived')?.checked;
-    const rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
+    let rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
+    const empFilter=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
+    if(empFilter)rows=rows.filter(r=>r.userName===empFilter);
     const tb=$('my-log-body');
     if(!rows.length){tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">No entries yet.</td></tr>`;return}
     const now=Date.now();
@@ -2012,6 +2022,7 @@ function loadMyLog(){
   });
 }
 $('log-show-archived').onchange=()=>loadMyLog();
+$('log-emp-filter').onchange=()=>loadMyLog();
 
 // ── RECEIPTS ──────────────────────────────────────────────────────────────────
 function loadReceipts(){

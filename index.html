@@ -110,6 +110,7 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .seg-btn.on{background:var(--gold);color:#fff}
 .filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:16px;background:var(--cream);border-radius:10px;border:1px solid var(--border)}
 .filter-row .field{margin-bottom:0;min-width:140px;flex:1}
+.filter-row .field.field-auto{flex:0 0 auto;min-width:0}
 select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;background:var(--cream)}
 .notice{background:#fef9ed;border:1px solid #f0d070;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px}
 .bill-num{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px}
@@ -197,15 +198,19 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             </div>
           </div>
         </div>
-        <div class="filter-row" id="tl-filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-          <div class="field" style="margin-bottom:0"><select id="tl-filter-project"><option value="">All Projects</option></select></div>
-          <div class="field" style="margin-bottom:0"><input type="text" id="tl-filter-costcode" placeholder="Cost Code..." style="width:130px"></div>
-          <div class="field" style="margin-bottom:0"><input type="text" id="tl-filter-room" placeholder="Room..." style="width:110px"></div>
-          <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-from-lbl">From</span><input type="date" id="tl-filter-date-from" style="width:140px"></div>
-          <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-to-lbl">To</span><input type="date" id="tl-filter-date-to" style="width:140px"></div>
-          <div class="field" style="margin-bottom:0"><select id="tl-filter-location"><option value="">All Locations</option><option value="onsite">On Site</option><option value="offsite">Off Site</option></select></div>
-          <div class="field" style="margin-bottom:0"><input type="number" id="tl-filter-dur-min" placeholder="Min min" style="width:90px"></div>
-          <div class="field" style="margin-bottom:0"><input type="number" id="tl-filter-dur-max" placeholder="Max min" style="width:90px"></div>
+        <div class="filter-row" id="tl-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-project" style="width:170px"><option value="">All Projects</option></select></div>
+          <div class="field field-auto" style="margin-bottom:0"><input type="text" id="tl-filter-costcode" placeholder="Cost Code..." style="width:130px"></div>
+          <div class="field field-auto" style="margin-bottom:0"><input type="text" id="tl-filter-room" placeholder="Room..." style="width:110px"></div>
+          <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-from-lbl">From</span><input type="date" id="tl-filter-date-from" style="width:140px"></div>
+          <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-to-lbl">To</span><input type="date" id="tl-filter-date-to" style="width:140px"></div>
+          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-location" style="width:140px"><option value="">All Locations</option><option value="onsite">On Site</option><option value="offsite">Off Site</option></select></div>
+          <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap" id="tl-filter-dur-lbl">Duration (min)</span>
+            <input type="number" id="tl-filter-dur-min" placeholder="Min" style="width:58px">
+            <span style="font-size:12px;color:var(--muted)">&ndash;</span>
+            <input type="number" id="tl-filter-dur-max" placeholder="Max" style="width:58px">
+          </div>
           <button type="button" class="btn btn-outline btn-sm" id="tl-filter-clear" style="margin-left:auto">Clear Filters</button>
         </div>
         <div style="overflow-x:auto">
@@ -227,13 +232,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
         </div>
       </div>
-      <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-        <div class="field" style="margin-bottom:0"><select id="rcpt-filter-project"><option value="">All Projects</option></select></div>
-        <div class="field" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
-        <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-from-lbl">From</span><input type="date" id="rcpt-filter-date-from" style="width:140px"></div>
-        <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-to-lbl">To</span><input type="date" id="rcpt-filter-date-to" style="width:140px"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="rcpt-filter-amount-min" placeholder="Min $" style="width:90px" step="0.01"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="rcpt-filter-amount-max" placeholder="Max $" style="width:90px" step="0.01"></div>
+      <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <div class="field field-auto" style="margin-bottom:0"><select id="rcpt-filter-project" style="width:170px"><option value="">All Projects</option></select></div>
+        <div class="field field-auto" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
+        <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-from-lbl">From</span><input type="date" id="rcpt-filter-date-from" style="width:140px"></div>
+        <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-to-lbl">To</span><input type="date" id="rcpt-filter-date-to" style="width:140px"></div>
+        <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px;color:var(--muted);white-space:nowrap" id="rcpt-filter-amount-lbl">Amount ($)</span>
+          <input type="number" id="rcpt-filter-amount-min" placeholder="Min" style="width:64px" step="0.01">
+          <span style="font-size:12px;color:var(--muted)">&ndash;</span>
+          <input type="number" id="rcpt-filter-amount-max" placeholder="Max" style="width:64px" step="0.01">
+        </div>
         <button type="button" class="btn btn-outline btn-sm" id="rcpt-filter-clear" style="margin-left:auto">Clear Filters</button>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
@@ -1613,12 +1622,12 @@ const T={
     fieldsRequiredExceptNotes:'All fields except Notes are required.',clockOutAfterIn:'Clock-out must be after clock-in.',
     noFutureTimes:'Clock-in and clock-out cannot be in the future.',saving:'Saving...',saveFailed:'Save failed: ',
     costCodeFilter:'Cost Code...',roomFilter:'Room...',allLocations:'All Locations',
-    minDuration:'Min min',maxDuration:'Max min',noMatchingEntries:'No entries match these filters.',
+    minDuration:'Min',maxDuration:'Max',noMatchingEntries:'No entries match these filters.',durationRangeLbl:'Duration (min)',
     logTimeTitle:'Log Time Entry',logTimeDesc:'Enter a completed time entry on behalf of any employee. All fields required.',
     saveTimeEntry:'Save Time Entry',ltFieldsRequired:'All fields except Clock Out are required.',
     clockOutOptional:'Clock Out (optional)',
     allProjectsFilter:'All Projects',vendorPlaceholder:'Vendor...',dateFrom:'From',dateTo:'To',
-    minAmount:'Min $',maxAmount:'Max $',clearFilters:'Clear Filters',noMatchingReceipts:'No receipts match these filters.',
+    minAmount:'Min',maxAmount:'Max',clearFilters:'Clear Filters',noMatchingReceipts:'No receipts match these filters.',amountRangeLbl:'Amount ($)',
     entrySavedFor:'✓ Entry saved for ',etFieldsRequired:'Project, cost category, cost code, room, and clock-in are required.',
   },
   es:{
@@ -1662,12 +1671,12 @@ const T={
     fieldsRequiredExceptNotes:'Todos los campos excepto Notas son obligatorios.',clockOutAfterIn:'La hora de salida debe ser posterior a la hora de entrada.',
     noFutureTimes:'La hora de entrada y salida no pueden ser en el futuro.',saving:'Guardando...',saveFailed:'Error al guardar: ',
     costCodeFilter:'Codigo de Costo...',roomFilter:'Habitacion...',allLocations:'Todas las Ubicaciones',
-    minDuration:'Min min',maxDuration:'Max min',noMatchingEntries:'Ningun registro coincide con estos filtros.',
+    minDuration:'Min',maxDuration:'Max',noMatchingEntries:'Ningun registro coincide con estos filtros.',durationRangeLbl:'Duracion (min)',
     logTimeTitle:'Registrar Entrada de Tiempo',logTimeDesc:'Ingrese una entrada de tiempo completa para cualquier empleado. Todos los campos son obligatorios.',
     saveTimeEntry:'Guardar Registro de Tiempo',ltFieldsRequired:'Todos los campos excepto Hora de Salida son obligatorios.',
     clockOutOptional:'Hora de Salida (opcional)',
     allProjectsFilter:'Todos los Proyectos',vendorPlaceholder:'Proveedor...',dateFrom:'Desde',dateTo:'Hasta',
-    minAmount:'Min $',maxAmount:'Max $',clearFilters:'Limpiar Filtros',noMatchingReceipts:'Ningun recibo coincide con estos filtros.',
+    minAmount:'Min',maxAmount:'Max',clearFilters:'Limpiar Filtros',noMatchingReceipts:'Ningun recibo coincide con estos filtros.',amountRangeLbl:'Monto ($)',
     entrySavedFor:'✓ Registro guardado para ',etFieldsRequired:'Proyecto, categoria de costo, codigo de costo, habitacion y hora de entrada son obligatorios.',
   }
 };
@@ -1807,6 +1816,7 @@ function applyTranslations(){
   const tlTLbl=$('tl-filter-to-lbl');if(tlTLbl)tlTLbl.textContent=t('dateTo');
   const tlFLoc=$('tl-filter-location');
   if(tlFLoc&&tlFLoc.options.length===3){tlFLoc.options[0].textContent=t('allLocations');tlFLoc.options[1].textContent=t('onSite');tlFLoc.options[2].textContent=t('offSite');}
+  const tlDurLbl=$('tl-filter-dur-lbl');if(tlDurLbl)tlDurLbl.textContent=t('durationRangeLbl');
   const tlFDMin=$('tl-filter-dur-min');if(tlFDMin)tlFDMin.placeholder=t('minDuration');
   const tlFDMax=$('tl-filter-dur-max');if(tlFDMax)tlFDMax.placeholder=t('maxDuration');
   const tlFClear=$('tl-filter-clear');if(tlFClear)tlFClear.textContent=t('clearFilters');
@@ -1821,6 +1831,7 @@ function applyTranslations(){
   const rcptFV=$('rcpt-filter-vendor');if(rcptFV)rcptFV.placeholder=t('vendorPlaceholder');
   const rcptFLbl=$('rcpt-filter-from-lbl');if(rcptFLbl)rcptFLbl.textContent=t('dateFrom');
   const rcptTLbl=$('rcpt-filter-to-lbl');if(rcptTLbl)rcptTLbl.textContent=t('dateTo');
+  const rcptAmtLbl=$('rcpt-filter-amount-lbl');if(rcptAmtLbl)rcptAmtLbl.textContent=t('amountRangeLbl');
   const rcptMin=$('rcpt-filter-amount-min');if(rcptMin)rcptMin.placeholder=t('minAmount');
   const rcptMax=$('rcpt-filter-amount-max');if(rcptMax)rcptMax.placeholder=t('maxAmount');
   const rcptClear=$('rcpt-filter-clear');if(rcptClear)rcptClear.textContent=t('clearFilters');

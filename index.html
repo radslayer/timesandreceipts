@@ -763,7 +763,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>DB Entry Date</label><input type="date" id="er-dbdate"></div>
       <div class="field" id="er-paid-wrap"><label>Paid Date</label><input type="date" id="er-paiddate"></div>
     </div>
+    <div class="row2 priv-only" id="er-invclient-row">
+      <div class="field" id="er-invclientnum-wrap"><label>Invoice # (Client)</label><input type="text" id="er-invclientnum" placeholder="Invoice number..."></div>
+      <div class="field" id="er-invclientdate-wrap"><label>Invoiced Client Date</label><input type="date" id="er-invclientdate"></div>
+    </div>
     <div id="er-lock-notice" class="notice hidden" style="font-size:12px">&#128274; This record has been paid and is locked. Only an admin can change the paid date or edit it.</div>
+    <div id="er-invclient-lock-notice" class="notice hidden" style="font-size:12px">&#128274; This record has been invoiced to the client and is locked. Only an admin can change the invoice number/date.</div>
     <div id="er-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="er-cancel">Cancel</button>
@@ -2251,6 +2256,7 @@ function renderReceipts(){
       const qbHtml=isPriv()?(r.qbEntryDate?`<span class="entry-date">QB ✓ ${r.qbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','qb')">QB: mark entered</span>`):'';
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
+      const invClientHtml=isPriv()?(r.invoicedClientDate?`<span class="entry-date">Invoiced Client ✓ ${r.invoicedClientDate}${r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':''}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','invclient')">Invoiced Client: mark invoiced</span>`):'';
       const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
       return`<div class="receipt-item" id="receipt-row-${r.id}" style="${arch?'opacity:.55':''}">
         ${r.imageUrl?(/\.pdf($|\?)/i.test(r.imageUrl)?`<div class="receipt-thumb" style="cursor:pointer" onclick="window.open('${r.imageUrl}','_blank')">&#128196;</div>`:`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`):`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
@@ -2265,7 +2271,7 @@ function renderReceipts(){
           ${r.invoiceDate?`<div style="font-size:11px;color:var(--muted)">Invoice: ${r.invoiceDate}</div>`:''}
           <div style="margin-top:6px">${codes.map(c=>`<span class="tag">${c}</span>`).join('')}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>
           ${r.notes?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${r.notes}</div>`:''}
-          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}</div>`:''}
+          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}${invClientHtml}</div>`:''}
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${arch
               ?(isPriv()?`<button class="btn btn-green btn-sm" onclick="window._archiveRec('receipts','${r.id}',false)">Restore</button>`:'')+(isAdmin()?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:'')
@@ -2418,6 +2424,13 @@ document.addEventListener('keydown',e=>{
 window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
 window._markEntry=async(id,type)=>{
   const today=new Date().toISOString().slice(0,10);
+  if(type==='invclient'){
+    const num=prompt('Enter the invoice number to mark this record as invoiced to the client today ('+today+'). This will lock the invoice number/date; only an admin can change it afterward:','');
+    if(num===null)return;
+    if(!num.trim()){alert('Invoice number is required.');return}
+    try{await updateDoc(doc(db,'receipts',id),{invoicedClientDate:today,invoicedClientNumber:num.trim(),invoicedClientBy:userProfile?.name||'',invoicedClientAt:serverTimestamp()})}catch(e){alert('Update failed: '+e.message)}
+    return;
+  }
   const field=type==='qb'?'qbEntryDate':type==='paid'?'paidDate':'dbEntryDate';
   if(type==='paid'&&!confirm('Mark this record as paid today ('+today+')? It will be locked; only an admin can change it afterward.'))return;
   const payload={[field]:today};
@@ -2962,6 +2975,12 @@ window._er=id=>{
   // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
   $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
   if(isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
+  $('er-invclientnum').value=r.invoicedClientNumber||'';
+  $('er-invclientdate').value=r.invoicedClientDate||'';
+  // Bookkeeper can mark a record invoiced to the client (which locks it) but cannot clear it. Admin can do both.
+  $('er-invclientnum').disabled=!isAdmin()&&!!r.invoicedClientDate;
+  $('er-invclientdate').disabled=!isAdmin()&&!!r.invoicedClientDate;
+  if(!isAdmin()&&!!r.invoicedClientDate)show('er-invclient-lock-notice');else hide('er-invclient-lock-notice');
   const ep=$('er-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
@@ -2997,12 +3016,17 @@ $('er-save').onclick=async()=>{
   const newPaid=$('er-paiddate').value||null;
   if(orig.paidDate&&!newPaid&&!isAdmin()){$('er-err').textContent='Only an admin can clear a paid date.';return}
   if(newPaid&&!orig.paidDate&&!confirm('Setting a paid date locks this record. Only an admin can change it afterward. Continue?'))return;
+  const newInvClientDate=$('er-invclientdate').value||null;
+  const newInvClientNum=$('er-invclientnum').value.trim()||null;
+  if(orig.invoicedClientDate&&!newInvClientDate&&!isAdmin()){$('er-err').textContent='Only an admin can clear the invoiced-client date.';return}
+  if(newInvClientDate&&!orig.invoicedClientDate&&!confirm('Setting an invoiced-client date locks the invoice number/date. Only an admin can change it afterward. Continue?'))return;
   $('er-save').disabled=true;$('er-save').textContent='Saving...';
   if($('er-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const proj=allProjects.find(p=>p.id===pid);
   const paidMeta=newPaid&&!orig.paidDate?{paidBy:userProfile?.name||'',paidAt:serverTimestamp()}:(!newPaid&&orig.paidDate?{paidBy:null,paidAt:null,unlockedBy:userProfile?.name||'',unlockedAt:serverTimestamp()}:{});
+  const invClientMeta=newInvClientDate&&!orig.invoicedClientDate?{invoicedClientBy:userProfile?.name||'',invoicedClientAt:serverTimestamp()}:(!newInvClientDate&&orig.invoicedClientDate?{invoicedClientBy:null,invoicedClientAt:null,invoicedClientUnlockedBy:userProfile?.name||'',invoicedClientUnlockedAt:serverTimestamp()}:{});
   try{
-    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,paidDate:newPaid,...paidMeta,updatedAt:serverTimestamp()});
+    await updateDoc(doc(db,'receipts',editingReceiptId),{projectId:pid,projectName:proj?.name||pid,costCodes:erSelectedCodes,room:rm,amount:parseFloat(amt),vendor,notes:$('er-notes').value,status:$('er-status').value,invoiceDate:$('er-invoicedate').value||null,qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,paidDate:newPaid,...paidMeta,invoicedClientDate:newInvClientDate,invoicedClientNumber:newInvClientNum,...invClientMeta,updatedAt:serverTimestamp()});
     hide('edit-receipt-modal');
   }catch(e){$('er-err').textContent='Save failed: '+e.message}
   $('er-save').disabled=false;$('er-save').textContent='Save Changes';
@@ -3192,7 +3216,7 @@ function renderReport(data){
   if(it){
     h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th></th>';
   }else{
-    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th></th>';
+    h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th>Invoiced Client</th><th></th>';
   }
   h+='</tr></thead><tbody>';
   data.forEach(r=>{
@@ -3229,6 +3253,7 @@ function renderReport(data){
         <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px;white-space:nowrap">${r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.invoicedClientDate?'<span style="color:var(--green)">&#128274; '+r.invoicedClientDate+(r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':'')+'</span>':'<span style="color:var(--amber)">Not Invoiced</span>'}</td>
         <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
           ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('receipts','${r.id}',false)">Restore</button>`:'')
           :(isPriv()&&(isAdmin()||!isLockedBill(r))?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('receipts','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
@@ -3244,7 +3269,7 @@ window._csv=()=>{
   const data=window._rptData||[];const it=_rptType==='time';
   const headers=it
     ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes','Archived']
-    :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Paid Date','Paid By','Notes','Receipt URL','Archived'];
+    :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Paid Date','Paid By','Invoiced Client Date','Invoiced Client #','Invoiced Client By','Notes','Receipt URL','Archived'];
   const rows=data.map(r=>{
     if(it){
       const billable=isBillableEntry(r);
@@ -3252,7 +3277,7 @@ window._csv=()=>{
       const billTo=billable?(proj?.name||r.projectName||''):'';
       return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'',isArchivedRec(r)?'Y':''];
     }
-    return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.paidDate||'',r.paidBy||'',r.notes||'',r.imageUrl||'',isArchivedRec(r)?'Y':''];
+    return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.paidDate||'',r.paidBy||'',r.invoicedClientDate||'',r.invoicedClientNumber||'',r.invoicedClientBy||'',r.notes||'',r.imageUrl||'',isArchivedRec(r)?'Y':''];
   });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();

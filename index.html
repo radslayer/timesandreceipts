@@ -295,7 +295,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <button class="seg-btn on" id="rpt-time-btn">Time Log</button>
         <button class="seg-btn" id="rpt-rcpt-btn">Receipts &amp; Bills</button>
         <button class="seg-btn" id="rpt-payroll-btn">&#128181; Payroll</button>
-        <button class="seg-btn priv-only" id="rpt-logtime-btn">&#43; Log Time</button>
+        <button class="seg-btn priv-only" id="rpt-logtime-btn">&#43; Add a time entry</button>
       </div>
 
       <!-- TIME LOG / RECEIPTS PANEL -->
@@ -1638,6 +1638,9 @@ const T={
     allProjectsFilter:'All Projects',vendorPlaceholder:'Vendor...',dateFrom:'From',dateTo:'To',
     minAmount:'Min',maxAmount:'Max',clearFilters:'Clear Filters',noMatchingReceipts:'No receipts match these filters.',amountRangeLbl:'Amount ($)',
     entrySavedFor:'✓ Entry saved for ',etFieldsRequired:'Project, cost category, cost code, room, and clock-in are required.',
+    alreadyClockedInError:"You're already clocked in. Clock out of your current session before starting a new one.",
+    overlapError:'This overlaps with another time entry: ',ongoing:'ongoing',
+    duplicateReceiptError:'This looks like a duplicate \u2014 a receipt for this vendor and amount on this project was already submitted on ',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1687,6 +1690,9 @@ const T={
     allProjectsFilter:'Todos los Proyectos',vendorPlaceholder:'Proveedor...',dateFrom:'Desde',dateTo:'Hasta',
     minAmount:'Min',maxAmount:'Max',clearFilters:'Limpiar Filtros',noMatchingReceipts:'Ningun recibo coincide con estos filtros.',amountRangeLbl:'Monto ($)',
     entrySavedFor:'✓ Registro guardado para ',etFieldsRequired:'Proyecto, categoria de costo, codigo de costo, habitacion y hora de entrada son obligatorios.',
+    alreadyClockedInError:'Ya tienes una entrada activa. Marca tu salida de la sesion actual antes de iniciar una nueva.',
+    overlapError:'Esto se superpone con otro registro de tiempo: ',ongoing:'en curso',
+    duplicateReceiptError:'Esto parece un duplicado \u2014 ya se envio un recibo para este proveedor y monto en este proyecto el ',
   }
 };
 
@@ -2042,8 +2048,14 @@ $('clock-in-btn').onclick=async()=>{
   const pid=$('ci-project').value,cat=$('ci-cat').value,code=$('ci-code').value,rm=$('ci-room').value;
   if(!pid||!cat||!code||!rm){alert('Select a project, cost category, cost code, and room.');return}
   checkLocationWarn();
-  const proj=activeProjects.find(p=>p.id===pid);
   $('clock-in-btn').disabled=true;$('clock-in-btn').textContent='Clocking in...';
+  const ciOverlap=await findOverlappingTimeLog(currentUser.uid,Date.now(),Infinity,null);
+  if(ciOverlap){
+    alert(t('alreadyClockedInError'));
+    $('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
+    return;
+  }
+  const proj=activeProjects.find(p=>p.id===pid);
   await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
   $('ci-notes').value='';$('ci-code').innerHTML=`<option value="">${t('selectCode')}</option>`;$('ci-cat').value='';
   $('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
@@ -2089,6 +2101,22 @@ function tlTsMs(v){
   if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000+((v.nanoseconds||0)/1e6);
   if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
   return 0;
+}
+function tlEndMs(clockOut){return clockOut?tlTsMs(clockOut):Infinity}
+// Finds the first timeLogs entry for userId whose [clockIn,clockOut) range overlaps [startMs,endMs).
+// endMs=Infinity means an open/ongoing new entry (e.g. a live Clock In). excludeId skips that doc (for edits).
+async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
+  try{
+    const snap=await getDocs(query(collection(db,'timeLogs'),where('userId','==',userId)));
+    for(const d of snap.docs){
+      if(excludeId&&d.id===excludeId)continue;
+      const r=d.data();
+      const exStart=tlTsMs(r.clockIn);
+      const exEnd=tlEndMs(r.clockOut);
+      if(exStart<endMs&&startMs<exEnd)return{id:d.id,...r};
+    }
+  }catch(e){console.warn('Overlap check failed:',e)}
+  return null;
 }
 function loadMyLog(){
   if(!currentUser)return;
@@ -2541,6 +2569,22 @@ $('rm-submit').onclick=async()=>{
     if(Math.abs(liGetRemaining('rm'))>=0.01){$('rm-err').textContent='Line items must add up to the total amount before you can submit.';return}
   }
   $('rm-err').textContent='';
+  if(!splitMode){
+    try{
+      const amtNum=parseFloat(amt);
+      const vLower=vendor.trim().toLowerCase();
+      const dupSnap=await getDocs(query(collection(db,'receipts'),where('userId','==',currentUser.uid),where('projectId','==',pid)));
+      const nowMs=Date.now();
+      const dup=dupSnap.docs.map(d=>({id:d.id,...d.data()})).find(r=>{
+        if((r.vendor||'').trim().toLowerCase()!==vLower)return false;
+        if(Math.abs((parseFloat(r.amount)||0)-amtNum)>=0.01)return false;
+        const subMs=receiptTsMs(r.submittedAt||r.createdAt);
+        if(!subMs)return false;
+        return(nowMs-subMs)<=24*3600*1000;
+      });
+      if(dup){$('rm-err').textContent=t('duplicateReceiptError')+fmtTs(dup.submittedAt||dup.createdAt);return}
+    }catch(e){console.warn('Duplicate receipt check failed:',e)}
+  }
   $('rm-submit').disabled=true;$('rm-submit').textContent='Uploading...';
   const proj=activeProjects.find(p=>p.id===pid);let imageUrl=null;
   if(rmFile){
@@ -3068,11 +3112,11 @@ $('er-save').onclick=async()=>{
 // ── EDIT TIME LOG ─────────────────────────────────────────────────────────────
 fillCatDropdown('et-cat','labor');
 window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
-let editingTimeId=null;
+let editingTimeId=null,editingTimeUserId=null;
 window._et=id=>{
   const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
-  editingTimeId=id;
+  editingTimeId=id;editingTimeUserId=r.userId||currentUser.uid;
   const ep=$('et-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
@@ -3104,6 +3148,12 @@ $('et-save').onclick=async()=>{
   const proj=allProjects.find(p=>p.id===pid);
   const ciDate=new Date($('et-clockin').value),coVal=$('et-clockout').value,coDate=coVal?new Date(coVal):null;
   const durationMs=coDate?coDate-ciDate:null;
+  const etOverlap=await findOverlappingTimeLog(editingTimeUserId||currentUser.uid,ciDate.getTime(),coDate?coDate.getTime():Infinity,editingTimeId);
+  if(etOverlap){
+    $('et-err').textContent=t('overlapError')+fmtTs(etOverlap.clockIn)+'\u2013'+(etOverlap.clockOut?fmtTs(etOverlap.clockOut):t('ongoing'));
+    $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
+    return;
+  }
   try{
     await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});
     hide('edit-time-modal');
@@ -3143,6 +3193,12 @@ $('at-save').onclick=async()=>{
   const proj=activeProjects.find(p=>p.id===pid);
   const targetUid=(isPriv()&&$('at-employee').value)||currentUser.uid;
   const targetName=(isPriv()&&$('at-employee').value)?$('at-employee').selectedOptions[0].textContent:(userProfile?.name||currentUser.email);
+  const atOverlap=await findOverlappingTimeLog(targetUid,ciDate.getTime(),coDate.getTime(),null);
+  if(atOverlap){
+    $('at-err').textContent=t('overlapError')+fmtTs(atOverlap.clockIn)+'\u2013'+(atOverlap.clockOut?fmtTs(atOverlap.clockOut):t('ongoing'));
+    $('at-save').disabled=false;$('at-save').textContent=t('saveEntry');
+    return;
+  }
   try{
     await addDoc(collection(db,'timeLogs'),{
       userId:targetUid,
@@ -4023,6 +4079,12 @@ $('lt-save').onclick=async()=>{
   $('lt-save').disabled=true;$('lt-save').textContent=t('saving');
   const user=_ltUsers.find(u=>u.id===uid);
   const proj=activeProjects.find(p=>p.id===pid);
+  const ltOverlap=await findOverlappingTimeLog(uid,ciDate.getTime(),coDate?coDate.getTime():Infinity,null);
+  if(ltOverlap){
+    $('lt-err').textContent='This overlaps with an existing entry for '+(user?.name||'this employee')+': '+fmtTs(ltOverlap.clockIn)+'\u2013'+(ltOverlap.clockOut?fmtTs(ltOverlap.clockOut):'(still clocked in)');
+    $('lt-save').disabled=false;$('lt-save').textContent=t('saveTimeEntry');
+    return;
+  }
   try{
     await addDoc(collection(db,'timeLogs'),{
       userId:uid,

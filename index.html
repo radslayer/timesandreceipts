@@ -232,6 +232,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
         </div>
       </div>
+      <div class="priv-only hidden" id="rcpt-billing-summary" style="font-size:13px;margin-bottom:12px"></div>
       <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
         <div class="field field-auto" style="margin-bottom:0"><select id="rcpt-filter-project" style="width:170px"><option value="">All Projects</option></select></div>
         <div class="field field-auto" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
@@ -243,6 +244,9 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <span style="font-size:12px;color:var(--muted)">&ndash;</span>
           <input type="number" id="rcpt-filter-amount-max" placeholder="Max" style="width:64px" step="0.01">
         </div>
+        <label class="priv-only hidden" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="rcpt-filter-missing-inv" style="width:auto;margin:0"> Missing Invoice</label>
+        <label class="priv-only hidden" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="rcpt-filter-missing-qb" style="width:auto;margin:0"> Missing QB</label>
+        <label class="priv-only hidden" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="rcpt-filter-missing-db" style="width:auto;margin:0"> Missing DB</label>
         <button type="button" class="btn btn-outline btn-sm" id="rcpt-filter-clear" style="margin-left:auto">Clear Filters</button>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
@@ -2239,13 +2243,37 @@ function renderReceipts(){
   const fDateTo=$('rcpt-filter-date-to')?.value||'';
   const fAmtMin=parseFloat($('rcpt-filter-amount-min')?.value);
   const fAmtMax=parseFloat($('rcpt-filter-amount-max')?.value);
-  const filtersActive=fProj||fVendor||fDateFrom||fDateTo||!isNaN(fAmtMin)||!isNaN(fAmtMax);
+  const fMissingInv=isPriv()&&$('rcpt-filter-missing-inv')?.checked;
+  const fMissingQB=isPriv()&&$('rcpt-filter-missing-qb')?.checked;
+  const fMissingDB=isPriv()&&$('rcpt-filter-missing-db')?.checked;
+  const filtersActive=fProj||fVendor||fDateFrom||fDateTo||!isNaN(fAmtMin)||!isNaN(fAmtMax)||fMissingInv||fMissingQB||fMissingDB;
   if(fProj)list=list.filter(r=>r.projectId===fProj);
   if(fVendor)list=list.filter(r=>(r.vendor||'').toLowerCase().includes(fVendor));
   if(fDateFrom){const fromMs=new Date(fDateFrom+'T00:00:00').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)>=fromMs)}
   if(fDateTo){const toMs=new Date(fDateTo+'T23:59:59').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)<=toMs)}
   if(!isNaN(fAmtMin))list=list.filter(r=>parseFloat(r.amount||0)>=fAmtMin);
   if(!isNaN(fAmtMax))list=list.filter(r=>parseFloat(r.amount||0)<=fAmtMax);
+  if(fMissingInv)list=list.filter(r=>!r.invoicedClientDate);
+  if(fMissingQB)list=list.filter(r=>!r.qbEntryDate);
+  if(fMissingDB)list=list.filter(r=>!r.dbEntryDate);
+  if(isPriv()){
+    const sumEl=$('rcpt-billing-summary');
+    if(sumEl){
+      const activeList=allList.filter(r=>!isArchivedRec(r));
+      const missInv=activeList.filter(r=>!r.invoicedClientDate).length;
+      const missQB=activeList.filter(r=>!r.qbEntryDate).length;
+      const missDB=activeList.filter(r=>!r.dbEntryDate).length;
+      if(missInv||missQB||missDB){
+        const parts=[];
+        if(missInv)parts.push(missInv+' not invoiced');
+        if(missQB)parts.push(missQB+' not in QB');
+        if(missDB)parts.push(missDB+' not in Dropbox');
+        sumEl.innerHTML=`<span style="color:var(--amber)">⚠ ${parts.join(' · ')}</span>`;
+      }else{
+        sumEl.innerHTML=`<span style="color:var(--green)">✓ All receipts fully processed</span>`;
+      }
+    }
+  }
   if(!list.length){el.innerHTML=`<div class="empty">${filtersActive?t('noMatchingReceipts'):'No receipts yet.'}</div>`;return}
     el.innerHTML=list.map(r=>{
       const isBill=r.billType==='bill';
@@ -2302,6 +2330,7 @@ function goToReceiptResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="receipts"]')?.click();
   ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['rcpt-filter-missing-inv','rcpt-filter-missing-qb','rcpt-filter-missing-db'].forEach(fid=>{const el=$(fid);if(el)el.checked=false});
   renderReceipts();
   setTimeout(()=>{
     if(scrollToAndFlash('receipt-row-'+id))return;
@@ -2444,8 +2473,12 @@ $('rcpt-filter-date-from').onchange=renderReceipts;
 $('rcpt-filter-date-to').onchange=renderReceipts;
 $('rcpt-filter-amount-min').oninput=renderReceipts;
 $('rcpt-filter-amount-max').oninput=renderReceipts;
+$('rcpt-filter-missing-inv').onchange=renderReceipts;
+$('rcpt-filter-missing-qb').onchange=renderReceipts;
+$('rcpt-filter-missing-db').onchange=renderReceipts;
 $('rcpt-filter-clear').onclick=()=>{
   ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['rcpt-filter-missing-inv','rcpt-filter-missing-qb','rcpt-filter-missing-db'].forEach(fid=>{const el=$(fid);if(el)el.checked=false});
   renderReceipts();
 };
 

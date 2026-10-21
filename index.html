@@ -200,11 +200,11 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div class="filter-row" id="tl-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
           <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-project" style="width:170px"><option value="">All Projects</option></select></div>
-          <div class="field field-auto" style="margin-bottom:0"><input type="text" id="tl-filter-costcode" placeholder="Cost Code..." style="width:130px"></div>
-          <div class="field field-auto" style="margin-bottom:0"><input type="text" id="tl-filter-room" placeholder="Room..." style="width:110px"></div>
+          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-costcode" style="width:170px"><option value="">All Cost Codes</option></select></div>
+          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-room" style="width:140px"><option value="">All Rooms</option></select></div>
           <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-from-lbl">From</span><input type="date" id="tl-filter-date-from" style="width:140px"></div>
           <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="tl-filter-to-lbl">To</span><input type="date" id="tl-filter-date-to" style="width:140px"></div>
-          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-location" style="width:140px"><option value="">All Locations</option><option value="onsite">On Site</option><option value="offsite">Off Site</option></select></div>
+          <div class="field field-auto" style="margin-bottom:0"><select id="tl-filter-location" style="width:160px"><option value="">All Locations</option><option value="onsite">On Site</option><option value="offsite">Off Site</option><option value="nogeo">No Location Data</option></select></div>
           <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px">
             <span style="font-size:12px;color:var(--muted);white-space:nowrap" id="tl-filter-dur-lbl">Duration (min)</span>
             <input type="number" id="tl-filter-dur-min" placeholder="Min" style="width:58px">
@@ -1621,7 +1621,7 @@ const T={
     addMissedEntry:'+ Add Missed Entry',addEntryTitle:'Add Missed Entry',saveEntry:'Save Entry',myself:'Myself',
     fieldsRequiredExceptNotes:'All fields except Notes are required.',clockOutAfterIn:'Clock-out must be after clock-in.',
     noFutureTimes:'Clock-in and clock-out cannot be in the future.',saving:'Saving...',saveFailed:'Save failed: ',
-    costCodeFilter:'Cost Code...',roomFilter:'Room...',allLocations:'All Locations',
+    costCodeFilter:'All Cost Codes',roomFilter:'All Rooms',allLocations:'All Locations',noLocationData:'No Location Data',
     minDuration:'Min',maxDuration:'Max',noMatchingEntries:'No entries match these filters.',durationRangeLbl:'Duration (min)',
     logTimeTitle:'Log Time Entry',logTimeDesc:'Enter a completed time entry on behalf of any employee. All fields required.',
     saveTimeEntry:'Save Time Entry',ltFieldsRequired:'All fields except Clock Out are required.',
@@ -1670,7 +1670,7 @@ const T={
     addMissedEntry:'+ Agregar Registro Olvidado',addEntryTitle:'Agregar Registro Olvidado',saveEntry:'Guardar Registro',myself:'Yo mismo',
     fieldsRequiredExceptNotes:'Todos los campos excepto Notas son obligatorios.',clockOutAfterIn:'La hora de salida debe ser posterior a la hora de entrada.',
     noFutureTimes:'La hora de entrada y salida no pueden ser en el futuro.',saving:'Guardando...',saveFailed:'Error al guardar: ',
-    costCodeFilter:'Codigo de Costo...',roomFilter:'Habitacion...',allLocations:'Todas las Ubicaciones',
+    costCodeFilter:'Todos los Codigos de Costo',roomFilter:'Todas las Habitaciones',allLocations:'Todas las Ubicaciones',noLocationData:'Sin Datos de Ubicacion',
     minDuration:'Min',maxDuration:'Max',noMatchingEntries:'Ningun registro coincide con estos filtros.',durationRangeLbl:'Duracion (min)',
     logTimeTitle:'Registrar Entrada de Tiempo',logTimeDesc:'Ingrese una entrada de tiempo completa para cualquier empleado. Todos los campos son obligatorios.',
     saveTimeEntry:'Guardar Registro de Tiempo',ltFieldsRequired:'Todos los campos excepto Hora de Salida son obligatorios.',
@@ -1810,12 +1810,12 @@ function applyTranslations(){
   const thLoc=$('th-location');if(thLoc)thLoc.textContent=t('location');
   // Time Log filter row
   const tlFP=$('tl-filter-project');if(tlFP&&tlFP.options[0])tlFP.options[0].textContent=t('allProjectsFilter');
-  const tlFCC=$('tl-filter-costcode');if(tlFCC)tlFCC.placeholder=t('costCodeFilter');
-  const tlFRoom=$('tl-filter-room');if(tlFRoom)tlFRoom.placeholder=t('roomFilter');
+  const tlFCC=$('tl-filter-costcode');if(tlFCC&&tlFCC.options[0])tlFCC.options[0].textContent=t('costCodeFilter');
+  const tlFRoom=$('tl-filter-room');if(tlFRoom&&tlFRoom.options[0])tlFRoom.options[0].textContent=t('roomFilter');
   const tlFLbl=$('tl-filter-from-lbl');if(tlFLbl)tlFLbl.textContent=t('dateFrom');
   const tlTLbl=$('tl-filter-to-lbl');if(tlTLbl)tlTLbl.textContent=t('dateTo');
   const tlFLoc=$('tl-filter-location');
-  if(tlFLoc&&tlFLoc.options.length===3){tlFLoc.options[0].textContent=t('allLocations');tlFLoc.options[1].textContent=t('onSite');tlFLoc.options[2].textContent=t('offSite');}
+  if(tlFLoc&&tlFLoc.options.length===4){tlFLoc.options[0].textContent=t('allLocations');tlFLoc.options[1].textContent=t('onSite');tlFLoc.options[2].textContent=t('offSite');tlFLoc.options[3].textContent=t('noLocationData');}
   const tlDurLbl=$('tl-filter-dur-lbl');if(tlDurLbl)tlDurLbl.textContent=t('durationRangeLbl');
   const tlFDMin=$('tl-filter-dur-min');if(tlFDMin)tlFDMin.placeholder=t('minDuration');
   const tlFDMax=$('tl-filter-dur-max');if(tlFDMax)tlFDMax.placeholder=t('maxDuration');
@@ -2106,8 +2106,24 @@ function loadMyLog(){
       empSel.innerHTML=`<option value="">${t('allEmployees')}</option>`+employees.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
       empSel.value=employees.includes(ev)?ev:'';
     }
+    populateTlFilterCostCodes(allRows);
+    populateTlFilterRooms(allRows);
     renderMyLog();
   });
+}
+function populateTlFilterCostCodes(rows){
+  const el=$('tl-filter-costcode');if(!el)return;
+  const v=el.value;
+  const codes=[...new Set(rows.map(r=>r.costCode||r.scope||'').filter(Boolean))].sort();
+  el.innerHTML=`<option value="">${t('costCodeFilter')}</option>`+codes.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+  el.value=codes.includes(v)?v:'';
+}
+function populateTlFilterRooms(rows){
+  const el=$('tl-filter-room');if(!el)return;
+  const v=el.value;
+  const rooms=[...new Set(rows.map(r=>r.room||'').filter(Boolean))].sort();
+  el.innerHTML=`<option value="">${t('roomFilter')}</option>`+rooms.map(r=>`<option value="${r.replace(/"/g,'&quot;')}">${r}</option>`).join('');
+  el.value=rooms.includes(v)?v:'';
 }
 function renderMyLog(){
   const allRows=window._allTimeLogs||[];
@@ -2116,8 +2132,8 @@ function renderMyLog(){
   const empFilter=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
   if(empFilter)rows=rows.filter(r=>r.userName===empFilter);
   const fProj=$('tl-filter-project')?.value||'';
-  const fCC=($('tl-filter-costcode')?.value||'').trim().toLowerCase();
-  const fRoom=($('tl-filter-room')?.value||'').trim().toLowerCase();
+  const fCC=$('tl-filter-costcode')?.value||'';
+  const fRoom=$('tl-filter-room')?.value||'';
   const fDateFrom=$('tl-filter-date-from')?.value||'';
   const fDateTo=$('tl-filter-date-to')?.value||'';
   const fLoc=$('tl-filter-location')?.value||'';
@@ -2125,11 +2141,12 @@ function renderMyLog(){
   const fDurMax=parseFloat($('tl-filter-dur-max')?.value);
   const filtersActive=fProj||fCC||fRoom||fDateFrom||fDateTo||fLoc||!isNaN(fDurMin)||!isNaN(fDurMax);
   if(fProj)rows=rows.filter(r=>r.projectId===fProj);
-  if(fCC)rows=rows.filter(r=>(r.costCode||r.scope||'').toLowerCase().includes(fCC));
-  if(fRoom)rows=rows.filter(r=>(r.room||'').toLowerCase().includes(fRoom));
+  if(fCC)rows=rows.filter(r=>(r.costCode||r.scope||'')===fCC);
+  if(fRoom)rows=rows.filter(r=>(r.room||'')===fRoom);
   if(fDateFrom){const fromMs=new Date(fDateFrom+'T00:00:00').getTime();rows=rows.filter(r=>tlTsMs(r.clockIn)>=fromMs)}
   if(fDateTo){const toMs=new Date(fDateTo+'T23:59:59').getTime();rows=rows.filter(r=>tlTsMs(r.clockIn)<=toMs)}
-  if(fLoc)rows=rows.filter(r=>r.clockInGeoStatus===fLoc);
+  if(fLoc==='nogeo')rows=rows.filter(r=>r.clockInGeoStatus!=='onsite'&&r.clockInGeoStatus!=='offsite');
+  else if(fLoc)rows=rows.filter(r=>r.clockInGeoStatus===fLoc);
   if(!isNaN(fDurMin))rows=rows.filter(r=>(r.durationMs||0)/60000>=fDurMin);
   if(!isNaN(fDurMax))rows=rows.filter(r=>(r.durationMs||0)/60000<=fDurMax);
   const tb=$('my-log-body');
@@ -2169,8 +2186,8 @@ function renderMyLog(){
 $('log-show-archived').onchange=()=>renderMyLog();
 $('log-emp-filter').onchange=()=>renderMyLog();
 $('tl-filter-project').onchange=renderMyLog;
-$('tl-filter-costcode').oninput=renderMyLog;
-$('tl-filter-room').oninput=renderMyLog;
+$('tl-filter-costcode').onchange=renderMyLog;
+$('tl-filter-room').onchange=renderMyLog;
 $('tl-filter-date-from').onchange=renderMyLog;
 $('tl-filter-date-to').onchange=renderMyLog;
 $('tl-filter-location').onchange=renderMyLog;

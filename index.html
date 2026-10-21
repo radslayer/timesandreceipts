@@ -216,6 +216,15 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
         </div>
       </div>
+      <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <div class="field" style="margin-bottom:0"><select id="rcpt-filter-project"><option value="">All Projects</option></select></div>
+        <div class="field" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
+        <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-from-lbl">From</span><input type="date" id="rcpt-filter-date-from" style="width:140px"></div>
+        <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-to-lbl">To</span><input type="date" id="rcpt-filter-date-to" style="width:140px"></div>
+        <div class="field" style="margin-bottom:0"><input type="number" id="rcpt-filter-amount-min" placeholder="Min $" style="width:90px" step="0.01"></div>
+        <div class="field" style="margin-bottom:0"><input type="number" id="rcpt-filter-amount-max" placeholder="Max $" style="width:90px" step="0.01"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="rcpt-filter-clear" style="margin-left:auto">Clear Filters</button>
+      </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
     </div>
 
@@ -313,8 +322,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <!-- LOG TIME PANEL -->
       <div id="rpt-logtime-panel" class="hidden">
         <div class="card">
-          <div style="font-weight:600;margin-bottom:4px">Log Time Entry</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Enter a completed time entry on behalf of any employee. All fields required.</div>
+          <div style="font-weight:600;margin-bottom:4px" id="lt-title">Log Time Entry</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="lt-desc">Enter a completed time entry on behalf of any employee. All fields required.</div>
           <div class="row2">
             <div class="field"><label>Employee *</label><select id="lt-employee"><option value="">Select employee...</option></select></div>
             <div class="field"><label>Project *</label><select id="lt-project"><option value="">Select project...</option></select></div>
@@ -1592,6 +1601,12 @@ const T={
     addMissedEntry:'+ Add Missed Entry',addEntryTitle:'Add Missed Entry',saveEntry:'Save Entry',myself:'Myself',
     fieldsRequiredExceptNotes:'All fields except Notes are required.',clockOutAfterIn:'Clock-out must be after clock-in.',
     noFutureTimes:'Clock-in and clock-out cannot be in the future.',saving:'Saving...',saveFailed:'Save failed: ',
+    logTimeTitle:'Log Time Entry',logTimeDesc:'Enter a completed time entry on behalf of any employee. All fields required.',
+    saveTimeEntry:'Save Time Entry',ltFieldsRequired:'All fields except Clock Out are required.',
+    clockOutOptional:'Clock Out (optional)',
+    allProjectsFilter:'All Projects',vendorPlaceholder:'Vendor...',dateFrom:'From',dateTo:'To',
+    minAmount:'Min $',maxAmount:'Max $',clearFilters:'Clear Filters',noMatchingReceipts:'No receipts match these filters.',
+    entrySavedFor:'✓ Entry saved for ',etFieldsRequired:'Project, cost category, cost code, room, and clock-in are required.',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1633,6 +1648,12 @@ const T={
     addMissedEntry:'+ Agregar Registro Olvidado',addEntryTitle:'Agregar Registro Olvidado',saveEntry:'Guardar Registro',myself:'Yo mismo',
     fieldsRequiredExceptNotes:'Todos los campos excepto Notas son obligatorios.',clockOutAfterIn:'La hora de salida debe ser posterior a la hora de entrada.',
     noFutureTimes:'La hora de entrada y salida no pueden ser en el futuro.',saving:'Guardando...',saveFailed:'Error al guardar: ',
+    logTimeTitle:'Registrar Entrada de Tiempo',logTimeDesc:'Ingrese una entrada de tiempo completa para cualquier empleado. Todos los campos son obligatorios.',
+    saveTimeEntry:'Guardar Registro de Tiempo',ltFieldsRequired:'Todos los campos excepto Hora de Salida son obligatorios.',
+    clockOutOptional:'Hora de Salida (opcional)',
+    allProjectsFilter:'Todos los Proyectos',vendorPlaceholder:'Proveedor...',dateFrom:'Desde',dateTo:'Hasta',
+    minAmount:'Min $',maxAmount:'Max $',clearFilters:'Limpiar Filtros',noMatchingReceipts:'Ningun recibo coincide con estos filtros.',
+    entrySavedFor:'✓ Registro guardado para ',etFieldsRequired:'Proyecto, categoria de costo, codigo de costo, habitacion y hora de entrada son obligatorios.',
   }
 };
 
@@ -1699,6 +1720,11 @@ function applyTranslations(){
   setLabel('lt-code',t('costCode')+' *');
   setLabel('lt-room',t('room')+' *');
   setLabel('lt-notes',t('notes'));
+  setLabel('lt-clockin',t('clockInTime')+' *');
+  setLabel('lt-clockout',t('clockOutOptional'));
+  const ltTitle=$('lt-title');if(ltTitle)ltTitle.textContent=t('logTimeTitle');
+  const ltDesc=$('lt-desc');if(ltDesc)ltDesc.textContent=t('logTimeDesc');
+  const ltSaveLbl=$('lt-save');if(ltSaveLbl)ltSaveLbl.textContent=t('saveTimeEntry');
   // Submit Receipt modal labels
   setLabel('rm-project',t('project')+' *');
   setLabel('rm-vendor-sel',t('vendor')+' *');
@@ -1764,6 +1790,14 @@ function applyTranslations(){
   const rTitle=document.querySelector('#tab-receipts h2');if(rTitle)rTitle.textContent=t('receiptsTitle');
   const srBtn=$('new-receipt-btn');if(srBtn)srBtn.textContent=t('submitReceipt');
   const abBtn=$('new-bill-btn');if(abBtn)abBtn.textContent=t('addBill');
+  // Receipts filter row
+  const rcptFP=$('rcpt-filter-project');if(rcptFP&&rcptFP.options[0])rcptFP.options[0].textContent=t('allProjectsFilter');
+  const rcptFV=$('rcpt-filter-vendor');if(rcptFV)rcptFV.placeholder=t('vendorPlaceholder');
+  const rcptFLbl=$('rcpt-filter-from-lbl');if(rcptFLbl)rcptFLbl.textContent=t('dateFrom');
+  const rcptTLbl=$('rcpt-filter-to-lbl');if(rcptTLbl)rcptTLbl.textContent=t('dateTo');
+  const rcptMin=$('rcpt-filter-amount-min');if(rcptMin)rcptMin.placeholder=t('minAmount');
+  const rcptMax=$('rcpt-filter-amount-max');if(rcptMax)rcptMax.placeholder=t('maxAmount');
+  const rcptClear=$('rcpt-filter-clear');if(rcptClear)rcptClear.textContent=t('clearFilters');
   // Submit receipt modal
   const rmH=document.querySelector('#receipt-modal h2');if(rmH)rmH.textContent=t('submitReceiptTitle');
   setLabel('rm-amount',t('amount')+' *');
@@ -2072,6 +2106,20 @@ $('log-show-archived').onchange=()=>loadMyLog();
 $('log-emp-filter').onchange=()=>loadMyLog();
 
 // ── RECEIPTS ──────────────────────────────────────────────────────────────────
+function populateReceiptFilterProjects(){
+  const el=$('rcpt-filter-project');if(!el)return;
+  const v=el.value;el.innerHTML=`<option value="">${t('allProjectsFilter')}</option>`;
+  activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
+  el.value=v;
+}
+function receiptTsMs(v){
+  if(!v)return 0;
+  if(typeof v.toMillis==='function')return v.toMillis();
+  if(typeof v.toDate==='function')return v.toDate().getTime();
+  if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000+((v.nanoseconds||0)/1e6);
+  if(typeof v==='string'||typeof v==='number'){const d=new Date(v);if(!isNaN(d))return d.getTime();}
+  return 0;
+}
 function loadReceipts(){
   if(!currentUser)return;
   const q=isPriv()?query(collection(db,'receipts'),limit(100)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(100));
@@ -2079,10 +2127,28 @@ function loadReceipts(){
     const allList=snap.docs.map(d=>({id:d.id,...d.data()}));
     window._allReceipts=allList;
     assignMissingBillNumbers(allList);
-    const el=$('receipts-list');
-    const showArch=isPriv()&&$('rcpt-show-archived')?.checked;
-    const list=showArch?allList:allList.filter(r=>!isArchivedRec(r));
-    if(!list.length){el.innerHTML='<div class="empty">No receipts yet.</div>';return}
+    renderReceipts();
+  });
+}
+function renderReceipts(){
+  const allList=window._allReceipts||[];
+  const el=$('receipts-list');if(!el)return;
+  const showArch=isPriv()&&$('rcpt-show-archived')?.checked;
+  let list=showArch?allList:allList.filter(r=>!isArchivedRec(r));
+  const fProj=$('rcpt-filter-project')?.value||'';
+  const fVendor=($('rcpt-filter-vendor')?.value||'').trim().toLowerCase();
+  const fDateFrom=$('rcpt-filter-date-from')?.value||'';
+  const fDateTo=$('rcpt-filter-date-to')?.value||'';
+  const fAmtMin=parseFloat($('rcpt-filter-amount-min')?.value);
+  const fAmtMax=parseFloat($('rcpt-filter-amount-max')?.value);
+  const filtersActive=fProj||fVendor||fDateFrom||fDateTo||!isNaN(fAmtMin)||!isNaN(fAmtMax);
+  if(fProj)list=list.filter(r=>r.projectId===fProj);
+  if(fVendor)list=list.filter(r=>(r.vendor||'').toLowerCase().includes(fVendor));
+  if(fDateFrom){const fromMs=new Date(fDateFrom+'T00:00:00').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)>=fromMs)}
+  if(fDateTo){const toMs=new Date(fDateTo+'T23:59:59').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)<=toMs)}
+  if(!isNaN(fAmtMin))list=list.filter(r=>parseFloat(r.amount||0)>=fAmtMin);
+  if(!isNaN(fAmtMax))list=list.filter(r=>parseFloat(r.amount||0)<=fAmtMax);
+  if(!list.length){el.innerHTML=`<div class="empty">${filtersActive?t('noMatchingReceipts'):'No receipts yet.'}</div>`;return}
     el.innerHTML=list.map(r=>{
       const isBill=r.billType==='bill';
       const arch=isArchivedRec(r);
@@ -2119,7 +2185,6 @@ function loadReceipts(){
         </div>
       </div>`;
     }).join('');
-  });
 }
 window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
 window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
@@ -2137,11 +2202,13 @@ function scrollToAndFlash(elId){
 function goToReceiptResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="receipts"]')?.click();
+  ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  renderReceipts();
   setTimeout(()=>{
     if(scrollToAndFlash('receipt-row-'+id))return;
     // Might be archived and hidden — reveal archived items then retry.
     const cb=$('rcpt-show-archived');
-    if(cb&&!cb.checked){cb.checked=true;loadReceipts();setTimeout(()=>scrollToAndFlash('receipt-row-'+id),300)}
+    if(cb&&!cb.checked){cb.checked=true;renderReceipts();setTimeout(()=>scrollToAndFlash('receipt-row-'+id),300)}
   },80);
 }
 function goToTimeLogResult(id){
@@ -2262,7 +2329,17 @@ window._markEntry=async(id,type)=>{
   if(type==='paid'){payload.paidBy=userProfile?.name||'';payload.paidAt=serverTimestamp()}
   try{await updateDoc(doc(db,'receipts',id),payload)}catch(e){alert('Update failed: '+e.message)}
 };
-$('rcpt-show-archived').onchange=()=>loadReceipts();
+$('rcpt-show-archived').onchange=()=>renderReceipts();
+$('rcpt-filter-project').onchange=renderReceipts;
+$('rcpt-filter-vendor').oninput=renderReceipts;
+$('rcpt-filter-date-from').onchange=renderReceipts;
+$('rcpt-filter-date-to').onchange=renderReceipts;
+$('rcpt-filter-amount-min').oninput=renderReceipts;
+$('rcpt-filter-amount-max').oninput=renderReceipts;
+$('rcpt-filter-clear').onclick=()=>{
+  ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  renderReceipts();
+};
 
 // ── RECEIPT SUBMIT (field crew) ───────────────────────────────────────────────
 fillAllCodesDropdown('rm-code-pick');
@@ -2870,16 +2947,16 @@ $('et-project').onchange=()=>fillRoomDropdown('et-room',allProjects.find(p=>p.id
 $('et-cancel').onclick=()=>hide('edit-time-modal');
 $('et-save').onclick=async()=>{
   const pid=$('et-project').value,cat=$('et-cat').value,code=$('et-code').value,rm=$('et-room').value,ci=$('et-clockin').value;
-  if(!pid||!cat||!code||!rm||!ci){$('et-err').textContent='Project, cost category, cost code, room, and clock-in are required.';return}
-  $('et-save').disabled=true;$('et-save').textContent='Saving...';
+  if(!pid||!cat||!code||!rm||!ci){$('et-err').textContent=t('etFieldsRequired');return}
+  $('et-save').disabled=true;$('et-save').textContent=t('saving');
   const proj=allProjects.find(p=>p.id===pid);
   const ciDate=new Date($('et-clockin').value),coVal=$('et-clockout').value,coDate=coVal?new Date(coVal):null;
   const durationMs=coDate?coDate-ciDate:null;
   try{
     await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});
     hide('edit-time-modal');
-  }catch(e){$('et-err').textContent='Save failed: '+e.message}
-  $('et-save').disabled=false;$('et-save').textContent='Save Changes';
+  }catch(e){$('et-err').textContent=t('saveFailed')+e.message}
+  $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
 };
 
 // ── ADD MISSED TIME ENTRY (self-service: any user, for themselves) ────────────
@@ -3786,11 +3863,11 @@ $('lt-save').onclick=async()=>{
   const rm=$('lt-room').value;
   const ci=$('lt-clockin').value;
   const co=$('lt-clockout').value;
-  if(!uid||!pid||!cat||!code||!rm||!ci){$('lt-err').textContent='All fields except Clock Out are required.';return}
+  if(!uid||!pid||!cat||!code||!rm||!ci){$('lt-err').textContent=t('ltFieldsRequired');return}
   const ciDate=new Date(ci);
   const coDate=co?new Date(co):null;
-  if(coDate&&coDate<=ciDate){$('lt-err').textContent='Clock-out must be after clock-in.';return}
-  $('lt-save').disabled=true;$('lt-save').textContent='Saving...';
+  if(coDate&&coDate<=ciDate){$('lt-err').textContent=t('clockOutAfterIn');return}
+  $('lt-save').disabled=true;$('lt-save').textContent=t('saving');
   const user=_ltUsers.find(u=>u.id===uid);
   const proj=activeProjects.find(p=>p.id===pid);
   try{
@@ -3815,15 +3892,15 @@ $('lt-save').onclick=async()=>{
       loggedAt:serverTimestamp()
     });
     $('lt-err').textContent='';
-    $('lt-success').textContent='✓ Entry saved for '+user?.name;show('lt-success');
+    $('lt-success').textContent=t('entrySavedFor')+user?.name;show('lt-success');
     setTimeout(()=>hide('lt-success'),4000);
     // Reset form
     $('lt-employee').value='';$('lt-project').value='';$('lt-cat').value='';
     $('lt-code').innerHTML=`<option value="">${t('selectCode')}</option>`;
     $('lt-room').innerHTML=`<option value="">${t('selectRoom')}</option>`;
     $('lt-notes').value='';
-  }catch(e){$('lt-err').textContent='Save failed: '+e.message}
-  $('lt-save').disabled=false;$('lt-save').textContent='Save Time Entry';
+  }catch(e){$('lt-err').textContent=t('saveFailed')+e.message}
+  $('lt-save').disabled=false;$('lt-save').textContent=t('saveTimeEntry');
 };
 
 document.querySelectorAll('.nav-tab').forEach(tab=>{
@@ -3834,6 +3911,7 @@ document.querySelectorAll('.nav-tab').forEach(tab=>{
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
     if(t==='photos'){populatePhotoFilterProjects();}
+    if(t==='receipts'){populateReceiptFilterProjects();}
   }
 });
 $('adm-proj-btn').onclick=()=>{$('adm-proj-btn').classList.add('on');$('adm-users-btn').classList.remove('on');$('adm-vendors-btn').classList.remove('on');$('adm-codes-btn').classList.remove('on');show('adm-projects-panel');hide('adm-users-panel');hide('adm-vendors-panel');hide('adm-codes-panel')};

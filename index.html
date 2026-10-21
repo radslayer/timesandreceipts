@@ -1057,20 +1057,20 @@ function rebuildCostCodeData(){
 }
 function fillAllCodesDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Search / select cost code...</option>';
+  s.innerHTML=`<option value="">${t('searchVendor')}</option>`;
   const codes=(typeFilter?ALL_CODES.filter(c=>(c.type||'labor').trim().toLowerCase()===typeFilter):ALL_CODES).filter(c=>!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code+(typeFilter?'':' ['+c.cat+']');s.appendChild(o)});
 }
 function fillCatDropdown(selId,typeFilter){
   const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Select category...</option>';
+  s.innerHTML=`<option value="">${t('selectCategory')}</option>`;
   const activeCodes=ALL_CODES.filter(c=>!archivedCodes.has(c.code));
   const cats=typeFilter?[...new Set(activeCodes.filter(c=>(c.type||'labor').trim().toLowerCase()===typeFilter).map(c=>c.cat))]:[...new Set(activeCodes.map(c=>c.cat))];
   cats.sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o)});
 }
 function fillCodeDropdown(selId,cat,typeFilter){
   const s=$(selId);if(!s)return;
-  s.innerHTML='<option value="">Select code...</option>';
+  s.innerHTML=`<option value="">${t('selectCode')}</option>`;
   const codes=ALL_CODES.filter(c=>c.cat===cat&&(!typeFilter||(c.type||'labor').trim().toLowerCase()===typeFilter)&&!archivedCodes.has(c.code));
   codes.forEach(c=>{const o=document.createElement('option');o.value=c.code;o.textContent=c.code;s.appendChild(o)});
 }
@@ -1558,6 +1558,9 @@ const T={
     locationOffWarning:'Your phone\'s location is turned off. The app wishes to verify your clock-in/out location. Please turn it on.',
     locationBlockedWarning:'Location access is blocked for this site in your browser. The app wishes to verify your clock-in/out location. Please open your browser\'s site settings and allow Location for this page.',
     employee:'Employee',allTimeLogs:'All Time Logs',
+    whatPurchased:'What was purchased?',selectEmployee:'Select employee...',addCostCode:'Add cost code...',
+    addJobSitePhotos:'Add Job Site Photos',roomArea:'Room / Area',jobSiteNotes:'Job Site Notes',
+    whatsHappeningToday:'What\'s happening on site today...',uploadPhotos:'Upload Photos',
   },
   es:{
     clockIn:'Registrar Entrada',clockOut:'Registrar Salida',clockingOut:'Registrando salida...',
@@ -1593,6 +1596,9 @@ const T={
     locationOffWarning:'La ubicación de tu teléfono está desactivada. La aplicación desea verificar tu ubicación de entrada/salida. Por favor actívala.',
     locationBlockedWarning:'El acceso a la ubicación está bloqueado para este sitio en tu navegador. La aplicación desea verificar tu ubicación de entrada/salida. Por favor abre la configuración del sitio en tu navegador y permite la Ubicación para esta página.',
     employee:'Empleado',allTimeLogs:'Todos los Registros de Tiempo',
+    whatPurchased:'¿Qué se compró?',selectEmployee:'Seleccionar empleado...',addCostCode:'Agregar código de costo...',
+    addJobSitePhotos:'Agregar Fotos del Sitio',roomArea:'Habitación / Área',jobSiteNotes:'Notas del Sitio',
+    whatsHappeningToday:'¿Qué está pasando hoy en la obra?',uploadPhotos:'Subir Fotos',
   }
 };
 
@@ -1620,6 +1626,74 @@ function applyTranslations(){
   setLabel('ci-room',t('room')+' *');
   setLabel('ci-notes',t('notes'));
   const ciBtn=$('clock-in-btn');if(ciBtn)ciBtn.textContent=t('clockInBtn');
+  // Project/category/code/room/vendor-search dropdown placeholder text, all forms
+  ['ci-project','lt-project','rm-project','sp-project','bm-project','tq-project','er-project','et-project'].forEach(id=>{
+    const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectProject');
+  });
+  ['ci-cat','lt-cat','et-cat'].forEach(id=>{
+    const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectCategory');
+  });
+  ['ci-code','lt-code','et-code'].forEach(id=>{
+    const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectCode');
+  });
+  ['ci-room','lt-room','rm-room','sp-room','bm-room','tq-room','er-room','et-room'].forEach(id=>{
+    const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('selectRoom');
+  });
+  ['rm-code-pick','bm-code-pick','tq-code-pick'].forEach(id=>{
+    const el=$(id);if(el&&el.options[0])el.options[0].textContent=t('searchVendor');
+  });
+  const erCodePick=$('er-code-pick');if(erCodePick&&erCodePick.options[0])erCodePick.options[0].textContent=t('addCostCode');
+  const ltEmp=$('lt-employee');if(ltEmp&&ltEmp.options[0])ltEmp.options[0].textContent=t('selectEmployee');
+  // Notes placeholders
+  ['ci-notes','lt-notes','bm-notes','tq-notes'].forEach(id=>{
+    const el=$(id);if(el)el.placeholder=t('notesOptional');
+  });
+  const rmNotes=$('rm-notes');if(rmNotes)rmNotes.placeholder=t('whatPurchased');
+  // Job Site Photos modal
+  const spH=document.querySelector('#photo-modal h2');if(spH)spH.textContent=t('addJobSitePhotos');
+  setLabel('sp-project',t('project')+' *');
+  setLabel('sp-room',t('roomArea')+' *');
+  const spNotesLabel=$('sp-notes')?.closest('.field')?.querySelector('label');
+  if(spNotesLabel){const wc=spNotesLabel.querySelector('#sp-word-count');spNotesLabel.textContent=t('jobSiteNotes')+' ';if(wc)spNotesLabel.appendChild(wc);}
+  const spNotes=$('sp-notes');if(spNotes)spNotes.placeholder=t('whatsHappeningToday');
+  const spCancel=$('sp-cancel');if(spCancel)spCancel.textContent=t('cancel');
+  const spSubmit=$('sp-submit');if(spSubmit)spSubmit.textContent=t('uploadPhotos');
+  // Log Time (admin) modal labels
+  setLabel('lt-employee',t('employee')+' *');
+  setLabel('lt-project',t('project')+' *');
+  setLabel('lt-cat',t('selectCategory').replace('...','')+' *');
+  setLabel('lt-code',t('costCode')+' *');
+  setLabel('lt-room',t('room')+' *');
+  setLabel('lt-notes',t('notes'));
+  // Submit Receipt modal labels
+  setLabel('rm-project',t('project')+' *');
+  setLabel('rm-vendor-sel',t('vendor')+' *');
+  setLabel('rm-code-pick',t('costCodes')+' *');
+  setLabel('rm-notes',t('notes'));
+  // Vendor Bill modal labels
+  setLabel('bm-project',t('project')+' *');
+  setLabel('bm-vendor-sel',t('payTo')+' *');
+  setLabel('bm-room',t('room'));
+  setLabel('bm-code-pick',t('costCodes')+' *');
+  setLabel('bm-notes',t('notes'));
+  setLabel('bm-qbdate',t('qbEntryDate'));
+  setLabel('bm-dbdate',t('dbEntryDate'));
+  // Email Triage Convert modal labels
+  setLabel('tq-project',t('project')+' *');
+  setLabel('tq-vendor-sel',t('payTo')+' *');
+  setLabel('tq-room',t('room'));
+  setLabel('tq-code-pick',t('costCodes')+' *');
+  setLabel('tq-notes',t('notes'));
+  // Edit Receipt modal labels
+  setLabel('er-project',t('project')+' *');
+  setLabel('er-vendor-sel',t('vendor'));
+  setLabel('er-room',t('room'));
+  // Edit Time modal labels
+  setLabel('et-project',t('project')+' *');
+  setLabel('et-cat',t('selectCategory').replace('...','')+' *');
+  setLabel('et-code',t('costCode')+' *');
+  setLabel('et-room',t('room')+' *');
+  setLabel('et-notes',t('notes'));
   // Active session
   const asH=$('clock-out-form')?.querySelector('h2');if(asH)asH.textContent=t('activeSession');
   const coBtn=$('clock-out-btn');if(coBtn)coBtn.textContent=t('clockOutBtn');
@@ -1751,7 +1825,7 @@ function loadProjects(){
     activeProjects=allProjects.filter(p=>p.active!==false);
     ['ci-project','rm-project','bm-project','sp-project'].forEach(id=>{
       const el=$(id);if(!el)return;
-      const v=el.value;el.innerHTML='<option value="">Select project...</option>';
+      const v=el.value;el.innerHTML=`<option value="">${t('selectProject')}</option>`;
       activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o)});
       el.value=v;
     });
@@ -1762,7 +1836,7 @@ function loadProjects(){
 }
 function fillRoomDropdown(selId,proj){
   const rm=proj?.rooms||DEF_ROOMS;
-  const s=$(selId);s.innerHTML='<option value="">Select room...</option>';
+  const s=$(selId);s.innerHTML=`<option value="">${t('selectRoom')}</option>`;
   rm.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;s.appendChild(o)});
   const na=document.createElement('option');na.value='N/A';na.textContent='N/A';s.appendChild(na);
 }
@@ -1837,7 +1911,7 @@ $('clock-in-btn').onclick=async()=>{
   const proj=activeProjects.find(p=>p.id===pid);
   $('clock-in-btn').disabled=true;$('clock-in-btn').textContent='Clocking in...';
   await addDoc(collection(db,'timeLogs'),{userId:currentUser.uid,userName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('ci-notes').value,clockIn:serverTimestamp(),clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,clockInGeoStatus:geoSt(currentPos,proj),status:'active'});
-  $('ci-notes').value='';$('ci-code').innerHTML='<option value="">Select code...</option>';$('ci-cat').value='';
+  $('ci-notes').value='';$('ci-code').innerHTML=`<option value="">${t('selectCode')}</option>`;$('ci-cat').value='';
   $('clock-in-btn').disabled=false;$('clock-in-btn').textContent='Clock In';
 };
 window._quickClockOut=async(mode)=>{
@@ -2488,7 +2562,7 @@ window._tqOpen=id=>{
   tqCurrentItem=it;
   tqSelectedCodes=[];renderCodeChips('tq-codes-chips',tqSelectedCodes,window._tqRemove);
   $('tq-type').value='receipt';
-  $('tq-project').innerHTML='<option value="">Select project...</option>';
+  $('tq-project').innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('tq-project').appendChild(o)});
   fillRoomDropdown('tq-room',null);
   $('tq-vendor-sel').value='';hide('tq-vendor-new');
@@ -2562,7 +2636,7 @@ $('tq-save').onclick=async()=>{
 fillAllCodesDropdown('bm-code-pick');
 $('new-bill-btn').onclick=async()=>{
   bmSelectedCodes=[];renderCodeChips('bm-codes-chips',bmSelectedCodes,window._bmRemove);
-  $('bm-project').innerHTML='<option value="">Select project...</option>';
+  $('bm-project').innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('bm-project').appendChild(o)});
   ['bm-amount','bm-notes'].forEach(id=>$(id).value='');
   $('bm-invoicedate').value='';$('bm-qbdate').value='';$('bm-dbdate').value='';$('bm-paiddate').value='';
@@ -2658,7 +2732,7 @@ window._er=id=>{
   // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
   $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
   if(isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
-  const ep=$('er-project');ep.innerHTML='<option value="">Select project...</option>';
+  const ep=$('er-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
   fillRoomDropdown('er-room',allProjects.find(p=>p.id===r.projectId));
@@ -2712,7 +2786,7 @@ window._et=id=>{
   const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
   editingTimeId=id;
-  const ep=$('et-project');ep.innerHTML='<option value="">Select project...</option>';
+  const ep=$('et-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
   fillRoomDropdown('et-room',allProjects.find(p=>p.id===r.projectId));
@@ -3573,11 +3647,11 @@ function initLogTimeForm(){
   // Populate employee dropdown from all active users
   getDocs(collection(db,'users')).then(snap=>{
     _ltUsers=snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.name&&u.deactivated!==true).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-    const sel=$('lt-employee');sel.innerHTML='<option value="">Select employee...</option>';
+    const sel=$('lt-employee');sel.innerHTML=`<option value="">${t('selectEmployee')}</option>`;
     _ltUsers.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;sel.appendChild(o)});
   });
   // Populate projects
-  const ps=$('lt-project');ps.innerHTML='<option value="">Select project...</option>';
+  const ps=$('lt-project');ps.innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ps.appendChild(o)});
   // Populate category
   fillCatDropdown('lt-cat','labor');
@@ -3629,8 +3703,8 @@ $('lt-save').onclick=async()=>{
     setTimeout(()=>hide('lt-success'),4000);
     // Reset form
     $('lt-employee').value='';$('lt-project').value='';$('lt-cat').value='';
-    $('lt-code').innerHTML='<option value="">Select code...</option>';
-    $('lt-room').innerHTML='<option value="">Select room...</option>';
+    $('lt-code').innerHTML=`<option value="">${t('selectCode')}</option>`;
+    $('lt-room').innerHTML=`<option value="">${t('selectRoom')}</option>`;
     $('lt-notes').value='';
   }catch(e){$('lt-err').textContent='Save failed: '+e.message}
   $('lt-save').disabled=false;$('lt-save').textContent='Save Time Entry';

@@ -3715,13 +3715,25 @@ function isLastPaydayOfMonth(payday) {
   return next.getMonth() !== payday.getMonth();
 }
 
+// "Next Payroll" means the very next payroll RUN to actually happen -- found by comparing
+// paydays to today, not by a fixed offset from the current period's index. The ~20-day lag
+// (period end -> payday, rounded forward to the next Friday) means payday order does not line
+// up 1:1 with simple period-index steps back from today's period, so a fixed todayIdx-1/-2
+// offset can point at the wrong period (verified by sweeping a year of dates; see commit notes).
+function findNextPayrollIndex(today) {
+  const todayIdx = getPeriodIndex(today);
+  let idx = todayIdx - 4; // comfortable margin -- payroll lag never exceeds ~3 periods
+  while (getPeriodDates(idx).payday <= today) idx++;
+  return idx;
+}
 function buildPayrollPresets() {
   const today = new Date();
   const todayIdx = getPeriodIndex(today);
+  const nextPayIdx = findNextPayrollIndex(today);
   const presets = [
     { label: 'Current Period', idx: todayIdx },
-    { label: 'Next Payroll', idx: todayIdx - 1 },
-    { label: 'Previous Payroll', idx: todayIdx - 2 },
+    { label: 'Next Payroll', idx: nextPayIdx },
+    { label: 'Previous Payroll', idx: nextPayIdx - 1 },
   ];
   const wrap = $('payroll-presets');
   wrap.innerHTML = presets.map((p, i) => {

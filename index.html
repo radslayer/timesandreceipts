@@ -1075,10 +1075,32 @@ function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 // A paid vendor bill is locked: bookkeeper cannot edit or archive it. Admin can unlock by clearing the paid date.
 function isLockedBill(r){return !!r?.paidDate}
 function isArchivedRec(r){return r?.archived===true}
+// ── PAYROLL LOCK HELPERS ─────────────────────────────────────────────────────
+// A locked payroll period (payrollRuns/payrollLocks doc, keyed "<from>_<to>") freezes the time
+// entries it was calculated from: they can no longer be edited, archived, or deleted until an
+// admin unlocks that period. payrollLocks holds only {from,to,locked} (readable by every user, so
+// this check works for everyone's own entries too); the full pay-rate/financial snapshot lives in
+// payrollRuns (admin/bookkeeper read only).
+function periodKey(from,to){return from+'_'+to}
+function periodRangeMs(from,to){return{fromMs:new Date(from+'T00:00:00').getTime(),toMs:new Date(to+'T23:59:59.999').getTime()}}
+function loadPayrollLocks(){
+  onSnapshot(collection(db,'payrollLocks'),snap=>{
+    window._payrollLockedRanges=snap.docs.map(d=>d.data()).filter(x=>x.locked===true).map(x=>({...periodRangeMs(x.from,x.to),from:x.from,to:x.to}));
+    if(typeof renderMyLog==='function'){try{renderMyLog()}catch(e){}}
+    if(typeof renderReport==='function'&&window._rptData?.length){try{renderReport(window._rptData)}catch(e){}}
+  },()=>{/* non-priv denial or offline: edit-lock just won't show until this resolves */});
+}
+function isPayrollLocked(entry){
+  const ms=tlTsMs(entry?.clockIn);
+  if(!ms)return false;
+  return (window._payrollLockedRanges||[]).some(p=>ms>=p.fromMs&&ms<=p.toMs);
+}
+function payrollLockBadge(){return'<span class="badge" style="background:#f5dada;color:var(--red)" title="Payroll for this period is locked">&#128274; Payroll Locked</span>'}
 window._archiveRec=async(col,id,archive)=>{
   const list=col==='receipts'?(window._allReceipts||[]):[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=list.find(x=>x.id===id);
   if(archive&&r&&isLockedBill(r)&&!isAdmin()){alert('This record has been paid and is locked. Ask an admin to unlock it.');return}
+  if(col==='timeLogs'&&archive&&r&&isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before archiving.");return}
   const what=col==='receipts'?'record':'time entry';
   if(archive&&!confirm('Archive this '+what+'? It will be hidden from lists and excluded from reports and payroll. It can be restored later.'))return;
   try{
@@ -1960,7 +1982,7 @@ onAuthStateChanged(auth,async u=>{
   }});
   // Auto-save user's timezone
   try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)updateDoc(doc(db,'users',u.uid),{timezone:tz})}catch(e){}
-  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadSitePhotos();loadVendors();loadCustomCodes();loadEmailTriage();
+  loadProjects();loadActiveSession();loadMyLog();loadReceipts();loadSitePhotos();loadVendors();loadCustomCodes();loadEmailTriage();loadPayrollLocks();
 });
 
 function applyProfile(){
@@ -2243,13 +2265,14 @@ function renderMyLog(){
     const isOwn=r.userId===currentUser.uid;
     const arch=isArchivedRec(r);
     const canEdit=!arch&&(isAdmin()||isBookkeeper()||(isOwn&&withinWindow));
-    const canDel=isAdmin();
-    const editBtn=arch?'':`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(!canEdit&&!isPriv())?'disabled style="opacity:0.4;cursor:not-allowed"':''}>Edit</button>`;
+    const payrollLocked=isPayrollLocked(r);
+    const canDel=isAdmin()&&!payrollLocked;
+    const editBtn=arch?'':`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${((!canEdit&&!isPriv())||payrollLocked)?'disabled style="opacity:0.4;cursor:not-allowed" title="Payroll for this period is locked"':''}>Edit</button>`;
     const archBtn=arch
       ?(isAdmin()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
-      :(isPriv()?` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'');
+      :(isPriv()?` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" ${payrollLocked?'disabled title="Payroll for this period is locked"':''} onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'');
     return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':''}">
-    <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
+    <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}${!arch&&payrollLocked?'<br>'+payrollLockBadge():''}</td>
     ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
     <td>${r.projectName||'--'}</td>
     <td class="cc-cell" style="font-size:11px" title="${esc(r.costCode||r.scope||'')}"><span class="tag">${r.costCode||r.scope||''}</span></td>
@@ -3376,11 +3399,17 @@ $('er-save').onclick=async()=>{
 
 // ── EDIT TIME LOG ─────────────────────────────────────────────────────────────
 fillCatDropdown('et-cat','labor');
-window._dt=async(id)=>{if(!confirm('Delete this time entry? This cannot be undone.'))return;try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}};
+window._dt=async(id)=>{
+  const r=[...(window._allTimeLogs||[]),...(window._rptData||[])].find(x=>x.id===id);
+  if(r&&isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before deleting.");return}
+  if(!confirm('Delete this time entry? This cannot be undone.'))return;
+  try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}
+};
 let editingTimeId=null,editingTimeUserId=null;
 window._et=id=>{
   const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
+  if(isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before editing.");return}
   editingTimeId=id;editingTimeUserId=r.userId||currentUser.uid;
   const ep=$('et-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
@@ -3579,6 +3608,7 @@ function renderReport(data){
   h+='</tr></thead><tbody>';
   data.forEach(r=>{
     if(it){
+      const payrollLocked=isPayrollLocked(r);
       h+=`<tr>
         <td style="white-space:nowrap">${fmtDate(r.clockIn)}</td>
         <td>${r.userName||'--'}</td>
@@ -3592,9 +3622,9 @@ function renderReport(data){
         <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
         <td class="notes-cell" style="font-size:11px;max-width:220px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
         <td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>
-        <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
+        <td style="white-space:nowrap">${archivedBadge(r)}${!isArchivedRec(r)&&payrollLocked?payrollLockBadge():''}${isArchivedRec(r)
           ?(isAdmin()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
-          :(isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
+          :(isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${payrollLocked?'disabled style="opacity:0.4;cursor:not-allowed" title="Payroll for this period is locked"':''}>Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" ${payrollLocked?'disabled title="Payroll for this period is locked"':''} onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'')}${isAdmin()&&!payrollLocked?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }else{
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
@@ -3823,8 +3853,20 @@ $('pr-run-btn').onclick = async () => {
   const from = $('pr-from').value;
   const to = $('pr-to').value;
   if (!from || !to) { alert('Select a pay period date range.'); return; }
-  $('pr-run-btn').disabled = true; $('pr-run-btn').textContent = 'Running...';
+  $('pr-run-btn').disabled = true; $('pr-run-btn').textContent = 'Checking...';
   $('pr-results').innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const lockSnap = await getDoc(doc(db,'payrollRuns',periodKey(from,to)));
+    if (lockSnap.exists() && lockSnap.data().locked === true) {
+      renderLockedPayrollView(lockSnap.data());
+      $('pr-run-btn').disabled = false; $('pr-run-btn').textContent = 'Run Payroll Report';
+      return;
+    }
+  } catch(e) {
+    // If the lock check itself fails (offline, permissions), fall through to a live trial run
+    // rather than silently blocking the whole report.
+  }
+  $('pr-run-btn').textContent = 'Running...';
 
   const includeSpiff = $('pr-include-spiff').checked;
   const spiffFrom = $('pr-spiff-from').value;
@@ -4007,6 +4049,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
     </div>
     <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)">Export CSV</button>
+    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px">&#128274; Lock Payroll Period</button>
   </div>`;
 
   $('pr-results').innerHTML = html;
@@ -4031,6 +4074,126 @@ window._csvPayroll = () => {
   });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_payroll_'+d.from+'_to_'+d.to+'.csv';a.click();
+};
+
+// ── PAYROLL LOCKING ───────────────────────────────────────────────────────────
+// Locking writes a permanent, self-contained snapshot (payrollRuns) plus a minimal
+// lock-status record (payrollLocks, used by isPayrollLocked() for everyone) so the exact
+// numbers on record at lock time never drift even if the underlying time entries are later
+// edited (which they can't be anymore anyway, once locked) or rates change for future periods.
+function buildPayrollSnapshotRows(d) {
+  const rows = [];
+  d.entries.forEach(e => {
+    const user = d.users.find(u=>(u.name||'').trim()===(e.userName||'').trim()) || {};
+    const baseRate = parseFloat(user.baseRate||0);
+    const ot = d.otMap[e.id] || {reg:(e.durationMs||0)/3600000,ot:0,dt:0};
+    const billable = effectiveBillable(e);
+    const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
+    const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
+    const basePay = baseRate?(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2):0;
+    const spiffHrs = d.includeSpiff?(d.spiffByEmp[e.userName||'']||0):0;
+    const spiffPay = (d.includeSpiff&&user.spiffEligible)?spiffHrs*(parseFloat(user.spiffRate)||0):0;
+    rows.push({
+      employee:e.userName||'', employeeType:user.employeeType==='contractor'?'Contractor':'W-2',
+      entryId:e.id, date:cin.toLocaleDateString(), day:cin.toLocaleDateString('en-US',{weekday:'short'}),
+      project:e.projectName||'', costCode:e.costCode||e.scope||'', billable:billable?'Y':'N',
+      clockIn:cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),
+      clockOut:cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),
+      regHrs:+ot.reg.toFixed(4), otHrs:+ot.ot.toFixed(4), dtHrs:+ot.dt.toFixed(4),
+      baseRate, basePay:+basePay.toFixed(2),
+      spiffEligible:user.spiffEligible?'Y':'N', spiffRate:parseFloat(user.spiffRate)||0,
+      spiffHrsMonth:+spiffHrs.toFixed(4), spiffPay:+spiffPay.toFixed(2)
+    });
+  });
+  return rows;
+}
+function buildPayrollEmpTotals(rows) {
+  const byEmp = {};
+  rows.forEach(r => {
+    if (!byEmp[r.employee]) byEmp[r.employee] = {employee:r.employee,employeeType:r.employeeType,baseRate:r.baseRate,spiffEligible:r.spiffEligible,spiffRate:r.spiffRate,regHrs:0,otHrs:0,dtHrs:0,basePay:0,spiffHrs:r.spiffHrsMonth,spiffPay:r.spiffPay};
+    const b = byEmp[r.employee];
+    b.regHrs += r.regHrs; b.otHrs += r.otHrs; b.dtHrs += r.dtHrs; b.basePay += r.basePay;
+  });
+  return Object.values(byEmp).map(b=>({...b,regHrs:+b.regHrs.toFixed(2),otHrs:+b.otHrs.toFixed(2),dtHrs:+b.dtHrs.toFixed(2),basePay:+b.basePay.toFixed(2),totalPay:+(b.basePay+b.spiffPay).toFixed(2)})).sort((a,b)=>a.employee.localeCompare(b.employee));
+}
+window._lockPayroll = async (btnEl) => {
+  const d = window._prData; if (!d) { alert('Run the report first.'); return; }
+  if (!confirm("Lock this payroll period? Once locked it can't be re-run or recalculated, and the time entries in it can no longer be edited, archived, or deleted \u2014 until an admin unlocks it.")) return;
+  const rows = buildPayrollSnapshotRows(d);
+  const empTotals = buildPayrollEmpTotals(rows);
+  const grandRegPay = empTotals.reduce((s,b)=>s+b.basePay,0);
+  const grandSpiff = empTotals.reduce((s,b)=>s+b.spiffPay,0);
+  const entryIds = d.entries.map(e=>e.id);
+  const spiffEntryIds = (d.spiffEntries||[]).map(e=>e.id);
+  const periodId = periodKey(d.from,d.to);
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Locking...'; }
+  try {
+    await setDoc(doc(db,'payrollRuns',periodId), {
+      from:d.from, to:d.to, includeSpiff:d.includeSpiff, spiffFrom:d.spiffFrom||null, spiffTo:d.spiffTo||null,
+      locked:true, lockedBy:userProfile?.name||currentUser.email||'', lockedAt:serverTimestamp(),
+      unlockedBy:null, unlockedAt:null,
+      entryIds, spiffEntryIds, rows, empTotals,
+      grandRegPay:+grandRegPay.toFixed(2), grandSpiff:+grandSpiff.toFixed(2), grandTotal:+(grandRegPay+grandSpiff).toFixed(2)
+    }, {merge:true});
+    await setDoc(doc(db,'payrollLocks',periodId), {
+      from:d.from, to:d.to, locked:true, lockedBy:userProfile?.name||currentUser.email||'', lockedAt:serverTimestamp()
+    }, {merge:true});
+    const snap = await getDoc(doc(db,'payrollRuns',periodId));
+    renderLockedPayrollView(snap.data());
+  } catch(e) {
+    alert('Lock failed: '+e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '\u{1F512} Lock Payroll Period'; }
+  }
+};
+window._unlockPayroll = async (btnEl, from, to) => {
+  if (!isAdmin()) return;
+  if (!confirm('Unlock this payroll period? This allows it to be recalculated, and the time entries in it become editable again. The current locked snapshot stays on file for reference until it is re-locked.')) return;
+  const periodId = periodKey(from,to);
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Unlocking...'; }
+  try {
+    await updateDoc(doc(db,'payrollRuns',periodId), {locked:false, unlockedBy:userProfile?.name||currentUser.email||'', unlockedAt:serverTimestamp()});
+    await updateDoc(doc(db,'payrollLocks',periodId), {locked:false});
+    $('pr-results').innerHTML = '<div class="empty">Payroll period unlocked. Click Run Payroll Report to recalculate.</div>';
+  } catch(e) {
+    alert('Unlock failed: '+e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Unlock'; }
+  }
+};
+function renderLockedPayrollView(rec) {
+  window._prLockedData = rec;
+  const lockedAtStr = rec.lockedAt?.toDate ? rec.lockedAt.toDate().toLocaleString() : '';
+  let html = `<div class="card" style="background:var(--ink);color:#fff;margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);margin-bottom:8px">&#128274; Payroll Locked \u2014 ${rec.from} to ${rec.to}</div>
+    <div style="font-size:13px;opacity:.85">Locked by ${esc(rec.lockedBy||'')}${lockedAtStr?' on '+lockedAtStr:''}. This period's payroll has been finalized and can't be re-run${isAdmin()?'':' \u2014 only an admin can unlock it'}.</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px">
+      <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Base Pay</div><div style="font-size:22px;font-weight:600">$${(rec.grandRegPay||0).toFixed(2)}</div></div>
+      ${rec.includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${(rec.grandSpiff||0).toFixed(2)}</div></div>`:''}
+      <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(rec.grandTotal||0).toFixed(2)}</div></div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-outline" onclick="window._csvLockedPayroll()" style="color:#fff;border-color:rgba(255,255,255,.4)">Export CSV</button>
+      ${isAdmin()?`<button class="btn btn-outline" onclick="window._unlockPayroll(this,'${rec.from}','${rec.to}')" style="margin-left:8px;color:#fff;border-color:rgba(255,255,255,.4)">Unlock</button>`:''}
+    </div>
+  </div>`;
+  (rec.empTotals||[]).forEach(b => {
+    html += `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:16px">${esc(b.employee)}</div>
+          <div style="font-size:12px;color:var(--muted)">${b.employeeType} \u00b7 ${b.regHrs} reg${b.otHrs?' \u00b7 '+b.otHrs+' OT':''}${b.dtHrs?' \u00b7 '+b.dtHrs+' DT':''}${b.spiffEligible==='Y'?' \u00b7 '+b.spiffHrs+' spiff hrs':''}</div>
+        </div>
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--green)">$${b.totalPay.toFixed(2)}</div>
+      </div>
+    </div>`;
+  });
+  $('pr-results').innerHTML = html;
+}
+window._csvLockedPayroll = () => {
+  const rec = window._prLockedData; if (!rec) return;
+  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
+  const rows = (rec.rows||[]).map(r=>[r.employee,r.employeeType,r.date,r.day,r.project,r.costCode,r.billable,r.clockIn,r.clockOut,r.regHrs.toFixed(4),r.otHrs.toFixed(4),r.dtHrs.toFixed(4),r.baseRate,r.basePay.toFixed(2),r.spiffEligible,r.spiffRate,r.spiffHrsMonth.toFixed(4),r.spiffPay.toFixed(2)]);
+  const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_payroll_'+rec.from+'_to_'+rec.to+'_LOCKED.csv';a.click();
 };
 
 // ── PAY RATE MODAL ────────────────────────────────────────────────────────────

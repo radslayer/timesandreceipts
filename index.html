@@ -67,6 +67,14 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
   .tbl .cc-cell,.tbl .notes-cell{max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap!important}
   .tbl .cc-cell .tag{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 }
+.th-sortable{cursor:pointer;user-select:none}
+.th-sortable.sorted{color:var(--ink)}
+.sort-arrow{font-size:8px;margin-left:3px;opacity:.6}
+.col-filter-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:9px;padding:0 0 0 4px;vertical-align:middle}
+.col-filter-btn.active{color:var(--gold)}
+.col-filter-pop{position:fixed;z-index:250;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px;width:200px;max-height:280px;overflow-y:auto;font-size:12px}
+.col-filter-pop label{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-weight:400;color:var(--ink)}
+.col-filter-pop .cf-actions{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
 .tag{display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-right:3px;margin-bottom:2px}
 .badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:20px}
 .badge.submitted{background:#fef3d4;color:var(--amber)}
@@ -235,6 +243,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <h2 style="margin:0">Receipts &amp; Bills</h2>
         <div style="display:flex;gap:8px;align-items:center">
+          <div class="seg priv-only hidden" id="rcpt-view-toggle" style="margin-bottom:0;margin-right:6px">
+            <button type="button" class="seg-btn on" id="rcpt-view-cards-btn">Cards</button>
+            <button type="button" class="seg-btn" id="rcpt-view-table-btn">Table</button>
+          </div>
           <label class="priv-only hidden" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-right:6px"><input type="checkbox" id="rcpt-show-archived" style="width:auto;margin:0"> Show archived</label>
           <button class="btn btn-outline priv-only hidden" id="new-bill-btn" style="width:auto;padding:10px 18px">+ Add Bill</button>
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
@@ -258,6 +270,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         <button type="button" class="btn btn-outline btn-sm" id="rcpt-filter-clear" style="margin-left:auto">Clear Filters</button>
       </div>
       <div class="card"><div id="receipts-list"><div class="empty">No receipts yet.</div></div></div>
+      <div class="card hidden" id="receipts-table-wrap"></div>
     </div>
 
     <!-- JOB SITE PHOTOS TAB -->
@@ -2319,6 +2332,14 @@ function renderReceipts(){
       }
     }
   }
+  const rcptTableWrap=$('receipts-table-wrap');
+  if(_rcptTableView&&isPriv()){
+    el.classList.add('hidden');
+    if(rcptTableWrap){rcptTableWrap.classList.remove('hidden');renderReceiptsTable(list)}
+    return;
+  }
+  if(rcptTableWrap)rcptTableWrap.classList.add('hidden');
+  el.classList.remove('hidden');
   if(!list.length){el.innerHTML=`<div class="empty">${filtersActive?t('noMatchingReceipts'):'No receipts yet.'}</div>`;return}
     el.innerHTML=list.map(r=>{
       const isBill=r.billType==='bill';
@@ -2358,6 +2379,127 @@ function renderReceipts(){
       </div>`;
     }).join('');
 }
+
+// ── RECEIPTS TABLE VIEW (admin/bookkeeper Excel-style sortable/filterable table, added 2026-10-22) ──
+let _rcptTableView=false;
+let _rcptSort={key:null,dir:'asc'};
+let _rcptColFilters={};
+const RCPT_TABLE_COLS=[
+  {key:'billNumber',label:'Receipt #',
+    sortValue:r=>r.billNumber||'',
+    filterValue:r=>r.billNumber?('#'+r.billNumber):'(none)',
+    display:r=>r.billNumber?('#'+esc(r.billNumber)):'--'},
+  {key:'amount',label:'Amt $',
+    sortValue:r=>parseFloat(r.amount||0),
+    filterValue:r=>'$'+parseFloat(r.amount||0).toFixed(2),
+    display:r=>'$'+parseFloat(r.amount||0).toFixed(2)},
+  {key:'vendor',label:'Vendor',
+    sortValue:r=>(r.vendor||'').toLowerCase(),
+    filterValue:r=>r.vendor||'(none)',
+    display:r=>esc(r.vendor||'--')},
+  {key:'job',label:'Job',
+    sortValue:r=>(r.projectName||'').toLowerCase(),
+    filterValue:r=>r.projectName||'(none)',
+    display:r=>esc(r.projectName||'--')},
+  {key:'date',label:'Date',
+    sortValue:r=>receiptTsMs(r.submittedAt||r.createdAt)||0,
+    filterValue:r=>fmtDate(r.submittedAt||r.createdAt),
+    display:r=>fmtDate(r.submittedAt||r.createdAt)},
+  {key:'qb',label:'QB',
+    sortValue:r=>r.qbEntryDate?1:0,
+    filterValue:r=>r.qbEntryDate?'Done':'Pending',
+    display:r=>r.qbEntryDate?`<span style="color:var(--green)">&#10003; ${esc(r.qbEntryDate)}</span>`:`<span style="color:var(--amber)">--</span>`},
+  {key:'db',label:'DB',
+    sortValue:r=>r.dbEntryDate?1:0,
+    filterValue:r=>r.dbEntryDate?'Done':'Pending',
+    display:r=>r.dbEntryDate?`<span style="color:var(--green)">&#10003; ${esc(r.dbEntryDate)}</span>`:`<span style="color:var(--amber)">--</span>`},
+  {key:'paid',label:'Paid',
+    sortValue:r=>r.paidDate?1:0,
+    filterValue:r=>r.paidDate?'Done':'Pending',
+    display:r=>r.paidDate?`<span style="color:var(--green)">&#10003; ${esc(r.paidDate)}</span>`:`<span style="color:var(--amber)">--</span>`},
+  {key:'inv',label:'Inv.',
+    sortValue:r=>r.invoicedClientDate?1:0,
+    filterValue:r=>r.invoicedClientDate?'Done':'Pending',
+    display:r=>r.invoicedClientDate?`<span style="color:var(--green)">&#10003; ${esc(r.invoicedClientDate)}</span>`:`<span style="color:var(--amber)">--</span>`}
+];
+function rcptColDistinctValues(list,col){
+  const vals=new Set();
+  list.forEach(r=>vals.add(col.filterValue(r)));
+  return[...vals].sort();
+}
+function closeColFilterPopover(){
+  const p=document.getElementById('rcpt-col-filter-pop');if(p)p.remove();
+  document.removeEventListener('click',onDocClickCloseFilter,true);
+}
+function onDocClickCloseFilter(e){
+  const p=document.getElementById('rcpt-col-filter-pop');
+  if(p&&!p.contains(e.target)&&!e.target.closest('.col-filter-btn'))closeColFilterPopover();
+}
+function openColFilterPopover(col,btnEl,baseList){
+  closeColFilterPopover();
+  const distinct=rcptColDistinctValues(baseList,col);
+  const activeSet=_rcptColFilters[col.key];
+  const pop=document.createElement('div');
+  pop.className='col-filter-pop';
+  pop.id='rcpt-col-filter-pop';
+  const rect=btnEl.getBoundingClientRect();
+  pop.style.top=(rect.bottom+4)+'px';
+  pop.style.left=Math.min(rect.left,window.innerWidth-220)+'px';
+  pop.innerHTML=`<label style="font-weight:600;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px"><input type="checkbox" id="cf-select-all" ${!activeSet||activeSet.size===distinct.length?'checked':''}> Select All</label>
+    ${distinct.map(v=>`<label><input type="checkbox" class="cf-opt" value="${esc(v)}" ${!activeSet||activeSet.has(v)?'checked':''}> ${esc(v)}</label>`).join('')}
+    <div class="cf-actions"><button class="btn btn-outline btn-sm" type="button" id="cf-clear">Clear</button><button class="btn btn-gold btn-sm" type="button" id="cf-apply">Apply</button></div>`;
+  document.body.appendChild(pop);
+  $('cf-select-all').onchange=e=>{document.querySelectorAll('#rcpt-col-filter-pop .cf-opt').forEach(cb=>cb.checked=e.target.checked)};
+  $('cf-clear').onclick=()=>{delete _rcptColFilters[col.key];closeColFilterPopover();renderReceipts()};
+  $('cf-apply').onclick=()=>{
+    const checked=[...document.querySelectorAll('#rcpt-col-filter-pop .cf-opt:checked')].map(cb=>cb.value);
+    if(checked.length===distinct.length)delete _rcptColFilters[col.key];
+    else _rcptColFilters[col.key]=new Set(checked);
+    closeColFilterPopover();
+    renderReceipts();
+  };
+  setTimeout(()=>document.addEventListener('click',onDocClickCloseFilter,true),0);
+}
+function renderReceiptsTable(baseList){
+  const wrap=$('receipts-table-wrap');if(!wrap)return;
+  let rows=baseList;
+  RCPT_TABLE_COLS.forEach(col=>{
+    const set=_rcptColFilters[col.key];
+    if(set)rows=rows.filter(r=>set.has(col.filterValue(r)));
+  });
+  if(_rcptSort.key){
+    const col=RCPT_TABLE_COLS.find(c=>c.key===_rcptSort.key);
+    rows=[...rows].sort((a,b)=>{
+      const av=col.sortValue(a),bv=col.sortValue(b);
+      if(av<bv)return _rcptSort.dir==='asc'?-1:1;
+      if(av>bv)return _rcptSort.dir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  const theadHtml='<tr>'+RCPT_TABLE_COLS.map(col=>{
+    const sorted=_rcptSort.key===col.key;
+    const arrow=sorted?(_rcptSort.dir==='asc'?'&#9650;':'&#9660;'):'';
+    const filtered=!!_rcptColFilters[col.key];
+    return`<th><span class="th-sortable${sorted?' sorted':''}" data-sort-key="${col.key}">${col.label}<span class="sort-arrow">${arrow}</span></span><button type="button" class="col-filter-btn${filtered?' active':''}" data-filter-key="${col.key}" title="Filter">&#9662;</button></th>`;
+  }).join('')+'<th></th></tr>';
+  const tbodyHtml=rows.length?rows.map(r=>`<tr id="rcpt-table-row-${r.id}">${RCPT_TABLE_COLS.map(col=>`<td style="font-size:12px;white-space:nowrap">${col.display(r)}</td>`).join('')}<td><button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button></td></tr>`).join('')
+    :`<tr><td colspan="${RCPT_TABLE_COLS.length+1}" class="empty">No matching receipts.</td></tr>`;
+  wrap.innerHTML=`<div style="overflow-x:auto"><table class="tbl"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table></div>`;
+  wrap.querySelectorAll('.th-sortable').forEach(elm=>elm.onclick=()=>{
+    const key=elm.dataset.sortKey;
+    if(_rcptSort.key===key)_rcptSort.dir=_rcptSort.dir==='asc'?'desc':'asc';
+    else{_rcptSort.key=key;_rcptSort.dir='asc'}
+    renderReceiptsTable(baseList);
+  });
+  wrap.querySelectorAll('.col-filter-btn').forEach(btn=>btn.onclick=e=>{
+    e.stopPropagation();
+    const col=RCPT_TABLE_COLS.find(c=>c.key===btn.dataset.filterKey);
+    openColFilterPopover(col,btn,baseList);
+  });
+}
+$('rcpt-view-cards-btn').onclick=()=>{_rcptTableView=false;$('rcpt-view-cards-btn').classList.add('on');$('rcpt-view-table-btn').classList.remove('on');closeColFilterPopover();renderReceipts()};
+$('rcpt-view-table-btn').onclick=()=>{_rcptTableView=true;$('rcpt-view-table-btn').classList.add('on');$('rcpt-view-cards-btn').classList.remove('on');renderReceipts()};
+
 window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
 window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
 $('lightbox').onclick=()=>hide('lightbox');
@@ -2374,6 +2516,7 @@ function scrollToAndFlash(elId){
 function goToReceiptResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="receipts"]')?.click();
+  if(_rcptTableView){_rcptTableView=false;$('rcpt-view-cards-btn')?.classList.add('on');$('rcpt-view-table-btn')?.classList.remove('on')}
   ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
   ['rcpt-filter-missing-inv','rcpt-filter-missing-qb','rcpt-filter-missing-db'].forEach(fid=>{const el=$(fid);if(el)el.checked=false});
   renderReceipts();

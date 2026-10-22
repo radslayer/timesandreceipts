@@ -211,11 +211,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <span style="font-size:12px;color:var(--muted)">&ndash;</span>
             <input type="number" id="tl-filter-dur-max" placeholder="Max" style="width:58px">
           </div>
+          <div class="field field-auto priv-only hidden" style="margin-bottom:0"><select id="tl-filter-billable" style="width:150px"><option value="">All (Billable + Not)</option><option value="yes">Billable Only</option><option value="no">Not Billable</option></select></div>
           <button type="button" class="btn btn-outline btn-sm" id="tl-filter-clear" style="margin-left:auto">Clear Filters</button>
         </div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location">Location</th><th></th></tr></thead>
+            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location">Location</th><th id="th-notes">Notes</th><th id="th-billable" class="priv-only hidden">Billable</th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
@@ -301,11 +302,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <!-- TIME LOG / RECEIPTS PANEL -->
       <div id="rpt-standard-panel">
         <div class="card">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px">
             <div class="field" style="margin-bottom:0"><label>Project</label><select id="rpt-project"><option value="">All Projects</option></select></div>
             <div class="field" style="margin-bottom:0"><label>Employee</label><select id="rpt-employee"><option value="">All Employees</option></select></div>
             <div class="field" id="rpt-cat-wrap" style="margin-bottom:0"><label>Cost Category</label><select id="rpt-cat"><option value="">All Categories</option></select></div>
             <div class="field" style="margin-bottom:0"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
+            <div class="field" id="rpt-billable-wrap" style="margin-bottom:0"><label>Billable</label><select id="rpt-billable"><option value="">All</option><option value="yes">Billable Only</option><option value="no">Not Billable</option></select></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
             <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
@@ -1823,6 +1825,7 @@ function applyTranslations(){
   const thOut=$('th-out');if(thOut)thOut.textContent=t('outTime');
   const thDur=$('th-duration');if(thDur)thDur.textContent=t('duration');
   const thLoc=$('th-location');if(thLoc)thLoc.textContent=t('location');
+  const thNotes=$('th-notes');if(thNotes)thNotes.textContent=t('notes');
   // Time Log filter row
   const tlFP=$('tl-filter-project');if(tlFP&&tlFP.options[0])tlFP.options[0].textContent=t('allProjectsFilter');
   const tlFCC=$('tl-filter-costcode');if(tlFCC&&tlFCC.options[0])tlFCC.options[0].textContent=t('costCodeFilter');
@@ -2176,7 +2179,8 @@ function renderMyLog(){
   const fLoc=$('tl-filter-location')?.value||'';
   const fDurMin=parseFloat($('tl-filter-dur-min')?.value);
   const fDurMax=parseFloat($('tl-filter-dur-max')?.value);
-  const filtersActive=fProj||fCC||fRoom||fDateFrom||fDateTo||fLoc||!isNaN(fDurMin)||!isNaN(fDurMax);
+  const fBillable=isPriv()?($('tl-filter-billable')?.value||''):'';
+  const filtersActive=fProj||fCC||fRoom||fDateFrom||fDateTo||fLoc||!isNaN(fDurMin)||!isNaN(fDurMax)||fBillable;
   if(fProj)rows=rows.filter(r=>r.projectId===fProj);
   if(fCC)rows=rows.filter(r=>(r.costCode||r.scope||'')===fCC);
   if(fRoom)rows=rows.filter(r=>(r.room||'')===fRoom);
@@ -2186,8 +2190,11 @@ function renderMyLog(){
   else if(fLoc)rows=rows.filter(r=>r.clockInGeoStatus===fLoc);
   if(!isNaN(fDurMin))rows=rows.filter(r=>(r.durationMs||0)/60000>=fDurMin);
   if(!isNaN(fDurMax))rows=rows.filter(r=>(r.durationMs||0)/60000<=fDurMax);
+  if(fBillable==='yes')rows=rows.filter(r=>effectiveBillable(r));
+  else if(fBillable==='no')rows=rows.filter(r=>!effectiveBillable(r));
   const tb=$('my-log-body');
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="${_logViewAll?10:9}" class="empty">${filtersActive?t('noMatchingEntries'):'No entries yet.'}</td></tr>`;return}
+  const tlColspan=(_logViewAll?10:9)+1+(isPriv()?1:0);
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="${tlColspan}" class="empty">${filtersActive?t('noMatchingEntries'):'No entries yet.'}</td></tr>`;return}
   const now=Date.now();
   const hasExpired=!isPriv()&&rows.some(r=>now-tlTsMs(r.clockIn)>=2592000000);
   if(hasExpired)$('time-edit-notice').style.display='';
@@ -2213,6 +2220,8 @@ function renderMyLog(){
     <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
     <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
     <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
+    <td style="font-size:11px;max-width:200px;white-space:normal">${r.notes||'--'}</td>
+    ${isPriv()?`<td style="text-align:center"><input type="checkbox" ${effectiveBillable(r)?'checked':''} onchange="window._setBillable('${r.id}',this.checked)"></td>`:''}
     <td style="white-space:nowrap">
       ${editBtn}${archBtn}
       ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
@@ -2230,8 +2239,9 @@ $('tl-filter-date-to').onchange=renderMyLog;
 $('tl-filter-location').onchange=renderMyLog;
 $('tl-filter-dur-min').oninput=renderMyLog;
 $('tl-filter-dur-max').oninput=renderMyLog;
+$('tl-filter-billable').onchange=renderMyLog;
 $('tl-filter-clear').onclick=()=>{
-  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max','tl-filter-billable'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
   renderMyLog();
 };
 
@@ -2370,7 +2380,7 @@ function goToReceiptResult(id){
 function goToTimeLogResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="clock"]')?.click();
-  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['tl-filter-project','tl-filter-costcode','tl-filter-room','tl-filter-date-from','tl-filter-date-to','tl-filter-location','tl-filter-dur-min','tl-filter-dur-max','tl-filter-billable'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
   renderMyLog();
   setTimeout(()=>{
     if(scrollToAndFlash('tl-row-'+id))return;
@@ -3229,8 +3239,8 @@ $('at-save').onclick=async()=>{
 // populate report category filter
 COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;$('rpt-cat').appendChild(o)});
 
-$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
-$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-time-btn').onclick=()=>{currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='none';$('rpt-billable').value='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
 $('rpt-payroll-btn').onclick=()=>{$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');hide('rpt-logtime-panel');buildPayrollPresets()};
 $('rpt-logtime-btn').onclick=()=>{$('rpt-logtime-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');hide('rpt-standard-panel');hide('rpt-payroll-panel');show('rpt-logtime-panel');initLogTimeForm()};
 
@@ -3264,13 +3274,14 @@ function populateSecondaryFilters(data){
 }
 
 // secondary filters apply client-side
-['rpt-employee','rpt-cat','rpt-room','rpt-include-archived'].forEach(id=>$(id).onchange=applyReportFilters);
+['rpt-employee','rpt-cat','rpt-room','rpt-include-archived','rpt-billable'].forEach(id=>$(id).onchange=applyReportFilters);
 
 function applyReportFilters(){
   if(!_rptRawData.length)return;
   const emp=$('rpt-employee').value;
   const cat=$('rpt-cat').value;
   const room=$('rpt-room').value;
+  const billableFilter=_rptType==='time'?$('rpt-billable').value:'';
   let data=[..._rptRawData];
   const inclArch=$('rpt-include-archived')?.checked;
   if(!inclArch)data=data.filter(r=>!isArchivedRec(r));
@@ -3280,11 +3291,14 @@ function applyReportFilters(){
     if(_rptType==='time')data=data.filter(r=>r.costCodeCategory===cat);
     else data=data.filter(r=>(r.costCodes||[]).some(c=>{const entry=COST_CODES.find(x=>x.code===c);return entry?.cat===cat}));
   }
+  if(billableFilter==='yes')data=data.filter(r=>effectiveBillable(r));
+  else if(billableFilter==='no')data=data.filter(r=>!effectiveBillable(r));
   // show active filter summary
   const parts=[];
   if(emp)parts.push('Employee: '+emp);
   if(cat)parts.push('Category: '+cat);
   if(room)parts.push('Room: '+room);
+  if(billableFilter)parts.push('Billable: '+(billableFilter==='yes'?'Only billable':'Only non-billable'));
   if(inclArch)parts.push('Archived records included');
   $('rpt-active-filters').textContent=parts.length?'Filtered by: '+parts.join(' · '):'';
   renderReport(data);
@@ -3303,7 +3317,7 @@ function renderReport(data){
     <button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>
   </div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
   if(it){
-    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th></th>';
+    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th>Notes</th><th>Billable</th><th></th>';
   }else{
     h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th>Invoiced Client</th><th></th>';
   }
@@ -3321,6 +3335,8 @@ function renderReport(data){
         <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
         <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
         <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
+        <td style="font-size:11px;max-width:220px;white-space:normal">${r.notes||'--'}</td>
+        <td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>
         <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
           ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
           :(isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')">Edit</button> <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'')}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
@@ -3361,7 +3377,7 @@ window._csv=()=>{
     :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Paid Date','Paid By','Invoiced Client Date','Invoiced Client #','Invoiced Client By','Notes','Receipt URL','Archived'];
   const rows=data.map(r=>{
     if(it){
-      const billable=isBillableEntry(r);
+      const billable=effectiveBillable(r);
       const proj=allProjects.find(p=>p.id===r.projectId);
       const billTo=billable?(proj?.name||r.projectName||''):'';
       return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'',isArchivedRec(r)?'Y':''];
@@ -3457,6 +3473,28 @@ function isCodeBillable(code) {
   if (customBillableOverrides.has(code)) return customBillableOverrides.get(code);
   return true; // default billable
 }
+// Effective billable status for a timeLogs entry: an admin's manual override (entry.billable,
+// set via the Billable checkbox on the Time Log table) always wins once set; otherwise falls
+// back to the automatic cost-code/project-based calculation above. This manual flag also drives
+// Payroll Spiff eligibility (see effectiveBillable() call sites) per 2026-10-22 decision: billing
+// and spiffing an employee are always the same yes/no.
+function effectiveBillable(entry) {
+  return typeof entry.billable === 'boolean' ? entry.billable : isBillableEntry(entry);
+}
+function billableBadge(b) {
+  return `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${b?'#d4edd9':'#f5dada'};color:${b?'var(--green)':'var(--red)'}">${b?'Billable':'Non-Bill'}</span>`;
+}
+window._setBillable = async (id, val) => {
+  try {
+    await updateDoc(doc(db, 'timeLogs', id), {
+      billable: val,
+      billableSetBy: userProfile?.name || currentUser?.email || '',
+      billableSetAt: serverTimestamp()
+    });
+  } catch (e) {
+    alert('Failed to update billable status: ' + e.message);
+  }
+};
 
 // Colorado OT calculation
 // Sunday=0 ... Saturday=6, workweek Sun-Sat
@@ -3556,7 +3594,7 @@ $('pr-run-btn').onclick = async () => {
       const stDate = new Date(spiffTo); stDate.setDate(stDate.getDate()+1);
       const stTs = Timestamp.fromDate(stDate);
       const sSnap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',sfTs), where('clockIn','<=',stTs)));
-      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&isBillableEntry({...e.data?.(),...e}));
+      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&effectiveBillable({...e.data?.(),...e}));
     }
 
     renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo);
@@ -3626,7 +3664,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       }).forEach(e => {
         const ot = otMap[e.id]||{reg:(e.durationMs||0)/3600000,ot:0,dt:0};
         dayReg+=ot.reg; dayOT+=ot.ot; dayDT+=ot.dt;
-        const billable = isBillableEntry(e);
+        const billable = effectiveBillable(e);
         const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
         const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
         entryRows += `<tr style="font-size:12px">
@@ -3728,7 +3766,7 @@ window._csvPayroll = () => {
     const user = d.users.find(u=>(u.name||'').trim()===(e.userName||'').trim())||{};
     const baseRate = parseFloat(user.baseRate||0);
     const ot = d.otMap[e.id]||{reg:(e.durationMs||0)/3600000,ot:0,dt:0};
-    const billable = isBillableEntry(e);
+    const billable = effectiveBillable(e);
     const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
     const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
     const basePay = baseRate?(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2):0;

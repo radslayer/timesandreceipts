@@ -641,8 +641,8 @@ $('clock-in-btn').onclick=async()=>{
     });
     $('ci-notes').value='';inPhotoFile=null;
     $('in-photo-btn').classList.remove('has-photo');$('tt-addphoto').textContent=t('addphoto');
-  }catch(e){$('in-err').textContent=t('genericerror')}
-  submitting=false;$('tt-clockinbtn').textContent=t('clockinbtn');
+  }catch(e){console.error('Clock-in failed:',e);$('in-err').textContent=t('genericerror')}
+  submitting=false;$('clock-in-btn').disabled=false;$('tt-clockinbtn').textContent=t('clockinbtn');
 };
 
 // ── CLOCK OUT ────────────────────────────────────────────────────────────────
@@ -667,8 +667,8 @@ $('clock-out-btn').onclick=async()=>{
     });
     outPhotoFile=null;$('out-photo-btn').classList.remove('has-photo');$('tt-addphoto2').textContent=t('addphoto');
     await showSummary(activeSession.projectName,activeSession.costCode);
-  }catch(e){$('out-err').textContent=t('genericerror')}
-  submitting=false;$('tt-clockoutbtn').textContent=t('clockoutbtn');
+  }catch(e){console.error('Clock-out failed:',e);$('out-err').textContent=t('genericerror')}
+  submitting=false;$('clock-out-btn').disabled=false;$('tt-clockoutbtn').textContent=t('clockoutbtn');
 };
 
 async function showSummary(projectName,costCode){

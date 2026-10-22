@@ -3901,11 +3901,45 @@ $('pr-run-btn').onclick = async () => {
   $('pr-run-btn').disabled = false; $('pr-run-btn').textContent = 'Run Payroll Report';
 };
 
+// ── PAYROLL OVERLAP SAFETY CHECK ───────────────────────────────────────────────
+// Catches duplicate/mis-clocked punches (same employee, overlapping [clockIn,clockOut) ranges)
+// inside the entries about to be paid. This runs the SAME range-overlap math as
+// findOverlappingTimeLog() (used to block new/edited entries), but against the whole payroll
+// batch at once — so it also catches bad data that predates that check, not just new mistakes.
+function findPayrollOverlaps(entries) {
+  const byEmp = {};
+  entries.forEach(e => {
+    const key = e.userId || e.userName || 'unknown';
+    if (!byEmp[key]) byEmp[key] = [];
+    byEmp[key].push(e);
+  });
+  const conflicts = [];
+  Object.values(byEmp).forEach(list => {
+    const sorted = [...list].sort((a,b)=>tlTsMs(a.clockIn)-tlTsMs(b.clockIn));
+    for (let i=0;i<sorted.length;i++) {
+      for (let j=i+1;j<sorted.length;j++) {
+        const aStart=tlTsMs(sorted[i].clockIn), aEnd=tlEndMs(sorted[i].clockOut);
+        const bStart=tlTsMs(sorted[j].clockIn), bEnd=tlEndMs(sorted[j].clockOut);
+        if (aStart<bEnd && bStart<aEnd) conflicts.push({empName: sorted[i].userName||sorted[j].userName||'Unknown', a: sorted[i], b: sorted[j]});
+      }
+    }
+  });
+  return conflicts;
+}
+function describePayrollEntry(e) {
+  const cin = e.clockIn?.toDate?e.clockIn.toDate():new Date(e.clockIn||0);
+  const cout = e.clockOut?.toDate?e.clockOut.toDate():(e.clockOut?new Date(e.clockOut):null);
+  const timeStr = cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' – ' + (cout?cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'(open)');
+  return esc(cin.toLocaleDateString()+' '+timeStr+' — '+(e.projectName||'')+' ('+(e.costCode||e.scope||'--')+')');
+}
 function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo) {
   if (!entries.length) { $('pr-results').innerHTML = '<div class="empty">No completed time entries found for this period.</div>'; return; }
 
   // Calculate OT per entry
   const otMap = calcColoradoOT(entries);
+
+  // Overlap safety check — must run before anything gets locked or exported. See findPayrollOverlaps().
+  const overlaps = findPayrollOverlaps(entries);
 
   // Group entries by employee
   const byEmp = {};
@@ -3925,7 +3959,13 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     });
   }
 
-  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
+  const overlapWarningHtml = overlaps.length ? `<div class="card" style="background:#f5dada;border:2px solid var(--red);margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--red);margin-bottom:8px">&#9888; ${overlaps.length} Overlapping Time ${overlaps.length===1?'Entry':'Entries'} Found — Payroll Cannot Be Locked or Exported</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">These time punches overlap for the same employee — almost always a duplicate or mis-clocked entry. Fix or archive the incorrect punch in the Time Clock, then re-run this report, before locking or exporting payroll.</div>
+    <div style="font-size:13px">${overlaps.map(c=>`<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.08)"><strong>${esc(c.empName)}</strong><br>${describePayrollEntry(c.a)}<br>overlaps<br>${describePayrollEntry(c.b)}</div>`).join('')}</div>
+  </div>` : '';
+
+  let html = overlapWarningHtml + `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
     Pay Period: <strong>${from} to ${to}</strong>
     ${includeSpiff?'&nbsp;|&nbsp;Spiff Month: <strong>'+(spiffFrom||'')+ ' to '+(spiffTo||'')+'</strong>':''}
   </div>`;
@@ -4048,8 +4088,8 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       ${includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${grandSpiff.toFixed(2)}</div></div>`:''}
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
     </div>
-    <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)">Export CSV</button>
-    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px">&#128274; Lock Payroll Period</button>
+    <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)${overlaps.length?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before exporting"':''}>Export CSV</button>
+    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${overlaps.length?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':''}>&#128274; Lock Payroll Period</button>
   </div>`;
 
   $('pr-results').innerHTML = html;
@@ -4058,6 +4098,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
 
 window._csvPayroll = () => {
   const d = window._prData; if(!d) return;
+  if (findPayrollOverlaps(d.entries).length) { alert('This payroll period has overlapping time entries that must be resolved before it can be exported. Re-run the report to see them.'); return; }
   const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
   const rows = [];
   d.entries.forEach(e => {
@@ -4118,6 +4159,7 @@ function buildPayrollEmpTotals(rows) {
 }
 window._lockPayroll = async (btnEl) => {
   const d = window._prData; if (!d) { alert('Run the report first.'); return; }
+  if (findPayrollOverlaps(d.entries).length) { alert('This payroll period has overlapping time entries that must be resolved before it can be locked. Re-run the report to see them.'); return; }
   if (!confirm("Lock this payroll period? Once locked it can't be re-run or recalculated, and the time entries in it can no longer be edited, archived, or deleted \u2014 until an admin unlocks it.")) return;
   const rows = buildPayrollSnapshotRows(d);
   const empTotals = buildPayrollEmpTotals(rows);

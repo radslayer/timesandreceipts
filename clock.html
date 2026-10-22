@@ -513,8 +513,11 @@ function resizeImage(file,maxPx=1200){
 
 // Uploads the photo and creates a Site Photos gallery entry for it (same
 // collection/shape the desktop app's Photos tab reads), so photos taken
-// from the Time Clock show up there too. Returns the new sitePhotos doc id.
-async function uploadAndAttachPhoto(file,tag,projectId,projectName,room){
+// from the Time Clock show up there too. Tagged with the same project,
+// cost category/code, room, and location as the punch it was taken on,
+// so it can be filtered/grouped the same way a time log can. Returns the
+// new sitePhotos doc id.
+async function uploadAndAttachPhoto(file,tag,projectId,projectName,room,costCodeCategory,costCode,geo,geoStatus){
   if(!file)return null;
   const resized=await resizeImage(file);
   const storagePath='sitePhotos/'+currentUser.uid+'/'+Date.now()+'_'+tag+'_'+resized.name;
@@ -523,6 +526,8 @@ async function uploadAndAttachPhoto(file,tag,projectId,projectName,room){
   const url=await getDownloadURL(r);
   const docRef=await addDoc(collection(db,'sitePhotos'),{
     projectId,projectName,room:room||'',
+    costCodeCategory:costCodeCategory||'',costCode:costCode||'',
+    geo:geo||null,geoStatus:geoStatus||'unknown',
     notes:'',
     photos:[{url,storagePath}],
     uploadedBy:currentUser.uid,uploadedByName:userProfile?.name||currentUser.email,
@@ -626,16 +631,18 @@ $('clock-in-btn').onclick=async()=>{
     const dupe=await getDocs(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)));
     if(!dupe.empty){$('in-err').textContent=t('alreadyclockedin');submitting=false;$('tt-clockinbtn').textContent=t('clockinbtn');return}
     const proj=activeProjects.find(p=>p.id===pid);
+    const clockInGeo=currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null;
+    const clockInGeoStatus=geoSt(currentPos,proj);
     let photoId=null;
-    if(inPhotoFile)photoId=await uploadAndAttachPhoto(inPhotoFile,'clockin',pid,proj?.name||pid,rm);
+    if(inPhotoFile)photoId=await uploadAndAttachPhoto(inPhotoFile,'clockin',pid,proj?.name||pid,rm,cat,code,clockInGeo,clockInGeoStatus);
     await addDoc(collection(db,'timeLogs'),{
       userId:currentUser.uid,userName:userProfile?.name||currentUser.email,
       projectId:pid,projectName:proj?.name||pid,
       costCodeCategory:cat,costCode:code,room:rm,
       notes:$('ci-notes').value||'',
       clockIn:serverTimestamp(),
-      clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
-      clockInGeoStatus:geoSt(currentPos,proj),
+      clockInGeo,
+      clockInGeoStatus,
       clockInPhotoId:photoId,
       status:'active'
     });
@@ -655,12 +662,14 @@ $('clock-out-btn').onclick=async()=>{
     const start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn);
     const proj=allProjects.find(p=>p.id===activeSession.projectId);
     const durationMs=now-start;
+    const clockOutGeo=currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null;
+    const clockOutGeoStatus=geoSt(currentPos,proj);
     let photoId=null;
-    if(outPhotoFile)photoId=await uploadAndAttachPhoto(outPhotoFile,'clockout',activeSession.projectId,activeSession.projectName,activeSession.room);
+    if(outPhotoFile)photoId=await uploadAndAttachPhoto(outPhotoFile,'clockout',activeSession.projectId,activeSession.projectName,activeSession.room,activeSession.costCodeCategory,activeSession.costCode,clockOutGeo,clockOutGeoStatus);
     await updateDoc(doc(db,'timeLogs',activeSession.id),{
       clockOut:Timestamp.fromDate(now),
-      clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
-      clockOutGeoStatus:geoSt(currentPos,proj),
+      clockOutGeo,
+      clockOutGeoStatus,
       clockOutPhotoId:photoId,
       durationMs,
       status:'complete'

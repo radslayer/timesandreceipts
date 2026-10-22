@@ -2437,7 +2437,11 @@ function onDocClickCloseFilter(e){
 }
 function openColFilterPopover(col,btnEl,baseList){
   closeColFilterPopover();
-  const distinct=rcptColDistinctValues(baseList,col);
+  // Cascade: a column's checklist reflects rows that pass every OTHER column's active
+  // filter (but not its own), so narrowing one column shrinks the choices offered by the
+  // others, matching Excel's AutoFilter behavior. (Added 2026-10-22.)
+  const cascadeList=baseList.filter(r=>RCPT_TABLE_COLS.every(c=>c.key===col.key||!_rcptColFilters[c.key]||_rcptColFilters[c.key].has(c.filterValue(r))));
+  const distinct=rcptColDistinctValues(cascadeList,col);
   const activeSet=_rcptColFilters[col.key];
   const pop=document.createElement('div');
   pop.className='col-filter-pop';

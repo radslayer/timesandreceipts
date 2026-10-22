@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MOTIF Time Clock</title>
+<style>
+  :root{
+    --ink:#1C2230; --gold:#D9A86C; --bg:#F2F2F5; --card:#FFFFFF; --border:#E1E3E8;
+    --muted:#7A7F89; --muted2:#9AA3B2; --green:#2F7D4F; --greenbg:#E4F3EA; --greendk:#1F5C38;
+    --red:#C23B22;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
+  button{font-family:inherit;cursor:pointer}
+  select{appearance:none;-webkit-appearance:none;background:none;border:none;font:inherit;color:inherit;width:100%}
+  a{color:inherit;text-decoration:none}
+  .hidden{display:none !important}
+  .screen{min-height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;background:var(--bg)}
+  .topbar{flex:0 0 auto;background:var(--ink);padding:16px 18px 14px;display:flex;align-items:center;justify-content:space-between}
+  .topbar .brand{display:flex;flex-direction:column}
+  .topbar .brand .m{font-size:13px;font-weight:700;letter-spacing:2px;color:var(--gold)}
+  .topbar .brand .s{font-size:11px;color:var(--muted2);margin-top:1px}
+  .topbar .right{display:flex;align-items:center;gap:8px}
+  .lang-btn{background:transparent;border:1px solid #3A4152;color:#C7CCD6;font-size:12px;padding:5px 9px;border-radius:6px}
+  .name{font-size:13px;color:#E6E9EE}
+  .avatar{width:32px;height:32px;border-radius:16px;background:var(--gold);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .status-wrap{flex:0 0 auto;padding:22px 20px 6px;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .pill{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px}
+  .pill.off{background:#E4E6EA}
+  .pill.on{background:var(--greenbg)}
+  .dot{width:9px;height:9px;border-radius:5px;display:inline-block}
+  .dot.off{background:#8A8F99}
+  .dot.on{background:var(--green)}
+  .pill-label.off{font-size:14px;font-weight:600;color:#50545C}
+  .pill-label.on{font-size:14px;font-weight:600;color:var(--greendk)}
+  .timer{font-size:40px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .since{font-size:12px;color:var(--muted)}
+  .body{flex:1 1 auto;padding:18px 20px 24px;display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
+  .card .lbl{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+  .card .row{display:flex;align-items:center;justify-content:space-between}
+  .card select{font-size:17px;font-weight:600;color:var(--ink);padding:4px 0}
+  .card select:disabled{color:#C3C7CE}
+  .notes-input{border:none;font-size:15px;color:var(--ink);padding:4px 0;font-family:inherit;width:100%}
+  .notes-input::placeholder{color:#B7BBC2}
+  .summary-card{flex-direction:row;align-items:center;justify-content:space-between}
+  .summary-card .pc{display:flex;flex-direction:column;gap:3px}
+  .summary-card .pname{font-size:15px;font-weight:600;color:var(--ink)}
+  .summary-card .pcode{font-size:13px;color:#50545C}
+  .photo-btn{display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:14px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);font-size:16px;font-weight:600}
+  .photo-btn.has-photo{border-color:var(--green);color:var(--green)}
+  .photo-preview{width:100%;border-radius:14px;overflow:hidden;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--card)}
+  .photo-preview img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+  .photo-remove{font-size:13px;color:var(--red);font-weight:600;background:none;border:none}
+  .spacer{flex:1 1 auto}
+  .cta{display:flex;align-items:center;justify-content:center;gap:12px;height:76px;border-radius:18px;color:#fff;font-size:22px;font-weight:700;border:none}
+  .cta.in{background:var(--green);box-shadow:0 8px 20px rgba(47,125,79,.28)}
+  .cta.out{background:var(--red);box-shadow:0 8px 20px rgba(194,59,34,.28)}
+  .cta:disabled{background:#C3C7CE;box-shadow:none;color:#fff}
+  .geo-line{display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 0 6px;font-size:12px;color:var(--muted2)}
+  .err{color:var(--red);font-size:13px;text-align:center;min-height:16px}
+  .sign-in-wrap{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 24px;text-align:center}
+  .big-link{display:inline-block;margin-top:6px;background:var(--ink);color:#fff;padding:12px 22px;border-radius:12px;font-weight:600;font-size:15px}
+  .check-circle{width:72px;height:72px;border-radius:36px;background:var(--greenbg);display:flex;align-items:center;justify-content:center}
+  .total-card{width:100%;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .total-num{font-size:40px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .punch-list{width:100%;display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .punch-row{display:flex;justify-content:space-between;font-size:13px;color:#50545C;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+  .link-pill{font-size:13px;font-weight:600;color:var(--ink);border:1px solid #CBCFD6;border-radius:999px;padding:7px 16px;background:none}
+  .done-btn{display:flex;align-items:center;justify-content:center;height:60px;border-radius:16px;background:var(--ink);color:#fff;font-size:17px;font-weight:700;border:none;width:100%}
+</style>
+</head>
+<body>
+
+<div id="signin-screen" class="screen hidden">
+  <div class="sign-in-wrap">
+    <div class="m" style="font-size:15px;font-weight:700;letter-spacing:2px;color:var(--gold)">MOTIF</div>
+    <div style="font-size:16px;font-weight:600">Please sign in</div>
+    <div style="font-size:13px;color:var(--muted);max-width:280px">Sign in to the MOTIF Lotus app first, then come back to this page to use the Time Clock.</div>
+    <a class="big-link" href="index.html">Go to Sign In</a>
+  </div>
+</div>
+
+<div id="clock-screen" class="screen hidden">
+  <div class="topbar">
+    <div class="brand"><span class="m">MOTIF</span><span class="s" id="tt-sub">Time Clock</span></div>
+    <div class="right">
+      <span class="name" id="tb-name"></span>
+      <div class="avatar" id="tb-avatar">--</div>
+      <button class="lang-btn" id="lang-toggle">ES</button>
+    </div>
+  </div>
+
+  <!-- CLOCK IN VIEW -->
+  <div id="view-in">
+    <div class="status-wrap">
+      <div class="pill off"><span class="dot off"></span><span class="pill-label off" id="tt-notclockedin">Not Clocked In</span></div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <span class="lbl" id="tt-project-lbl">PROJECT</span>
+        <div class="row">
+          <select id="ci-project"><option value="" id="tt-select-project">Select project...</option></select>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 10l5 5 5-5" stroke="#9AA3B2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl" id="tt-category-lbl">COST CATEGORY</span>
+        <div class="row">
+          <select id="ci-cat"><option value="" id="tt-select-category">Select category...</option></select>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 10l5 5 5-5" stroke="#9AA3B2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl" id="tt-code-lbl">COST CODE</span>
+        <div class="row">
+          <select id="ci-code" disabled><option value="" id="tt-select-code">Select category first...</option></select>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 10l5 5 5-5" stroke="#9AA3B2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl" id="tt-room-lbl">ROOM</span>
+        <div class="row">
+          <select id="ci-room" disabled><option value="" id="tt-select-room">Select project first...</option></select>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 10l5 5 5-5" stroke="#9AA3B2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl" id="tt-notes-lbl">NOTES (OPTIONAL)</span>
+        <input class="notes-input" id="ci-notes" type="text" placeholder="">
+      </div>
+
+      <div id="in-photo-area">
+        <button type="button" class="photo-btn" id="in-photo-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span id="tt-addphoto">Add Job Photo</span>
+        </button>
+        <input type="file" id="in-photo-input" accept="image/*" capture="environment" class="hidden">
+      </div>
+
+      <div class="spacer"></div>
+      <div class="err" id="in-err"></div>
+      <button class="cta in" id="clock-in-btn" disabled>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2"/><path d="M12 7v5l3.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="tt-clockinbtn">CLOCK IN</span>
+      </button>
+      <div class="geo-line">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="#9AA3B2" stroke-width="1.6"/><circle cx="12" cy="9.5" r="2.2" stroke="#9AA3B2" stroke-width="1.6"/></svg>
+        <span id="geo-status">Locating...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOCKED IN VIEW -->
+  <div id="view-active" class="hidden">
+    <div class="status-wrap">
+      <div class="pill on"><span class="dot on"></span><span class="pill-label on" id="tt-clockedin">Clocked In</span></div>
+      <span class="timer" id="active-timer">0:00:00</span>
+      <span class="since" id="active-since"></span>
+    </div>
+    <div class="body">
+      <div class="card summary-card">
+        <div class="pc">
+          <span class="lbl" id="tt-project-code-lbl">PROJECT &middot; COST CODE</span>
+          <span class="pname" id="active-project"></span>
+          <span class="pcode" id="active-code"></span>
+        </div>
+      </div>
+
+      <div id="out-photo-area">
+        <button type="button" class="photo-btn" id="out-photo-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span id="tt-addphoto2">Add Job Photo</span>
+        </button>
+        <input type="file" id="out-photo-input" accept="image/*" capture="environment" class="hidden">
+      </div>
+
+      <div class="spacer"></div>
+      <div class="err" id="out-err"></div>
+      <button class="cta out" id="clock-out-btn">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2"/><path d="M9.5 9.5h5v5h-5z" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span id="tt-clockoutbtn">CLOCK OUT</span>
+      </button>
+      <div class="geo-line">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="#9AA3B2" stroke-width="1.6"/><circle cx="12" cy="9.5" r="2.2" stroke="#9AA3B2" stroke-width="1.6"/></svg>
+        <span id="geo-status2">Locating...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY VIEW -->
+  <div id="view-summary" class="hidden">
+    <div class="body" style="padding-top:40px;align-items:center">
+      <div class="check-circle">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-10" stroke="#2F7D4F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center">
+        <span style="font-size:19px;font-weight:700" id="tt-punchedout">Punched Out</span>
+        <span style="font-size:13px;color:var(--muted)" id="summary-project"></span>
+      </div>
+      <div class="total-card" style="margin-top:6px">
+        <span class="lbl" id="tt-totaltoday">TOTAL HOURS TODAY</span>
+        <span class="total-num" id="summary-total">0h 0m</span>
+        <span style="font-size:12px;color:var(--muted2)" id="summary-count"></span>
+      </div>
+      <button type="button" class="link-pill" id="view-punches-btn" style="margin-top:14px" onclick="document.getElementById('summary-punches').classList.toggle('hidden')"><span id="tt-viewpunches">View today's punches</span></button>
+      <div id="summary-punches" class="punch-list hidden"></div>
+      <div class="spacer"></div>
+      <button class="done-btn" id="done-btn" style="margin-bottom:28px"><span id="tt-done">Done</span></button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getAuth,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import{getFirestore,collection,doc,getDoc,getDocs,addDoc,updateDoc,onSnapshot,query,where,limit,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+const app=initializeApp({apiKey:"AIzaSyCfCholttfnLxgJwaxGwTu1-FDmO0Ob1hs",authDomain:"motif-times-and-receipts.firebaseapp.com",projectId:"motif-times-and-receipts",storageBucket:"motif-times-and-receipts.firebasestorage.app",messagingSenderId:"837311030358",appId:"1:837311030358:web:a7a391ecf6b2302d6a07f7"});
+const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
+
+const $=id=>document.getElementById(id);
+const show=id=>$(id).classList.remove('hidden');
+const hide=id=>$(id).classList.add('hidden');
+
+const GEO_M=91.44;
+function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+function geoSt(pos,proj){if(!pos||!proj?.lat||!proj?.lng)return'unknown';return hav(pos.lat,pos.lng,proj.lat,proj.lng)<=GEO_M?'onsite':'offsite'}
+function fmtDur(ms){if(!ms||ms<0)return'0h 0m';const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h+'h '+m+'m'}
+function fmtHHMMSS(ms){if(!ms||ms<0)ms=0;const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);return h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
+
+// ── COST CODES (mirrors index.html) ─────────────────────────────────────────
+const COST_CODES=[
+  {cat:'01 - Design & Construction Administration',code:'01.00 - Free One Hour Consult',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.05 - Design Development',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.10 - Design Project Management',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.15 - Procurement of Design Elements',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.20 - Design or Construction Admin',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.25 - Construction Project Management',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.30 - Construction Documents',type:'labor'},
+  {cat:'01 - Design & Construction Administration',code:'01.35 - Design Meetings, Preparation and/or Follow Up',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.00 - Specification List',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.15 - Material List Creation',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.20 - Estimating',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.30 - Field Measurements',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.35 - Shop Building Materials (Construction)',type:'materials'},
+  {cat:'02 - Pre Construction Services',code:'02.45 - Permit Application Process',type:'labor'},
+  {cat:'02 - Pre Construction Services',code:'02.50 - Structural Engineering (Subcontractor)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.00 - Roll Off',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.05 - Porta Potty',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.10 - Permit Cost/Fees',type:'materials'},
+  {cat:'03 - General Conditions',code:'03.15 - Trip Charge',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.20 - MOTIF Labor Electrical (Like for Like)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.25 - MOTIF Labor Plumbing (Like for Like)',type:'labor'},
+  {cat:'03 - General Conditions',code:'03.30 - Concrete',type:'materials'},
+  {cat:'04 - Inspections',code:'04.00 - Rough Inspections',type:'labor'},
+  {cat:'04 - Inspections',code:'04.05 - Shower Pan Test Inspection',type:'labor'},
+  {cat:'04 - Inspections',code:'04.10 - Fireplace Inspection',type:'labor'},
+  {cat:'04 - Inspections',code:'04.15 - Final Inspections for All Trades',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.00 - Tool Set Up Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.01 - Content Manipulation (Moving Client Items/Furniture)',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.05 - Job Site Protection Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.10 - Job Site Protection Materials',type:'materials'},
+  {cat:'05 - Job Site Prep',code:'05.15 - Demolition Labor',type:'labor'},
+  {cat:'05 - Job Site Prep',code:'05.20 - Demolition Materials (includes roll-off)',type:'materials'},
+  {cat:'05 - Job Site Prep',code:'05.25 - Patio',type:'labor'},
+  {cat:'06 - Framing',code:'06.00 - Framing Materials',type:'materials'},
+  {cat:'06 - Framing',code:'06.05 - Framing Labor',type:'labor'},
+  {cat:'07 - Plumbing',code:'07.00 - Plumbing Sub Labor',type:'labor'},
+  {cat:'07 - Plumbing',code:'07.05 - Plumbing Materials',type:'materials'},
+  {cat:'08 - Electrical',code:'08.00 - Electrical Sub Labor',type:'labor'},
+  {cat:'08 - Electrical',code:'08.05 - Electrical Materials',type:'materials'},
+  {cat:'09 - HVAC',code:'09.00 - HVAC Sub Labor',type:'labor'},
+  {cat:'09 - HVAC',code:'09.05 - HVAC Materials',type:'materials'},
+  {cat:'09 - HVAC',code:'09.10 - HVAC MOTIF Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.00 - Insulation Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.05 - Insulation Material',type:'materials'},
+  {cat:'10 - Insulation & Drywall',code:'10.10 - Drywall Sub Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.15 - Drywall MOTIF Labor',type:'labor'},
+  {cat:'10 - Insulation & Drywall',code:'10.20 - Drywall Materials',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.00 - Glass Sub Materials (Mirror, Shower Door, Cabinet Glass)',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.05 - Mirrors (fabricated product)',type:'materials'},
+  {cat:'11 - Glass & Mirrors',code:'11.10 - Glass Sub Labor (Mirror, Shower Door, Cabinet Glass)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.00 - Trim Carpentry Materials (base, case, crown, chair)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.05 - Trim Carpentry Labor (base, case, crown, chair)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.10 - Cabinet Hardware Materials',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.15 - Cabinet Hardware Labor',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.20 - Countertops Material (wood tops)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.25 - Countertops Fabrication Labor (wood tops)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.30 - Cabinet Install Materials (pre-fab cabinets only)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.35 - Cabinet Install Labor (pre-fab cabinets only)',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.40 - Staircase Materials',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.45 - Staircase Labor',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.50 - Custom Carpentry Materials (mantels, built-ins, shelves, cabinets)',type:'materials'},
+  {cat:'12 - Finish Carpentry',code:'12.51 - Window Covering Installation',type:'labor'},
+  {cat:'12 - Finish Carpentry',code:'12.55 - Custom Carpentry Labor (mantels, built-ins, shelves, cabinets)',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.00 - Door Hardware Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.05 - Door Hardware Labor',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.10 - Interior Door Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.15 - Interior Door Labor',type:'labor'},
+  {cat:'13 - Windows & Doors',code:'13.20 - Window Materials',type:'materials'},
+  {cat:'13 - Windows & Doors',code:'13.25 - Window Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.00 - Paint Materials',type:'materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.05 - Paint Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.10 - Wallpaper Materials',type:'materials'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.15 - Wallpaper Labor by Subcontractor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.20 - Staining Labor',type:'labor'},
+  {cat:'14 - Paint, Stain & Wallcovering',code:'14.25 - Staining Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.00 - Hardwood Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.05 - Hardwood Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.10 - Hardwood Labor by Subcontractor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.15 - Tile Labor by Subcontractor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.20 - Tile Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.25 - Tile Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.30 - Carpet Materials',type:'materials'},
+  {cat:'15 - Flooring & Tile',code:'15.35 - Carpet Labor',type:'labor'},
+  {cat:'15 - Flooring & Tile',code:'15.40 - Carpet Labor by Subcontractor',type:'labor'},
+  {cat:'16 - Appliances',code:'16.00 - Appliance Service Call',type:'labor'},
+  {cat:'16 - Appliances',code:'16.05 - Appliances Installation',type:'labor'},
+  {cat:'17 - Fireplace & Masonry',code:'17.10 - Fireplace Materials',type:'materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.15 - Fireplace Subcontractor Labor',type:'labor'},
+  {cat:'17 - Fireplace & Masonry',code:'17.20 - Masonry Materials',type:'materials'},
+  {cat:'17 - Fireplace & Masonry',code:'17.25 - Masonry Subcontractor Labor',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.00 - Daily Site Cleaning',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.05 - Post Drywall Cleaning',type:'labor'},
+  {cat:'18 - Cleaning',code:'18.10 - Final Cleaning',type:'labor'},
+  {cat:'19 - Punch List',code:'19.00 - Punch List Materials',type:'materials'},
+  {cat:'19 - Punch List',code:'19.05 - Punch List Labor',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.00 - Construction Supervision',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.05 - General Business Operations',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.10 - Delivery to Jobsite',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.15 - Accounting - Sales Tax, Bookkeeping',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.20 - Design/Value Engineering',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.25 - Jobsite Safety/Security Materials',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.40 - Shipping (must be taxed)',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.45 - Contingency Labor',type:'labor'},
+  {cat:'20 - Business Operations',code:'20.50 - Contingency Materials',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.55 - RDF Fee',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.60 - Sales Tax (must manually calculate)',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.65 - Home Depot Volume Discount',type:'materials'},
+  {cat:'20 - Business Operations',code:'20.75 - Driving to Office for Meetings',type:'labor'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.00 - Furniture and Rugs (materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.05 - Design Accessories - Table Top (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.10 - Lighting (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.15 - Plumbing Fixtures (Materials)',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.20 - Reupholster Chairs',type:'materials'},
+  {cat:'21 - Interior Furnishings, Fixtures & Accessories',code:'21.25 - Hardware Accessories (towel bars, tp holders, shelves)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.10 - CO1 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.15 - CO1 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.20 - CO2 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.25 - CO2 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.30 - CO3 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.35 - CO3 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'22 - Change Orders',code:'22.40 - CO4 Additional Scope of Work (Labor)',type:'labor'},
+  {cat:'22 - Change Orders',code:'22.45 - CO4 Additional Scope of Work (Materials)',type:'materials'},
+  {cat:'23 - Sick Time',code:'23.10 - Sick Time',type:'labor'},
+  {cat:'24 - Vacation Time',code:'24.10 - Vacation Time',type:'labor'},
+  {cat:'24 - Vacation Time',code:'24.15 - Unpaid Leave',type:'labor'},
+  {cat:'25 - Holiday Pay',code:'25.10 - Holiday Pay',type:'labor'},
+  {cat:'26 - MOTIF Error',code:'26.10 - Rebuilding Costs Labor',type:'labor'},
+  {cat:'26 - MOTIF Error',code:'26.20 - Rebuilding Costs Materials',type:'materials'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.05 - Solid Surface Materials (Slabs of Quartz, Marble, Granite)',type:'materials'},
+  {cat:'27 - Solid Surface & Countertops',code:'27.10 - Solid Surface Subcontractor Labor (Slabs of Quartz, Marble, Granite)',type:'labor'}
+];
+const DEF_ROOMS=['Kitchen','Primary Bath','Primary Suite','Living Room','Dining Room','Powder Room','Laundry','Office','Basement','Exterior / Site','General / Whole Home'];
+let customCodes=[],archivedCodes=new Set();
+let ALL_CODES=[...COST_CODES];
+function rebuildCostCodeData(){
+  const customCodeSet=new Set(customCodes.map(c=>c.code));
+  ALL_CODES=[...COST_CODES.filter(c=>!customCodeSet.has(c.code)),...customCodes];
+  const num=s=>{const m=(s.code||'').match(/^(\d+)\.?(\d*)/);return m?parseFloat(m[1]+'.'+m[2].padEnd(4,'0')):9999};
+  ALL_CODES.sort((a,b)=>num(a)-num(b));
+}
+
+// ── TRANSLATIONS ─────────────────────────────────────────────────────────────
+let currentLang='en';
+const T={
+  en:{
+    sub:'Time Clock',notclockedin:'Not Clocked In',clockedin:'Clocked In',
+    project:'PROJECT',category:'COST CATEGORY',code:'COST CODE',room:'ROOM',notes:'NOTES (OPTIONAL)',
+    projectcode:"PROJECT · COST CODE",totaltoday:'TOTAL HOURS TODAY',
+    selectproject:'Select project...',selectcategory:'Select category...',
+    selectcodeph:'Select code...',selectcategoryfirst:'Select category first...',
+    selectroomph:'Select room...',selectprojectfirst:'Select project first...',
+    addphoto:'Add Job Photo',retakephoto:'Retake Photo',
+    clockinbtn:'CLOCK IN',clockoutbtn:'CLOCK OUT',clockingin:'Clocking in...',clockingout:'Clocking out...',
+    punchedout:'Punched Out',viewpunches:"View today's punches",done:'Done',
+    locating:'Locating…',locationcaptured:'Location captured',locationunavailable:'Location unavailable',locationdenied:'Location permission denied',
+    requiredfields:'Select a project, cost category, cost code, and room.',
+    alreadyclockedin:"You're already clocked in.",genericerror:'Something went wrong. Please try again.',
+    sincelbl:'since',punchessuffix:'punches'
+  },
+  es:{
+    sub:'Reloj de Tiempo',notclockedin:'Sin Registrar',clockedin:'Registrado',
+    project:'PROYECTO',category:'CATEGORÍA DE COSTO',code:'CÓDIGO DE COSTO',room:'HABITACIÓN',notes:'NOTAS (OPCIONAL)',
+    projectcode:'PROYECTO · CÓDIGO DE COSTO',totaltoday:'HORAS TOTALES DE HOY',
+    selectproject:'Seleccionar proyecto...',selectcategory:'Seleccionar categoría...',
+    selectcodeph:'Seleccionar código...',selectcategoryfirst:'Seleccione categoría primero...',
+    selectroomph:'Seleccionar habitación...',selectprojectfirst:'Seleccione proyecto primero...',
+    addphoto:'Agregar Foto',retakephoto:'Tomar Otra Foto',
+    clockinbtn:'REGISTRAR ENTRADA',clockoutbtn:'REGISTRAR SALIDA',clockingin:'Registrando...',clockingout:'Registrando salida...',
+    punchedout:'Salida Registrada',viewpunches:'Ver los registros de hoy',done:'Listo',
+    locating:'Localizando…',locationcaptured:'Ubicación capturada',locationunavailable:'Ubicación no disponible',locationdenied:'Permiso de ubicación denegado',
+    requiredfields:'Seleccione un proyecto, categoría, código y habitación.',
+    alreadyclockedin:'Ya tienes una sesión activa.',genericerror:'Algo salió mal. Intenta de nuevo.',
+    sincelbl:'desde',punchessuffix:'registros'
+  }
+};
+function t(k){return T[currentLang][k]||T.en[k]||k}
+
+function applyTranslations(){
+  $('tt-sub').textContent=t('sub');
+  $('tt-notclockedin').textContent=t('notclockedin');
+  $('tt-clockedin').textContent=t('clockedin');
+  $('tt-project-lbl').textContent=t('project');
+  $('tt-category-lbl').textContent=t('category');
+  $('tt-code-lbl').textContent=t('code');
+  $('tt-room-lbl').textContent=t('room');
+  $('tt-notes-lbl').textContent=t('notes');
+  $('tt-project-code-lbl').textContent=t('projectcode');
+  $('tt-totaltoday').textContent=t('totaltoday');
+  $('tt-select-project').textContent=t('selectproject');
+  $('tt-select-category').textContent=t('selectcategory');
+  $('tt-addphoto').textContent=t('addphoto');
+  $('tt-addphoto2').textContent=t('addphoto');
+  $('tt-clockinbtn').textContent=t('clockinbtn');
+  $('tt-clockoutbtn').textContent=t('clockoutbtn');
+  $('tt-punchedout').textContent=t('punchedout');
+  $('tt-viewpunches').textContent=t('viewpunches');
+  $('tt-done').textContent=t('done');
+  $('lang-toggle').textContent=currentLang==='en'?'ES':'EN';
+  if(!$('ci-code').value)$('ci-code').querySelector('option[value=""]').textContent=$('ci-cat').value?t('selectcodeph'):t('selectcategoryfirst');
+  if(!$('ci-room').value)$('ci-room').querySelector('option[value=""]').textContent=$('ci-project').value?t('selectroomph'):t('selectprojectfirst');
+  updateGeoText();
+}
+$('lang-toggle').onclick=async()=>{
+  currentLang=currentLang==='en'?'es':'en';
+  applyTranslations();
+  if(currentUser){try{await updateDoc(doc(db,'users',currentUser.uid),{lang:currentLang})}catch(e){}}
+};
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let currentUser=null,userProfile=null,allProjects=[],activeProjects=[];
+let activeSession=null,elapsedTimer=null,currentPos=null,lastGeoErrorCode=null;
+let inPhotoFile=null,outPhotoFile=null;
+let submitting=false;
+
+// ── GEOLOCATION ──────────────────────────────────────────────────────────────
+function updateGeoText(){
+  let txt;
+  if(currentPos)txt=t('locationcaptured');
+  else if(lastGeoErrorCode===1)txt=t('locationdenied');
+  else if(lastGeoErrorCode)txt=t('locationunavailable');
+  else txt=t('locating');
+  $('geo-status').textContent=txt;$('geo-status2').textContent=txt;
+}
+if(navigator.geolocation){
+  navigator.geolocation.watchPosition(
+    p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};lastGeoErrorCode=null;updateGeoText()},
+    e=>{lastGeoErrorCode=e&&e.code||null;updateGeoText()},
+    {enableHighAccuracy:true,timeout:20000}
+  );
+}else{lastGeoErrorCode=2;updateGeoText()}
+
+// ── PHOTO CAPTURE ────────────────────────────────────────────────────────────
+function wirePhotoBtn(btnId,inputId,labelId,getFile,setFile){
+  $(btnId).onclick=()=>$(inputId).click();
+  $(inputId).onchange=()=>{
+    const f=$(inputId).files&&$(inputId).files[0];
+    if(!f)return;
+    setFile(f);
+    $(btnId).classList.add('has-photo');
+    $(labelId).textContent=t('retakephoto');
+  };
+}
+wirePhotoBtn('in-photo-btn','in-photo-input','tt-addphoto',()=>inPhotoFile,f=>inPhotoFile=f);
+wirePhotoBtn('out-photo-btn','out-photo-input','tt-addphoto2',()=>outPhotoFile,f=>outPhotoFile=f);
+
+async function uploadPhoto(file,tag){
+  if(!file)return null;
+  const storagePath='timeLogPhotos/'+currentUser.uid+'/'+Date.now()+'_'+tag+'_'+file.name;
+  const r=sRef(storage,storagePath);
+  await uploadBytes(r,file);
+  const url=await getDownloadURL(r);
+  return{url,storagePath};
+}
+
+// ── PROJECTS / ROOMS ─────────────────────────────────────────────────────────
+function loadProjects(){
+  onSnapshot(query(collection(db,'projects')),snap=>{
+    allProjects=snap.docs.map(d=>({id:d.id,...d.data()}));
+    activeProjects=allProjects.filter(p=>p.active!==false);
+    const sel=$('ci-project'),v=sel.value;
+    sel.innerHTML=`<option value="">${t('selectproject')}</option>`;
+    activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
+    sel.value=v;
+    renderActiveView();
+  });
+}
+$('ci-project').onchange=()=>{
+  const proj=activeProjects.find(p=>p.id===$('ci-project').value);
+  fillRoomDropdown(proj);
+  validateInForm();
+};
+function fillRoomDropdown(proj){
+  const sel=$('ci-room');
+  sel.disabled=!proj;
+  sel.innerHTML=`<option value="">${proj?t('selectroomph'):t('selectprojectfirst')}</option>`;
+  const rooms=proj?.rooms||DEF_ROOMS;
+  rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o)});
+  const na=document.createElement('option');na.value='N/A';na.textContent='N/A';sel.appendChild(na);
+}
+
+// ── COST CATEGORY / CODE ─────────────────────────────────────────────────────
+function loadCustomCodes(){
+  onSnapshot(doc(db,'settings','costCodes'),snap=>{
+    const data=snap.exists()?snap.data():{};
+    customCodes=data.codes||[];
+    archivedCodes=new Set(data.archived||[]);
+    rebuildCostCodeData();
+    fillCatDropdown();
+  });
+}
+function fillCatDropdown(){
+  const sel=$('ci-cat'),v=sel.value;
+  sel.innerHTML=`<option value="">${t('selectcategory')}</option>`;
+  const cats=[...new Set(ALL_CODES.filter(c=>!archivedCodes.has(c.code)).map(c=>c.cat))].sort();
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o)});
+  sel.value=v;
+}
+$('ci-cat').onchange=()=>{fillCodeDropdown();validateInForm()};
+function fillCodeDropdown(){
+  const cat=$('ci-cat').value,sel=$('ci-code');
+  sel.disabled=!cat;
+  sel.innerHTML=`<option value="">${cat?t('selectcodeph'):t('selectcategoryfirst')}</option>`;
+  ALL_CODES.filter(c=>c.cat===cat&&!archivedCodes.has(c.code)).forEach(c=>{
+    const o=document.createElement('option');o.value=c.code;o.textContent=c.code;sel.appendChild(o);
+  });
+}
+$('ci-code').onchange=validateInForm;
+$('ci-room').onchange=validateInForm;
+function validateInForm(){
+  const ok=$('ci-project').value&&$('ci-cat').value&&$('ci-code').value&&$('ci-room').value;
+  $('clock-in-btn').disabled=!ok||submitting;
+}
+
+// ── ACTIVE SESSION / VIEW SWITCHING ──────────────────────────────────────────
+function loadActiveSession(){
+  onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)),snap=>{
+    activeSession=snap.empty?null:{id:snap.docs[0].id,...snap.docs[0].data()};
+    renderActiveView();
+  });
+}
+function renderActiveView(){
+  hide('view-in');hide('view-active');hide('view-summary');
+  if(activeSession){
+    const proj=allProjects.find(p=>p.id===activeSession.projectId);
+    $('active-project').textContent=activeSession.projectName||'';
+    $('active-code').textContent=(activeSession.costCode||'')+(activeSession.room?' · '+activeSession.room:'');
+    const start=activeSession.clockIn?.toDate?activeSession.clockIn.toDate():new Date(activeSession.clockIn||Date.now());
+    $('active-since').textContent=t('sincelbl')+' '+start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    if(elapsedTimer)clearInterval(elapsedTimer);
+    elapsedTimer=setInterval(()=>{$('active-timer').textContent=fmtHHMMSS(Date.now()-start.getTime())},1000);
+    $('active-timer').textContent=fmtHHMMSS(Date.now()-start.getTime());
+    show('view-active');
+  }else{
+    show('view-in');
+    validateInForm();
+  }
+}
+
+// ── CLOCK IN ─────────────────────────────────────────────────────────────────
+$('clock-in-btn').onclick=async()=>{
+  if(submitting)return;
+  const pid=$('ci-project').value,cat=$('ci-cat').value,code=$('ci-code').value,rm=$('ci-room').value;
+  if(!pid||!cat||!code||!rm){$('in-err').textContent=t('requiredfields');return}
+  submitting=true;$('clock-in-btn').disabled=true;$('tt-clockinbtn').textContent=t('clockingin');$('in-err').textContent='';
+  try{
+    const dupe=await getDocs(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)));
+    if(!dupe.empty){$('in-err').textContent=t('alreadyclockedin');submitting=false;$('tt-clockinbtn').textContent=t('clockinbtn');return}
+    const proj=activeProjects.find(p=>p.id===pid);
+    let photo=null;
+    if(inPhotoFile)photo=await uploadPhoto(inPhotoFile,'in');
+    await addDoc(collection(db,'timeLogs'),{
+      userId:currentUser.uid,userName:userProfile?.name||currentUser.email,
+      projectId:pid,projectName:proj?.name||pid,
+      costCodeCategory:cat,costCode:code,room:rm,
+      notes:$('ci-notes').value||'',
+      clockIn:serverTimestamp(),
+      clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
+      clockInGeoStatus:geoSt(currentPos,proj),
+      clockInPhoto:photo,
+      status:'active'
+    });
+    $('ci-notes').value='';inPhotoFile=null;
+    $('in-photo-btn').classList.remove('has-photo');$('tt-addphoto').textContent=t('addphoto');
+  }catch(e){$('in-err').textContent=t('genericerror')}
+  submitting=false;$('tt-clockinbtn').textContent=t('clockinbtn');
+};
+
+// ── CLOCK OUT ────────────────────────────────────────────────────────────────
+$('clock-out-btn').onclick=async()=>{
+  if(submitting||!activeSession)return;
+  submitting=true;$('clock-out-btn').disabled=true;$('tt-clockoutbtn').textContent=t('clockingout');$('out-err').textContent='';
+  try{
+    const now=new Date();
+    const start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn);
+    const proj=allProjects.find(p=>p.id===activeSession.projectId);
+    const durationMs=now-start;
+    let photo=null;
+    if(outPhotoFile)photo=await uploadPhoto(outPhotoFile,'out');
+    await updateDoc(doc(db,'timeLogs',activeSession.id),{
+      clockOut:Timestamp.fromDate(now),
+      clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
+      clockOutGeoStatus:geoSt(currentPos,proj),
+      clockOutPhoto:photo,
+      durationMs,
+      status:'complete'
+    });
+    outPhotoFile=null;$('out-photo-btn').classList.remove('has-photo');$('tt-addphoto2').textContent=t('addphoto');
+    await showSummary(activeSession.projectName,activeSession.costCode);
+  }catch(e){$('out-err').textContent=t('genericerror')}
+  submitting=false;$('tt-clockoutbtn').textContent=t('clockoutbtn');
+};
+
+async function showSummary(projectName,costCode){
+  hide('view-in');hide('view-active');
+  $('summary-project').textContent=(projectName||'')+(costCode?' · '+costCode:'');
+  const snap=await getDocs(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid)));
+  const now=new Date();
+  const dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+  const dayEnd=dayStart+86400000;
+  const tsMs=v=>{
+    if(!v)return 0;
+    if(typeof v.toMillis==='function')return v.toMillis();
+    if(typeof v.toDate==='function')return v.toDate().getTime();
+    if(v&&typeof v==='object'&&v.seconds!=null)return v.seconds*1000;
+    return new Date(v).getTime()||0;
+  };
+  let totalMs=0,count=0;const rows=[];
+  snap.docs.forEach(d=>{
+    const r=d.data();
+    const ci=tsMs(r.clockIn);
+    if(ci>=dayStart&&ci<dayEnd){
+      count++;
+      if(r.durationMs)totalMs+=r.durationMs;
+      rows.push(r);
+    }
+  });
+  rows.sort((a,b)=>tsMs(a.clockIn)-tsMs(b.clockIn));
+  $('summary-total').textContent=fmtDur(totalMs);
+  $('summary-count').textContent=count+' '+t('punchessuffix');
+  $('summary-punches').innerHTML=rows.map(r=>{
+    const ciT=r.clockIn?.toDate?r.clockIn.toDate().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'--';
+    const coT=r.clockOut?.toDate?r.clockOut.toDate().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'—';
+    return `<div class="punch-row"><span>${ciT} – ${coT}</span><span>${r.durationMs?fmtDur(r.durationMs):''}</span></div>`;
+  }).join('');
+  $('summary-punches').classList.add('hidden');
+  show('view-summary');
+}
+$('done-btn').onclick=()=>{renderActiveView()};
+
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+onAuthStateChanged(auth,async u=>{
+  currentUser=u;
+  if(!u){hide('clock-screen');show('signin-screen');return}
+  hide('signin-screen');show('clock-screen');
+  onSnapshot(doc(db,'users',u.uid),d=>{
+    if(d.exists()){
+      userProfile={id:d.id,...d.data()};
+      const nm=userProfile.name||u.email||'';
+      $('tb-name').textContent=nm;
+      $('tb-avatar').textContent=nm.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()||'--';
+      if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
+    }
+  });
+  loadProjects();loadCustomCodes();loadActiveSession();
+});
+applyTranslations();
+</script>
+</body>
+</html>

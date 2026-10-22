@@ -88,7 +88,7 @@
     <div class="right">
       <span class="name" id="tb-name"></span>
       <div class="avatar" id="tb-avatar">--</div>
-      <a class="lang-btn" id="full-app-link" href="index.html" title="Full App" style="text-decoration:none;display:inline-flex;align-items:center">App</a>
+      <a class="lang-btn" id="full-app-link" href="index.html" title="Full App" style="text-decoration:none;display:inline-flex;align-items:center"><span id="tt-site">Site</span></a>
       <button class="lang-btn" id="lang-toggle">ES</button>
     </div>
   </div>
@@ -392,7 +392,7 @@ const T={
     locating:'Locating…',locationcaptured:'Location captured',locationunavailable:'Location unavailable',locationdenied:'Location permission denied',
     requiredfields:'Select a project, cost category, cost code, and room.',
     alreadyclockedin:"You're already clocked in.",genericerror:'Something went wrong. Please try again.',
-    sincelbl:'since',punchessuffix:'punches'
+    sincelbl:'since',punchessuffix:'punches',site:'Site'
   },
   es:{
     sub:'Reloj de Tiempo',notclockedin:'Sin Registrar',clockedin:'Registrado',
@@ -407,7 +407,7 @@ const T={
     locating:'Localizando…',locationcaptured:'Ubicación capturada',locationunavailable:'Ubicación no disponible',locationdenied:'Permiso de ubicación denegado',
     requiredfields:'Seleccione un proyecto, categoría, código y habitación.',
     alreadyclockedin:'Ya tienes una sesión activa.',genericerror:'Algo salió mal. Intenta de nuevo.',
-    sincelbl:'desde',punchessuffix:'registros'
+    sincelbl:'desde',punchessuffix:'registros',site:'Sitio'
   }
 };
 function t(k){return T[currentLang][k]||T.en[k]||k}
@@ -432,6 +432,7 @@ function applyTranslations(){
   $('tt-punchedout').textContent=t('punchedout');
   $('tt-viewpunches').textContent=t('viewpunches');
   $('tt-done').textContent=t('done');
+  $('tt-site').textContent=t('site');
   $('lang-toggle').textContent=currentLang==='en'?'ES':'EN';
   if(!$('ci-code').value)$('ci-code').querySelector('option[value=""]').textContent=$('ci-cat').value?t('selectcodeph'):t('selectcategoryfirst');
   if(!$('ci-room').value)$('ci-room').querySelector('option[value=""]').textContent=$('ci-project').value?t('selectroomph'):t('selectprojectfirst');

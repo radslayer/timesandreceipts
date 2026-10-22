@@ -479,13 +479,44 @@ function wirePhotoBtn(btnId,inputId,labelId,getFile,setFile){
 wirePhotoBtn('in-photo-btn','in-photo-input','tt-addphoto',()=>inPhotoFile,f=>inPhotoFile=f);
 wirePhotoBtn('out-photo-btn','out-photo-input','tt-addphoto2',()=>outPhotoFile,f=>outPhotoFile=f);
 
-async function uploadPhoto(file,tag){
+function resizeImage(file,maxPx=1200){
+  return new Promise(res=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w<=maxPx&&h<=maxPx)return res(file);
+        if(w>h){h=Math.round(h*maxPx/w);w=maxPx}else{w=Math.round(w*maxPx/h);h=maxPx}
+        const c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        c.toBlob(b=>res(new File([b],file.name,{type:'image/jpeg'})),'image/jpeg',0.88);
+      };
+      img.src=ev.target.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+// Uploads the photo and creates a Site Photos gallery entry for it (same
+// collection/shape the desktop app's Photos tab reads), so photos taken
+// from the Time Clock show up there too. Returns the new sitePhotos doc id.
+async function uploadAndAttachPhoto(file,tag,projectId,projectName,room){
   if(!file)return null;
-  const storagePath='timeLogPhotos/'+currentUser.uid+'/'+Date.now()+'_'+tag+'_'+file.name;
+  const resized=await resizeImage(file);
+  const storagePath='sitePhotos/'+currentUser.uid+'/'+Date.now()+'_'+tag+'_'+resized.name;
   const r=sRef(storage,storagePath);
-  await uploadBytes(r,file);
+  await uploadBytes(r,resized);
   const url=await getDownloadURL(r);
-  return{url,storagePath};
+  const docRef=await addDoc(collection(db,'sitePhotos'),{
+    projectId,projectName,room:room||'',
+    notes:'',
+    photos:[{url,storagePath}],
+    uploadedBy:currentUser.uid,uploadedByName:userProfile?.name||currentUser.email,
+    uploadedAt:serverTimestamp(),archived:false,visibleToClient:false,
+    source:'timeClock',sourceTag:tag
+  });
+  return docRef.id;
 }
 
 // ── PROJECTS / ROOMS ─────────────────────────────────────────────────────────
@@ -582,8 +613,8 @@ $('clock-in-btn').onclick=async()=>{
     const dupe=await getDocs(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)));
     if(!dupe.empty){$('in-err').textContent=t('alreadyclockedin');submitting=false;$('tt-clockinbtn').textContent=t('clockinbtn');return}
     const proj=activeProjects.find(p=>p.id===pid);
-    let photo=null;
-    if(inPhotoFile)photo=await uploadPhoto(inPhotoFile,'in');
+    let photoId=null;
+    if(inPhotoFile)photoId=await uploadAndAttachPhoto(inPhotoFile,'clockin',pid,proj?.name||pid,rm);
     await addDoc(collection(db,'timeLogs'),{
       userId:currentUser.uid,userName:userProfile?.name||currentUser.email,
       projectId:pid,projectName:proj?.name||pid,
@@ -592,7 +623,7 @@ $('clock-in-btn').onclick=async()=>{
       clockIn:serverTimestamp(),
       clockInGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
       clockInGeoStatus:geoSt(currentPos,proj),
-      clockInPhoto:photo,
+      clockInPhotoId:photoId,
       status:'active'
     });
     $('ci-notes').value='';inPhotoFile=null;
@@ -610,13 +641,13 @@ $('clock-out-btn').onclick=async()=>{
     const start=activeSession.clockIn?.toDate?.()||new Date(activeSession.clockIn);
     const proj=allProjects.find(p=>p.id===activeSession.projectId);
     const durationMs=now-start;
-    let photo=null;
-    if(outPhotoFile)photo=await uploadPhoto(outPhotoFile,'out');
+    let photoId=null;
+    if(outPhotoFile)photoId=await uploadAndAttachPhoto(outPhotoFile,'clockout',activeSession.projectId,activeSession.projectName,activeSession.room);
     await updateDoc(doc(db,'timeLogs',activeSession.id),{
       clockOut:Timestamp.fromDate(now),
       clockOutGeo:currentPos?{lat:currentPos.lat,lng:currentPos.lng}:null,
       clockOutGeoStatus:geoSt(currentPos,proj),
-      clockOutPhoto:photo,
+      clockOutPhotoId:photoId,
       durationMs,
       status:'complete'
     });

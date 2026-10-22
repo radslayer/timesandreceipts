@@ -60,6 +60,9 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
 .tbl td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
 .tbl tr:last-child td{border-bottom:none}
+.tbl.tbl-actions-sticky{border-collapse:separate;border-spacing:0}
+.tbl.tbl-actions-sticky th:last-child,.tbl.tbl-actions-sticky td:last-child{position:sticky;right:0;box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)}
+.tbl.tbl-actions-sticky thead th:last-child{background:var(--surface);z-index:3}
 @media(max-width:700px){
   .tbl{font-size:11px}
   .tbl th,.tbl td{padding:6px 5px}
@@ -229,7 +232,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button type="button" class="btn btn-outline btn-sm" id="tl-filter-clear" style="margin-left:auto">Clear Filters</button>
         </div>
         <div style="overflow-x:auto">
-          <table class="tbl">
+          <table class="tbl tbl-actions-sticky">
             <thead><tr><th id="th-date" data-tlcol="date"><span id="th-date-label">Date</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="date">&#9660;</button></th><th id="log-emp-col" style="display:none" data-tlcol="employee"><span id="log-emp-col-label">Employee</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="employee">&#9660;</button></th><th id="th-project" data-tlcol="project"><span id="th-project-label">Project</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="project">&#9660;</button></th><th id="th-costcode" data-tlcol="costcode"><span id="th-costcode-label">Cost Code</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="costcode">&#9660;</button></th><th id="th-room" class="col-hide-sm" data-tlcol="room"><span id="th-room-label">Room</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="room">&#9660;</button></th><th id="th-in" data-tlcol="in"><span id="th-in-label">In</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="in">&#9660;</button></th><th id="th-out" data-tlcol="out"><span id="th-out-label">Out</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="out">&#9660;</button></th><th id="th-duration" data-tlcol="duration"><span id="th-duration-label">Duration</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="duration">&#9660;</button></th><th id="th-location" class="col-hide-sm" data-tlcol="location"><span id="th-location-label">Location</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="location">&#9660;</button></th><th id="th-notes" data-tlcol="notes"><span id="th-notes-label">Notes</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="notes">&#9660;</button></th><th id="th-billable" class="priv-only hidden" data-tlcol="billable">Billable<span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="billable">&#9660;</button></th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
@@ -2317,6 +2320,7 @@ function renderMyLog(){
     const dayKey=new Date(entryMs).toDateString();
     if(dayKey!==_prevDayKey){_dayShadeOn=!_dayShadeOn;_prevDayKey=dayKey;}
     const rowBg=overlapsWith?'background:#f5dada':(_dayShadeOn?'background:var(--cream)':'');
+    const actionsBg=overlapsWith?'#f5dada':(_dayShadeOn?'var(--cream)':'var(--surface)');
     const rowStyle=[rowBg].filter(Boolean).join(';');
     return`<tr id="tl-row-${r.id}" style="${rowStyle}" ${overlapsWith?`title="${esc(overlapTitle)}"`:''}>
     <td>${fmtDate(r.clockIn)}${payrollLocked?'<br>'+payrollLockBadge():''}${overlapsWith?'<br>'+overlapBadge():''}</td>
@@ -2330,7 +2334,7 @@ function renderMyLog(){
     <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
     <td class="notes-cell" style="font-size:11px;max-width:200px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
     ${isPriv()?(isAdmin()?`<td style="text-align:center"><input type="checkbox" ${effectiveBillable(r)?'checked':''} onchange="window._setBillable('${r.id}',this.checked)"></td>`:`<td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>`):''}
-    <td style="white-space:nowrap">
+    <td style="white-space:nowrap;background:${actionsBg}">
       ${editBtn}
       ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
     </td>

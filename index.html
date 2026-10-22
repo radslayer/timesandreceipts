@@ -2188,6 +2188,16 @@ function tlEndMs(clockOut){return clockOut?tlTsMs(clockOut):Infinity}
 // clock-out and the very next clock-in in that same displayed minute never register as an
 // overlap, while any real overlap spanning more than a minute is still caught.
 function flrMin(ms){return ms===Infinity?Infinity:Math.floor(ms/60000)*60000}
+// A conflict only counts if the two ranges genuinely overlap by MORE than a minute, not just
+// touch or overlap by a minute or less. Floor both ends of both ranges to the minute, then
+// measure the actual overlapping span -- any real double-booking spanning more than a minute
+// is still caught, but a minute-or-less sliver (same-minute task switch, or a manually-typed
+// minute-precision entry landing slightly inside a seconds-precision GPS punch) is not.
+function overlapsPastGrace(s1,e1,s2,e2){
+  s1=flrMin(s1);e1=flrMin(e1);s2=flrMin(s2);e2=flrMin(e2);
+  const ovStart=Math.max(s1,s2),ovEnd=Math.min(e1,e2);
+  return(ovEnd-ovStart)>60000;
+}
 // Finds the first timeLogs entry for userId whose [clockIn,clockOut) range overlaps [startMs,endMs).
 // endMs=Infinity means an open/ongoing new entry (e.g. a live Clock In). excludeId skips that doc (for edits).
 async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
@@ -2198,7 +2208,7 @@ async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
       const r=d.data();
       const exStart=tlTsMs(r.clockIn);
       const exEnd=tlEndMs(r.clockOut);
-      if(flrMin(exStart)<flrMin(endMs)&&flrMin(startMs)<flrMin(exEnd))return{id:d.id,...r};
+      if(overlapsPastGrace(exStart,exEnd,startMs,endMs))return{id:d.id,...r};
     }
   }catch(e){console.warn('Overlap check failed:',e)}
   return null;
@@ -4007,7 +4017,7 @@ function findPayrollOverlaps(entries) {
       for (let j=i+1;j<sorted.length;j++) {
         const aStart=tlTsMs(sorted[i].clockIn), aEnd=tlEndMs(sorted[i].clockOut);
         const bStart=tlTsMs(sorted[j].clockIn), bEnd=tlEndMs(sorted[j].clockOut);
-        if (flrMin(aStart)<flrMin(bEnd) && flrMin(bStart)<flrMin(aEnd)) conflicts.push({empName: sorted[i].userName||sorted[j].userName||'Unknown', a: sorted[i], b: sorted[j]});
+        if (overlapsPastGrace(aStart,aEnd,bStart,bEnd)) conflicts.push({empName: sorted[i].userName||sorted[j].userName||'Unknown', a: sorted[i], b: sorted[j]});
       }
     }
   });

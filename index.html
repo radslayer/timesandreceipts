@@ -255,7 +255,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="priv-only hidden" id="rcpt-billing-summary" style="font-size:13px;margin-bottom:12px"></div>
       <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
         <div class="field field-auto" style="margin-bottom:0"><select id="rcpt-filter-project" style="width:170px"><option value="">All Projects</option></select></div>
-        <div class="field field-auto" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
+        <div class="field field-auto" style="margin-bottom:0"><input type="text" id="rcpt-filter-billnum" placeholder="Receipt #..." style="width:120px"></div><div class="field field-auto" style="margin-bottom:0"><input type="text" id="rcpt-filter-vendor" placeholder="Vendor..." style="width:140px"></div>
         <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-from-lbl">From</span><input type="date" id="rcpt-filter-date-from" style="width:140px"></div>
         <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--muted)" id="rcpt-filter-to-lbl">To</span><input type="date" id="rcpt-filter-date-to" style="width:140px"></div>
         <div class="field field-auto" style="margin-bottom:0;display:flex;align-items:center;gap:6px">
@@ -1657,7 +1657,7 @@ const T={
     logTimeTitle:'Log Time Entry',logTimeDesc:'Enter a completed time entry on behalf of any employee. All fields required.',
     saveTimeEntry:'Save Time Entry',ltFieldsRequired:'All fields except Clock Out are required.',
     clockOutOptional:'Clock Out (optional)',
-    allProjectsFilter:'All Projects',vendorPlaceholder:'Vendor...',dateFrom:'From',dateTo:'To',
+    allProjectsFilter:'All Projects',vendorPlaceholder:'Vendor...',receiptNumPlaceholder:'Receipt #...',dateFrom:'From',dateTo:'To',
     minAmount:'Min',maxAmount:'Max',clearFilters:'Clear Filters',noMatchingReceipts:'No receipts match these filters.',amountRangeLbl:'Amount ($)',
     entrySavedFor:'✓ Entry saved for ',etFieldsRequired:'Project, cost category, cost code, room, and clock-in are required.',
     alreadyClockedInError:"You're already clocked in. Clock out of your current session before starting a new one.",
@@ -1709,7 +1709,7 @@ const T={
     logTimeTitle:'Registrar Entrada de Tiempo',logTimeDesc:'Ingrese una entrada de tiempo completa para cualquier empleado. Todos los campos son obligatorios.',
     saveTimeEntry:'Guardar Registro de Tiempo',ltFieldsRequired:'Todos los campos excepto Hora de Salida son obligatorios.',
     clockOutOptional:'Hora de Salida (opcional)',
-    allProjectsFilter:'Todos los Proyectos',vendorPlaceholder:'Proveedor...',dateFrom:'Desde',dateTo:'Hasta',
+    allProjectsFilter:'Todos los Proyectos',vendorPlaceholder:'Proveedor...',receiptNumPlaceholder:'No. de Recibo...',dateFrom:'Desde',dateTo:'Hasta',
     minAmount:'Min',maxAmount:'Max',clearFilters:'Limpiar Filtros',noMatchingReceipts:'Ningun recibo coincide con estos filtros.',amountRangeLbl:'Monto ($)',
     entrySavedFor:'✓ Registro guardado para ',etFieldsRequired:'Proyecto, categoria de costo, codigo de costo, habitacion y hora de entrada son obligatorios.',
     alreadyClockedInError:'Ya tienes una entrada activa. Marca tu salida de la sesion actual antes de iniciar una nueva.',
@@ -1866,6 +1866,7 @@ function applyTranslations(){
   const abBtn=$('new-bill-btn');if(abBtn)abBtn.textContent=t('addBill');
   // Receipts filter row
   const rcptFP=$('rcpt-filter-project');if(rcptFP&&rcptFP.options[0])rcptFP.options[0].textContent=t('allProjectsFilter');
+  const rcptFBN=$('rcpt-filter-billnum');if(rcptFBN)rcptFBN.placeholder=t('receiptNumPlaceholder');
   const rcptFV=$('rcpt-filter-vendor');if(rcptFV)rcptFV.placeholder=t('vendorPlaceholder');
   const rcptFLbl=$('rcpt-filter-from-lbl');if(rcptFLbl)rcptFLbl.textContent=t('dateFrom');
   const rcptTLbl=$('rcpt-filter-to-lbl');if(rcptTLbl)rcptTLbl.textContent=t('dateTo');
@@ -2314,6 +2315,7 @@ function renderReceipts(){
   const showArch=isPriv()&&$('rcpt-show-archived')?.checked;
   let list=showArch?allList:allList.filter(r=>!isArchivedRec(r));
   const fProj=$('rcpt-filter-project')?.value||'';
+  const fBillNum=($('rcpt-filter-billnum')?.value||'').trim().replace(/^#/,'');
   const fVendor=($('rcpt-filter-vendor')?.value||'').trim().toLowerCase();
   const fDateFrom=$('rcpt-filter-date-from')?.value||'';
   const fDateTo=$('rcpt-filter-date-to')?.value||'';
@@ -2322,8 +2324,9 @@ function renderReceipts(){
   const fMissingInv=isPriv()&&$('rcpt-filter-missing-inv')?.checked;
   const fMissingQB=isPriv()&&$('rcpt-filter-missing-qb')?.checked;
   const fMissingDB=isPriv()&&$('rcpt-filter-missing-db')?.checked;
-  const filtersActive=fProj||fVendor||fDateFrom||fDateTo||!isNaN(fAmtMin)||!isNaN(fAmtMax)||fMissingInv||fMissingQB||fMissingDB;
+  const filtersActive=fProj||fBillNum||fVendor||fDateFrom||fDateTo||!isNaN(fAmtMin)||!isNaN(fAmtMax)||fMissingInv||fMissingQB||fMissingDB;
   if(fProj)list=list.filter(r=>r.projectId===fProj);
+  if(fBillNum)list=list.filter(r=>String(r.billNumber||'').toLowerCase().includes(fBillNum.toLowerCase()));
   if(fVendor)list=list.filter(r=>(r.vendor||'').toLowerCase().includes(fVendor));
   if(fDateFrom){const fromMs=new Date(fDateFrom+'T00:00:00').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)>=fromMs)}
   if(fDateTo){const toMs=new Date(fDateTo+'T23:59:59').getTime();list=list.filter(r=>receiptTsMs(r.submittedAt||r.createdAt)<=toMs)}
@@ -2364,7 +2367,7 @@ function renderReceipts(){
       const arch=isArchivedRec(r);
       const locked=isLockedBill(r);
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
-      const billNumHtml=r.billNumber?`<span class="bill-num">#${r.billNumber}</span> `:'';
+      const billNumHtml=r.billNumber?(r.imageUrl?`<span class="bill-num" style="cursor:pointer;text-decoration:underline" title="View receipt image" onclick="${/\.pdf($|\?)/i.test(r.imageUrl)?`window.open('${r.imageUrl}','_blank')`:`window._lb('${r.imageUrl}')`}">#${r.billNumber}</span> `:`<span class="bill-num">#${r.billNumber}</span> `):'';
       const qbHtml=isPriv()?(r.qbEntryDate?`<span class="entry-date">QB ✓ ${r.qbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','qb')">QB: mark entered</span>`):'';
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
@@ -2485,7 +2488,7 @@ const RCPT_TABLE_COLS=[
   {key:'billNumber',label:'Receipt #',
     sortValue:r=>r.billNumber||'',
     filterValue:r=>r.billNumber?('#'+r.billNumber):'(none)',
-    display:r=>r.billNumber?('#'+esc(r.billNumber)):'--'},
+    display:r=>r.billNumber?(r.imageUrl?`<span style="cursor:pointer;text-decoration:underline" title="View receipt image" onclick="${/\.pdf($|\?)/i.test(r.imageUrl)?`window.open('${r.imageUrl}','_blank')`:`window._lb('${r.imageUrl}')`}">#${esc(r.billNumber)}</span>`:('#'+esc(r.billNumber))):'--'},
   {key:'amount',label:'Amt $',
     sortValue:r=>parseFloat(r.amount||0),
     filterValue:r=>'$'+parseFloat(r.amount||0).toFixed(2),
@@ -2618,7 +2621,7 @@ function goToReceiptResult(id){
   hide('search-modal');
   document.querySelector('[data-tab="receipts"]')?.click();
   if(_rcptTableView){_rcptTableView=false;$('rcpt-view-cards-btn')?.classList.add('on');$('rcpt-view-table-btn')?.classList.remove('on')}
-  ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['rcpt-filter-project','rcpt-filter-billnum','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
   ['rcpt-filter-missing-inv','rcpt-filter-missing-qb','rcpt-filter-missing-db'].forEach(fid=>{const el=$(fid);if(el)el.checked=false});
   renderReceipts();
   setTimeout(()=>{
@@ -2757,6 +2760,7 @@ window._markEntry=async(id,type)=>{
 };
 $('rcpt-show-archived').onchange=()=>renderReceipts();
 $('rcpt-filter-project').onchange=renderReceipts;
+$('rcpt-filter-billnum').oninput=renderReceipts;
 $('rcpt-filter-vendor').oninput=renderReceipts;
 $('rcpt-filter-date-from').onchange=renderReceipts;
 $('rcpt-filter-date-to').onchange=renderReceipts;
@@ -2766,7 +2770,7 @@ $('rcpt-filter-missing-inv').onchange=renderReceipts;
 $('rcpt-filter-missing-qb').onchange=renderReceipts;
 $('rcpt-filter-missing-db').onchange=renderReceipts;
 $('rcpt-filter-clear').onclick=()=>{
-  ['rcpt-filter-project','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
+  ['rcpt-filter-project','rcpt-filter-billnum','rcpt-filter-vendor','rcpt-filter-date-from','rcpt-filter-date-to','rcpt-filter-amount-min','rcpt-filter-amount-max'].forEach(fid=>{const el=$(fid);if(el)el.value=''});
   ['rcpt-filter-missing-inv','rcpt-filter-missing-qb','rcpt-filter-missing-db'].forEach(fid=>{const el=$(fid);if(el)el.checked=false});
   renderReceipts();
 };

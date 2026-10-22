@@ -60,6 +60,13 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
 .tbl td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
 .tbl tr:last-child td{border-bottom:none}
+@media(max-width:700px){
+  .tbl{font-size:11px}
+  .tbl th,.tbl td{padding:6px 5px}
+  .tbl .col-hide-sm{display:none}
+  .tbl .cc-cell,.tbl .notes-cell{max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap!important}
+  .tbl .cc-cell .tag{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+}
 .tag{display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-right:3px;margin-bottom:2px}
 .badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:20px}
 .badge.submitted{background:#fef3d4;color:var(--amber)}
@@ -216,7 +223,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location">Location</th><th id="th-notes">Notes</th><th id="th-billable" class="priv-only hidden">Billable</th><th></th></tr></thead>
+            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room" class="col-hide-sm">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location" class="col-hide-sm">Location</th><th id="th-notes">Notes</th><th id="th-billable" class="priv-only hidden">Billable</th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
@@ -2214,13 +2221,13 @@ function renderMyLog(){
     <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}</td>
     ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
     <td>${r.projectName||'--'}</td>
-    <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||''}</span></td>
-    <td>${r.room||'--'}</td>
+    <td class="cc-cell" style="font-size:11px" title="${esc(r.costCode||r.scope||'')}"><span class="tag">${r.costCode||r.scope||''}</span></td>
+    <td class="col-hide-sm">${r.room||'--'}</td>
     <td style="font-size:12px">${fmtTime(r.clockIn)}</td>
     <td style="font-size:12px">${r.clockOut?fmtTime(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
     <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
-    <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
-    <td style="font-size:11px;max-width:200px;white-space:normal">${r.notes||'--'}</td>
+    <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
+    <td class="notes-cell" style="font-size:11px;max-width:200px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
     ${isPriv()?`<td style="text-align:center"><input type="checkbox" ${effectiveBillable(r)?'checked':''} onchange="window._setBillable('${r.id}',this.checked)"></td>`:''}
     <td style="white-space:nowrap">
       ${editBtn}${archBtn}
@@ -3317,7 +3324,7 @@ function renderReport(data){
     <button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>
   </div><div style="overflow-x:auto"><table class="tbl"><thead><tr>`;
   if(it){
-    h+='<th>Date</th><th>Employee</th><th>Project</th><th>Cost Category</th><th>Cost Code</th><th>Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Location</th><th>Notes</th><th>Billable</th><th></th>';
+    h+='<th>Date</th><th>Employee</th><th>Project</th><th class="col-hide-sm">Cost Category</th><th>Cost Code</th><th class="col-hide-sm">Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th class="col-hide-sm">Location</th><th>Notes</th><th>Billable</th><th></th>';
   }else{
     h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th>Invoiced Client</th><th></th>';
   }
@@ -3328,14 +3335,14 @@ function renderReport(data){
         <td style="white-space:nowrap">${fmtDate(r.clockIn)}</td>
         <td>${r.userName||'--'}</td>
         <td>${r.projectName||'--'}</td>
-        <td style="font-size:11px">${r.costCodeCategory||r.scope||'--'}</td>
-        <td style="font-size:11px"><span class="tag">${r.costCode||r.scope||'--'}</span></td>
-        <td>${r.room||'--'}</td>
+        <td class="col-hide-sm" style="font-size:11px">${r.costCodeCategory||r.scope||'--'}</td>
+        <td class="cc-cell" style="font-size:11px" title="${esc(r.costCode||r.scope||'')}"><span class="tag">${r.costCode||r.scope||'--'}</span></td>
+        <td class="col-hide-sm">${r.room||'--'}</td>
         <td style="font-size:12px;white-space:nowrap">${fmtTs(r.clockIn)}</td>
         <td style="font-size:12px;white-space:nowrap">${r.clockOut?fmtTs(r.clockOut):'<span class="badge active-session">Active</span>'}</td>
         <td style="font-weight:600;color:var(--green);white-space:nowrap">${fmtDur(r.durationMs)}</td>
-        <td><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
-        <td style="font-size:11px;max-width:220px;white-space:normal">${r.notes||'--'}</td>
+        <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
+        <td class="notes-cell" style="font-size:11px;max-width:220px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
         <td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>
         <td style="white-space:nowrap">${archivedBadge(r)}${isArchivedRec(r)
           ?(isPriv()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')

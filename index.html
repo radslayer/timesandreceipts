@@ -2203,16 +2203,29 @@ async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
   }catch(e){console.warn('Overlap check failed:',e)}
   return null;
 }
+let _tlEmployees=[]; // {id,name} of all active users -- independent of whatever rows happen to be loaded, so a full employee list and a full per-employee history are always available regardless of the 200-row cap below.
+function loadTlEmployeeOptions(){
+  getDocs(collection(db,'users')).then(snap=>{
+    _tlEmployees=snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.name&&u.deactivated!==true).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const empSel=$('log-emp-filter');
+    const ev=empSel.value;
+    empSel.innerHTML=`<option value="">${t('allEmployees')}</option>`+_tlEmployees.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    empSel.value=_tlEmployees.some(u=>u.id===ev)?ev:'';
+  });
+}
 function loadMyLog(){
   if(!currentUser)return;
   // Show toggle for admin and bookkeeper
   if(isPriv()){
     show('log-view-toggle');
     $('log-mine-btn').onclick=()=>{_logViewAll=false;$('log-mine-btn').classList.add('on');$('log-all-btn').classList.remove('on');$('time-log-heading').textContent=t('myTimeLog');$('log-emp-col').style.display='none';hide('log-emp-filter');$('log-emp-filter').value='';loadMyLog()};
-    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';show('log-emp-filter');loadMyLog()};
+    $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';show('log-emp-filter');loadTlEmployeeOptions();loadMyLog()};
   }
+  const selEmpUid=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
   const q=(_logViewAll&&isPriv())
-    ?query(collection(db,'timeLogs'),orderBy('clockIn','desc'),limit(200))
+    ?(selEmpUid
+      ?query(collection(db,'timeLogs'),where('userId','==',selEmpUid))
+      :query(collection(db,'timeLogs'),orderBy('clockIn','desc'),limit(200)))
     :query(collection(db,'timeLogs'),where('userId','==',currentUser.uid));
   onSnapshot(q,snap=>{
     const allRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
@@ -2221,13 +2234,6 @@ function loadMyLog(){
       return tb-ta;
     });
     window._allTimeLogs=allRows;
-    if(_logViewAll&&isPriv()){
-      const empSel=$('log-emp-filter');
-      const employees=[...new Set(allRows.map(r=>r.userName||'').filter(Boolean))].sort();
-      const ev=empSel.value;
-      empSel.innerHTML=`<option value="">${t('allEmployees')}</option>`+employees.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
-      empSel.value=employees.includes(ev)?ev:'';
-    }
     populateTlFilterCostCodes(allRows);
     populateTlFilterRooms(allRows);
     renderMyLog();
@@ -2252,7 +2258,7 @@ function renderMyLog(){
   const showArch=isPriv()&&$('log-show-archived')?.checked;
   let rows=showArch?allRows:allRows.filter(r=>!isArchivedRec(r));
   const empFilter=(_logViewAll&&isPriv())?$('log-emp-filter').value:'';
-  if(empFilter)rows=rows.filter(r=>r.userName===empFilter);
+  if(empFilter)rows=rows.filter(r=>r.userId===empFilter);
   const fProj=$('tl-filter-project')?.value||'';
   const fCC=$('tl-filter-costcode')?.value||'';
   const fRoom=$('tl-filter-room')?.value||'';
@@ -2306,6 +2312,7 @@ function renderMyLog(){
     (overlapMap[c.a.id]=overlapMap[c.a.id]||[]).push(c.b);
     (overlapMap[c.b.id]=overlapMap[c.b.id]||[]).push(c.a);
   });
+  let _prevDayKey=null,_dayShadeOn=false;
   tb.innerHTML=rows.map(r=>{
     const entryMs=tlTsMs(r.clockIn);
     const withinWindow=now-entryMs<2592000000;
@@ -2320,7 +2327,11 @@ function renderMyLog(){
       :(isPriv()?` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" ${payrollLocked?'disabled title="Payroll for this period is locked"':''} onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'');
     const overlapsWith=!arch?overlapMap[r.id]:null;
     const overlapTitle=overlapsWith?('Overlaps with: '+overlapsWith.map(o=>fmtDate(o.clockIn)+' '+fmtTime(o.clockIn)+'\u2013'+(o.clockOut?fmtTime(o.clockOut):'(open)')+' '+(o.costCode||o.scope||'')).join('; ')):'';
-    return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':(overlapsWith?'background:#f5dada':'')}" ${overlapsWith?`title="${esc(overlapTitle)}"`:''}>
+    const dayKey=new Date(entryMs).toDateString();
+    if(dayKey!==_prevDayKey){_dayShadeOn=!_dayShadeOn;_prevDayKey=dayKey;}
+    const rowBg=overlapsWith?'background:#f5dada':(_dayShadeOn?'background:var(--cream)':'');
+    const rowStyle=[arch?'opacity:.55':'',rowBg].filter(Boolean).join(';');
+    return`<tr id="tl-row-${r.id}" style="${rowStyle}" ${overlapsWith?`title="${esc(overlapTitle)}"`:''}>
     <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}${!arch&&payrollLocked?'<br>'+payrollLockBadge():''}${overlapsWith?'<br>'+overlapBadge():''}</td>
     ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
     <td>${r.projectName||'--'}</td>
@@ -2341,7 +2352,7 @@ function renderMyLog(){
   updateTlHeaderIndicators();
 }
 $('log-show-archived').onchange=()=>renderMyLog();
-$('log-emp-filter').onchange=()=>renderMyLog();
+$('log-emp-filter').onchange=()=>loadMyLog();
 $('tl-filter-project').onchange=renderMyLog;
 $('tl-filter-costcode').onchange=renderMyLog;
 $('tl-filter-room').onchange=renderMyLog;

@@ -231,7 +231,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th id="th-date">Date</th><th id="log-emp-col" style="display:none">Employee</th><th id="th-project">Project</th><th id="th-costcode">Cost Code</th><th id="th-room" class="col-hide-sm">Room</th><th id="th-in">In</th><th id="th-out">Out</th><th id="th-duration">Duration</th><th id="th-location" class="col-hide-sm">Location</th><th id="th-notes">Notes</th><th id="th-billable" class="priv-only hidden">Billable</th><th></th></tr></thead>
+            <thead><tr><th id="th-date" data-tlcol="date"><span id="th-date-label">Date</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="date">&#9660;</button></th><th id="log-emp-col" style="display:none" data-tlcol="employee"><span id="log-emp-col-label">Employee</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="employee">&#9660;</button></th><th id="th-project" data-tlcol="project"><span id="th-project-label">Project</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="project">&#9660;</button></th><th id="th-costcode" data-tlcol="costcode"><span id="th-costcode-label">Cost Code</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="costcode">&#9660;</button></th><th id="th-room" class="col-hide-sm" data-tlcol="room"><span id="th-room-label">Room</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="room">&#9660;</button></th><th id="th-in" data-tlcol="in"><span id="th-in-label">In</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="in">&#9660;</button></th><th id="th-out" data-tlcol="out"><span id="th-out-label">Out</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="out">&#9660;</button></th><th id="th-duration" data-tlcol="duration"><span id="th-duration-label">Duration</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="duration">&#9660;</button></th><th id="th-location" class="col-hide-sm" data-tlcol="location"><span id="th-location-label">Location</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="location">&#9660;</button></th><th id="th-notes" data-tlcol="notes"><span id="th-notes-label">Notes</span><span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="notes">&#9660;</button></th><th id="th-billable" class="priv-only hidden" data-tlcol="billable">Billable<span class="sort-arrow"></span><button type="button" class="col-filter-btn priv-only hidden" data-tlcol="billable">&#9660;</button></th><th></th></tr></thead>
             <tbody id="my-log-body"><tr><td colspan="9" class="empty">No entries yet.</td></tr></tbody>
           </table>
         </div>
@@ -1836,16 +1836,16 @@ function applyTranslations(){
   const tlH=$('time-log-heading');if(tlH&&!tlH.textContent.includes('All')&&!tlH.textContent.includes('Todos'))tlH.textContent=t('myTimeLog');
   const mineBtn=$('log-mine-btn');if(mineBtn)mineBtn.textContent=t('myPunches');
   const allBtn=$('log-all-btn');if(allBtn)allBtn.textContent=t('allEmployees');
-  const thDate=$('th-date');if(thDate)thDate.textContent=t('date');
-  const thEmp=$('log-emp-col');if(thEmp)thEmp.textContent=t('employee');
-  const thProj=$('th-project');if(thProj)thProj.textContent=t('project');
-  const thCC=$('th-costcode');if(thCC)thCC.textContent=t('costCode');
-  const thRoom=$('th-room');if(thRoom)thRoom.textContent=t('room');
-  const thIn=$('th-in');if(thIn)thIn.textContent=t('inTime');
-  const thOut=$('th-out');if(thOut)thOut.textContent=t('outTime');
-  const thDur=$('th-duration');if(thDur)thDur.textContent=t('duration');
-  const thLoc=$('th-location');if(thLoc)thLoc.textContent=t('location');
-  const thNotes=$('th-notes');if(thNotes)thNotes.textContent=t('notes');
+  const thDate=$('th-date-label');if(thDate)thDate.textContent=t('date');
+  const thEmp=$('log-emp-col-label');if(thEmp)thEmp.textContent=t('employee');
+  const thProj=$('th-project-label');if(thProj)thProj.textContent=t('project');
+  const thCC=$('th-costcode-label');if(thCC)thCC.textContent=t('costCode');
+  const thRoom=$('th-room-label');if(thRoom)thRoom.textContent=t('room');
+  const thIn=$('th-in-label');if(thIn)thIn.textContent=t('inTime');
+  const thOut=$('th-out-label');if(thOut)thOut.textContent=t('outTime');
+  const thDur=$('th-duration-label');if(thDur)thDur.textContent=t('duration');
+  const thLoc=$('th-location-label');if(thLoc)thLoc.textContent=t('location');
+  const thNotes=$('th-notes-label');if(thNotes)thNotes.textContent=t('notes');
   // Time Log filter row
   const tlFP=$('tl-filter-project');if(tlFP&&tlFP.options[0])tlFP.options[0].textContent=t('allProjectsFilter');
   const tlFCC=$('tl-filter-costcode');if(tlFCC&&tlFCC.options[0])tlFCC.options[0].textContent=t('costCodeFilter');
@@ -2212,6 +2212,23 @@ function renderMyLog(){
   if(!isNaN(fDurMax))rows=rows.filter(r=>(r.durationMs||0)/60000<=fDurMax);
   if(fBillable==='yes')rows=rows.filter(r=>effectiveBillable(r));
   else if(fBillable==='no')rows=rows.filter(r=>!effectiveBillable(r));
+  if(isPriv()){
+    _tlFilterBase=rows.slice();
+    rows=rows.filter(r=>TL_TABLE_COLS.every(c=>!_tlColFilters[c.key]||_tlColFilters[c.key].has(c.filterValue(r))));
+    if(_tlSort.key){
+      const sortCol=TL_TABLE_COLS.find(c=>c.key===_tlSort.key);
+      if(sortCol){
+        rows=rows.slice().sort((a,b)=>{
+          const av=sortCol.sortValue(a),bv=sortCol.sortValue(b);
+          if(av<bv)return _tlSort.dir==='asc'?-1:1;
+          if(av>bv)return _tlSort.dir==='asc'?1:-1;
+          return 0;
+        });
+      }
+    }
+  }else{
+    _tlColFilters={};_tlSort={key:null,dir:'asc'};
+  }
   const tb=$('my-log-body');
   const tlColspan=(_logViewAll?10:9)+1+(isPriv()?1:0);
   if(!rows.length){tb.innerHTML=`<tr><td colspan="${tlColspan}" class="empty">${filtersActive?t('noMatchingEntries'):'No entries yet.'}</td></tr>`;return}
@@ -2248,6 +2265,7 @@ function renderMyLog(){
     </td>
   </tr>`;
   }).join('');
+  updateTlHeaderIndicators();
 }
 $('log-show-archived').onchange=()=>renderMyLog();
 $('log-emp-filter').onchange=()=>renderMyLog();
@@ -2381,6 +2399,85 @@ function renderReceipts(){
 }
 
 // ── RECEIPTS TABLE VIEW (admin/bookkeeper Excel-style sortable/filterable table, added 2026-10-22) ──
+// ---- Time Clock "All Time Logs" table: Excel-style sortable/filterable columns
+// (admin/bookkeeper only; mirrors the Receipts table engine below). ----
+let _tlSort={key:null,dir:'asc'};
+let _tlColFilters={};
+let _tlFilterBase=[];
+const TL_TABLE_COLS=[
+  {key:'date',sortValue:r=>tlTsMs(r.clockIn)||0,filterValue:r=>fmtDate(r.clockIn)},
+  {key:'employee',sortValue:r=>(r.userName||'').toLowerCase(),filterValue:r=>r.userName||'(none)'},
+  {key:'project',sortValue:r=>(r.projectName||'').toLowerCase(),filterValue:r=>r.projectName||'(none)'},
+  {key:'costcode',sortValue:r=>(r.costCode||r.scope||'').toLowerCase(),filterValue:r=>r.costCode||r.scope||'(none)'},
+  {key:'room',sortValue:r=>(r.room||'').toLowerCase(),filterValue:r=>r.room||'(none)'},
+  {key:'in',sortValue:r=>tlTsMs(r.clockIn)||0,filterValue:r=>fmtTime(r.clockIn)},
+  {key:'out',sortValue:r=>r.clockOut?tlEndMs(r.clockOut):Infinity,filterValue:r=>r.clockOut?fmtTime(r.clockOut):'Active'},
+  {key:'duration',sortValue:r=>r.durationMs||0,filterValue:r=>fmtDur(r.durationMs)},
+  {key:'location',sortValue:r=>r.clockInGeoStatus||'',filterValue:r=>r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'},
+  {key:'notes',sortValue:r=>(r.notes||'').toLowerCase(),filterValue:r=>r.notes||'(none)'},
+  {key:'billable',sortValue:r=>effectiveBillable(r)?1:0,filterValue:r=>effectiveBillable(r)?'Yes':'No'}
+];
+function tlColDistinctValues(list,col){const vals=new Set();list.forEach(r=>vals.add(col.filterValue(r)));return[...vals].sort();}
+function closeTlColFilterPopover(){const p=document.getElementById('tl-col-filter-pop');if(p)p.remove();document.removeEventListener('click',onDocClickCloseTlFilter,true);}
+function onDocClickCloseTlFilter(e){const p=document.getElementById('tl-col-filter-pop');if(p&&!p.contains(e.target)&&!e.target.closest('.col-filter-btn'))closeTlColFilterPopover();}
+function openTlColFilterPopover(col,btnEl){
+  closeTlColFilterPopover();
+  const baseList=_tlFilterBase;
+  // Cascade: a column's checklist reflects rows that pass every OTHER column's active
+  // filter (but not its own), matching the Receipts table's AutoFilter behavior.
+  const cascadeList=baseList.filter(r=>TL_TABLE_COLS.every(c=>c.key===col.key||!_tlColFilters[c.key]||_tlColFilters[c.key].has(c.filterValue(r))));
+  const distinct=tlColDistinctValues(cascadeList,col);
+  const activeSet=_tlColFilters[col.key];
+  const pop=document.createElement('div');
+  pop.className='col-filter-pop';
+  pop.id='tl-col-filter-pop';
+  const rect=btnEl.getBoundingClientRect();
+  pop.style.top=(rect.bottom+4)+'px';
+  pop.style.left=Math.max(4,rect.left-160)+'px';
+  pop.innerHTML=distinct.map(v=>{
+    const checked=!activeSet||activeSet.has(v);
+    return `<label><input type="checkbox" value="${esc(v)}" ${checked?'checked':''}> ${esc(v)}</label>`;
+  }).join('')+`<div class="cf-actions"><a href="#" id="tl-cf-selectall" style="font-size:11px">Select All</a><a href="#" id="tl-cf-clear" style="font-size:11px">Clear</a><button type="button" class="btn btn-outline btn-sm" id="tl-cf-apply" style="padding:4px 10px">Apply</button></div>`;
+  document.body.appendChild(pop);
+  pop.querySelector('#tl-cf-selectall').onclick=(e)=>{e.preventDefault();pop.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=true)};
+  pop.querySelector('#tl-cf-clear').onclick=(e)=>{e.preventDefault();pop.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false)};
+  pop.querySelector('#tl-cf-apply').onclick=()=>{
+    const checked=[...pop.querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value);
+    if(checked.length===distinct.length)delete _tlColFilters[col.key];
+    else _tlColFilters[col.key]=new Set(checked);
+    closeTlColFilterPopover();
+    renderMyLog();
+  };
+  setTimeout(()=>document.addEventListener('click',onDocClickCloseTlFilter,true),0);
+}
+function updateTlHeaderIndicators(){
+  document.querySelectorAll('[data-tlcol]').forEach(th=>{
+    const key=th.getAttribute('data-tlcol');
+    th.classList.toggle('th-sortable',isPriv());
+    th.classList.toggle('sorted',isPriv()&&_tlSort.key===key);
+    const arrow=th.querySelector('.sort-arrow');
+    if(arrow)arrow.textContent=(isPriv()&&_tlSort.key===key)?(_tlSort.dir==='asc'?'\u25B2':'\u25BC'):'';
+    const btn=th.querySelector('.col-filter-btn');
+    if(btn)btn.classList.toggle('active',isPriv()&&!!_tlColFilters[key]);
+  });
+}
+function wireTlTableHeaders(){
+  document.querySelectorAll('[data-tlcol]').forEach(th=>{
+    const key=th.getAttribute('data-tlcol');
+    const col=TL_TABLE_COLS.find(c=>c.key===key);
+    if(!col)return;
+    th.onclick=(e)=>{
+      if(!isPriv()||e.target.closest('.col-filter-btn'))return;
+      if(_tlSort.key===key)_tlSort.dir=_tlSort.dir==='asc'?'desc':'asc';
+      else{_tlSort.key=key;_tlSort.dir='asc'}
+      renderMyLog();
+    };
+    const btn=th.querySelector('.col-filter-btn');
+    if(btn)btn.onclick=(e)=>{e.stopPropagation();if(isPriv())openTlColFilterPopover(col,btn)};
+  });
+}
+wireTlTableHeaders();
+
 let _rcptTableView=false;
 let _rcptSort={key:null,dir:'asc'};
 let _rcptColFilters={};

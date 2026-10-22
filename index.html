@@ -1085,7 +1085,12 @@ function periodKey(from,to){return from+'_'+to}
 function periodRangeMs(from,to){return{fromMs:new Date(from+'T00:00:00').getTime(),toMs:new Date(to+'T23:59:59.999').getTime()}}
 function loadPayrollLocks(){
   onSnapshot(collection(db,'payrollLocks'),snap=>{
-    window._payrollLockedRanges=snap.docs.map(d=>d.data()).filter(x=>x.locked===true).map(x=>({...periodRangeMs(x.from,x.to),from:x.from,to:x.to}));
+    const docs=snap.docs.map(d=>d.data());
+    window._payrollLockedRanges=docs.filter(x=>x.locked===true).map(x=>({...periodRangeMs(x.from,x.to),from:x.from,to:x.to}));
+    // Approved-but-not-yet-locked periods -- used to auto-revoke approval the instant any
+    // time entry inside the period changes, so a bookkeeper can never run payroll against
+    // tagging an admin approved before the data was last touched. See revokeApprovalForMs().
+    window._payrollApprovedRanges=docs.filter(x=>x.approved===true&&x.locked!==true).map(x=>({...periodRangeMs(x.from,x.to),from:x.from,to:x.to}));
     if(typeof renderMyLog==='function'){try{renderMyLog()}catch(e){}}
     if(typeof renderReport==='function'&&window._rptData?.length){try{renderReport(window._rptData)}catch(e){}}
   },()=>{/* non-priv denial or offline: edit-lock just won't show until this resolves */});
@@ -1094,6 +1099,31 @@ function isPayrollLocked(entry){
   const ms=tlTsMs(entry?.clockIn);
   if(!ms)return false;
   return (window._payrollLockedRanges||[]).some(p=>ms>=p.fromMs&&ms<=p.toMs);
+}
+// ── PAYROLL APPROVAL (ADMIN SIGN-OFF ON BILLABLE/SPIFF TAGGING) ─────────────
+// Before a bookkeeper can export or lock a payroll period, an admin must approve that the
+// billable/non-billable and spiff tagging on its time punches is correct (window._approvePayroll,
+// wired up in renderPayrollReport). If ANY time entry inside an approved-but-not-locked period
+// is then created, edited, archived/restored, deleted, or has its billable flag changed, the
+// approval is automatically cleared (revokeApprovalForMs) so a stale sign-off can never carry
+// payroll through on data that's since moved. Hooked into every timeLogs mutation point:
+// window._setBillable, window._dt, the Edit Time Log save, window._archiveRec, Add Missed
+// Time Entry, and the admin Log Time form.
+function findApprovedRangeForMs(ms){
+  if(!ms)return null;
+  return (window._payrollApprovedRanges||[]).find(p=>ms>=p.fromMs&&ms<=p.toMs)||null;
+}
+async function revokeApprovalForMs(ms){
+  const r=findApprovedRangeForMs(ms);
+  if(!r)return;
+  try{
+    await updateDoc(doc(db,'payrollLocks',periodKey(r.from,r.to)),{
+      approved:false,
+      revokedBy:userProfile?.name||currentUser?.email||'',
+      revokedAt:serverTimestamp(),
+      revokedReason:'A time entry in this period changed after approval'
+    });
+  }catch(e){/* best-effort safety net -- never block the user's actual action on this */}
 }
 function payrollLockBadge(){return'<span class="badge" style="background:#f5dada;color:var(--red)" title="Payroll for this period is locked">&#128274; Payroll Locked</span>'}
 function overlapBadge(){return'<span class="badge" style="background:#f5dada;color:var(--red)" title="This entry overlaps another time punch for the same employee">&#9888; Overlap</span>'}
@@ -1108,6 +1138,7 @@ window._archiveRec=async(col,id,archive)=>{
     await updateDoc(doc(db,col,id),archive
       ?{archived:true,archivedBy:userProfile?.name||'',archivedAt:serverTimestamp()}
       :{archived:false,restoredBy:userProfile?.name||'',restoredAt:serverTimestamp()});
+    if(col==='timeLogs'&&r)await revokeApprovalForMs(tlTsMs(r.clockIn));
   }catch(e){alert((archive?'Archive':'Restore')+' failed: '+e.message)}
 };
 // ── UNIFIED BILL NUMBERING ───────────────────────────────────────────────────
@@ -2150,6 +2181,13 @@ function tlTsMs(v){
   return 0;
 }
 function tlEndMs(clockOut){return clockOut?tlTsMs(clockOut):Infinity}
+// Overlap boundaries are compared by the calendar MINUTE, not the raw millisecond, on purpose:
+// clocking out of one task and immediately into the next (e.g. both show 10:07am) is a normal,
+// permissible task switch, not a conflict -- even though the two timestamps can differ by a
+// second or two under the hood. Flooring both ends to the minute before comparing means a
+// clock-out and the very next clock-in in that same displayed minute never register as an
+// overlap, while any real overlap spanning more than a minute is still caught.
+function flrMin(ms){return ms===Infinity?Infinity:Math.floor(ms/60000)*60000}
 // Finds the first timeLogs entry for userId whose [clockIn,clockOut) range overlaps [startMs,endMs).
 // endMs=Infinity means an open/ongoing new entry (e.g. a live Clock In). excludeId skips that doc (for edits).
 async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
@@ -2160,7 +2198,7 @@ async function findOverlappingTimeLog(userId,startMs,endMs,excludeId){
       const r=d.data();
       const exStart=tlTsMs(r.clockIn);
       const exEnd=tlEndMs(r.clockOut);
-      if(exStart<endMs&&startMs<exEnd)return{id:d.id,...r};
+      if(flrMin(exStart)<flrMin(endMs)&&flrMin(startMs)<flrMin(exEnd))return{id:d.id,...r};
     }
   }catch(e){console.warn('Overlap check failed:',e)}
   return null;
@@ -2293,7 +2331,7 @@ function renderMyLog(){
     <td style="font-weight:600;color:var(--green)">${fmtDur(r.durationMs)}</td>
     <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
     <td class="notes-cell" style="font-size:11px;max-width:200px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
-    ${isPriv()?`<td style="text-align:center"><input type="checkbox" ${effectiveBillable(r)?'checked':''} onchange="window._setBillable('${r.id}',this.checked)"></td>`:''}
+    ${isPriv()?(isAdmin()?`<td style="text-align:center"><input type="checkbox" ${effectiveBillable(r)?'checked':''} onchange="window._setBillable('${r.id}',this.checked)"></td>`:`<td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>`):''}
     <td style="white-space:nowrap">
       ${editBtn}${archBtn}
       ${canDel?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}
@@ -3414,14 +3452,17 @@ window._dt=async(id)=>{
   const r=[...(window._allTimeLogs||[]),...(window._rptData||[])].find(x=>x.id===id);
   if(r&&isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before deleting.");return}
   if(!confirm('Delete this time entry? This cannot be undone.'))return;
-  try{await deleteDoc(doc(db,'timeLogs',id))}catch(e){alert('Delete failed: '+e.message)}
+  try{
+    await deleteDoc(doc(db,'timeLogs',id));
+    if(r)await revokeApprovalForMs(tlTsMs(r.clockIn));
+  }catch(e){alert('Delete failed: '+e.message)}
 };
-let editingTimeId=null,editingTimeUserId=null;
+let editingTimeId=null,editingTimeUserId=null,editingTimeOrigMs=null;
 window._et=id=>{
   const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
   if(isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before editing.");return}
-  editingTimeId=id;editingTimeUserId=r.userId||currentUser.uid;
+  editingTimeId=id;editingTimeUserId=r.userId||currentUser.uid;editingTimeOrigMs=tlTsMs(r.clockIn);
   const ep=$('et-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
   ep.value=r.projectId||'';
@@ -3462,6 +3503,8 @@ $('et-save').onclick=async()=>{
   try{
     await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});
     hide('edit-time-modal');
+    await revokeApprovalForMs(editingTimeOrigMs);
+    await revokeApprovalForMs(ciDate.getTime());
   }catch(e){$('et-err').textContent=t('saveFailed')+e.message}
   $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
 };
@@ -3526,6 +3569,7 @@ $('at-save').onclick=async()=>{
       loggedAt:serverTimestamp()
     });
     hide('add-time-modal');
+    await revokeApprovalForMs(ciDate.getTime());
   }catch(e){$('at-err').textContent=t('saveFailed')+e.message}
   $('at-save').disabled=false;$('at-save').textContent=t('saveEntry');
 };
@@ -3793,12 +3837,15 @@ function billableBadge(b) {
   return `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${b?'#d4edd9':'#f5dada'};color:${b?'var(--green)':'var(--red)'}">${b?'Billable':'Non-Bill'}</span>`;
 }
 window._setBillable = async (id, val) => {
+  if (!isAdmin()) { alert('Only an Admin can change billable status on a time entry.'); return; }
   try {
+    const r = [...(window._allTimeLogs||[]), ...(window._rptData||[])].find(x => x.id === id);
     await updateDoc(doc(db, 'timeLogs', id), {
       billable: val,
       billableSetBy: userProfile?.name || currentUser?.email || '',
       billableSetAt: serverTimestamp()
     });
+    if (r) await revokeApprovalForMs(tlTsMs(r.clockIn));
   } catch (e) {
     alert('Failed to update billable status: ' + e.message);
   }
@@ -3917,7 +3964,13 @@ $('pr-run-btn').onclick = async () => {
       spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&effectiveBillable({...e.data?.(),...e}));
     }
 
-    renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo);
+    let approvalDoc = null;
+    try {
+      const apSnap = await getDoc(doc(db,'payrollLocks',periodKey(from,to)));
+      if (apSnap.exists()) approvalDoc = apSnap.data();
+    } catch(e) { /* offline or denied: treat as not-yet-approved rather than block the report */ }
+
+    renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo, approvalDoc);
   } catch(e) {
     $('pr-results').innerHTML = '<div class="err">Query failed: '+e.message+'</div>';
   }
@@ -3943,7 +3996,7 @@ function findPayrollOverlaps(entries) {
       for (let j=i+1;j<sorted.length;j++) {
         const aStart=tlTsMs(sorted[i].clockIn), aEnd=tlEndMs(sorted[i].clockOut);
         const bStart=tlTsMs(sorted[j].clockIn), bEnd=tlEndMs(sorted[j].clockOut);
-        if (aStart<bEnd && bStart<aEnd) conflicts.push({empName: sorted[i].userName||sorted[j].userName||'Unknown', a: sorted[i], b: sorted[j]});
+        if (flrMin(aStart)<flrMin(bEnd) && flrMin(bStart)<flrMin(aEnd)) conflicts.push({empName: sorted[i].userName||sorted[j].userName||'Unknown', a: sorted[i], b: sorted[j]});
       }
     }
   });
@@ -3955,7 +4008,7 @@ function describePayrollEntry(e) {
   const timeStr = cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' – ' + (cout?cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'(open)');
   return esc(cin.toLocaleDateString()+' '+timeStr+' — '+(e.projectName||'')+' ('+(e.costCode||e.scope||'--')+')');
 }
-function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo) {
+function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo, approvalDoc) {
   if (!entries.length) { $('pr-results').innerHTML = '<div class="empty">No completed time entries found for this period.</div>'; return; }
 
   // Calculate OT per entry
@@ -3963,6 +4016,11 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
 
   // Overlap safety check — must run before anything gets locked or exported. See findPayrollOverlaps().
   const overlaps = findPayrollOverlaps(entries);
+
+  // Admin sign-off safety check — a bookkeeper can preview/prep this report freely, but cannot
+  // export or lock it until an admin has approved that the billable/non-billable and spiff
+  // tagging on these punches is correct. See window._approvePayroll() / revokeApprovalForMs().
+  const isApproved = !!(approvalDoc && approvalDoc.approved === true);
 
   // Group entries by employee
   const byEmp = {};
@@ -3988,7 +4046,17 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     <div style="font-size:13px">${overlaps.map(c=>`<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.08)"><strong>${esc(c.empName)}</strong><br>${describePayrollEntry(c.a)}<br>overlaps<br>${describePayrollEntry(c.b)}</div>`).join('')}</div>
   </div>` : '';
 
-  let html = overlapWarningHtml + `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
+  const approvalBannerHtml = isApproved ? `<div class="card" style="background:#d4edd9;border:2px solid var(--green);margin-bottom:16px">
+    <div style="font-size:13px;color:var(--ink)">&#9989; Billable/spiff tagging approved for this period by ${esc(approvalDoc.approvedBy||'')}${approvalDoc.approvedAt?.toDate?' on '+approvalDoc.approvedAt.toDate().toLocaleString():''}. Payroll can be exported and locked.</div>
+  </div>` : `<div class="card" style="background:#fdf1d6;border:2px solid var(--amber);margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--amber);margin-bottom:8px">&#9203; Awaiting Admin Approval</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">Before this period can be exported or locked, an Admin must review the billable/non-billable and spiff tagging on these time punches and approve it for payroll.</div>
+    ${isAdmin()
+      ? `<button class="btn btn-gold" onclick="window._approvePayroll('${from}','${to}',this)"${overlaps.length?' disabled title="Resolve the overlapping time entries above first"':''}>Approve Tagging &amp; Unlock Payroll</button>`
+      : `<div style="font-size:13px;font-style:italic;color:var(--muted)">Only an Admin can approve this period.</div>`}
+  </div>`;
+
+  let html = overlapWarningHtml + approvalBannerHtml + `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
     Pay Period: <strong>${from} to ${to}</strong>
     ${includeSpiff?'&nbsp;|&nbsp;Spiff Month: <strong>'+(spiffFrom||'')+ ' to '+(spiffTo||'')+'</strong>':''}
   </div>`;
@@ -4111,17 +4179,18 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       ${includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${grandSpiff.toFixed(2)}</div></div>`:''}
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
     </div>
-    <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)${overlaps.length?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before exporting"':''}>Export CSV</button>
-    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${overlaps.length?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':''}>&#128274; Lock Payroll Period</button>
+    <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before exporting"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be exported"':'')}>Export CSV</button>
+    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be locked"':'')}>&#128274; Lock Payroll Period</button>
   </div>`;
 
   $('pr-results').innerHTML = html;
-  window._prData = { entries, otMap, users: allUsersForPayroll, spiffByEmp, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo };
+  window._prData = { entries, otMap, users: allUsersForPayroll, spiffByEmp, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo, approvalDoc };
 }
 
 window._csvPayroll = () => {
   const d = window._prData; if(!d) return;
   if (findPayrollOverlaps(d.entries).length) { alert('This payroll period has overlapping time entries that must be resolved before it can be exported. Re-run the report to see them.'); return; }
+  if (!(d.approvalDoc && d.approvalDoc.approved === true)) { alert("An Admin must approve this payroll period's billable/spiff tagging before it can be exported. Re-run the report once it's approved."); return; }
   const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
   const rows = [];
   d.entries.forEach(e => {
@@ -4183,6 +4252,7 @@ function buildPayrollEmpTotals(rows) {
 window._lockPayroll = async (btnEl) => {
   const d = window._prData; if (!d) { alert('Run the report first.'); return; }
   if (findPayrollOverlaps(d.entries).length) { alert('This payroll period has overlapping time entries that must be resolved before it can be locked. Re-run the report to see them.'); return; }
+  if (!(d.approvalDoc && d.approvalDoc.approved === true)) { alert("An Admin must approve this payroll period's billable/spiff tagging before it can be locked. Re-run the report once it's approved."); return; }
   if (!confirm("Lock this payroll period? Once locked it can't be re-run or recalculated, and the time entries in it can no longer be edited, archived, or deleted \u2014 until an admin unlocks it.")) return;
   const rows = buildPayrollSnapshotRows(d);
   const empTotals = buildPayrollEmpTotals(rows);
@@ -4208,6 +4278,25 @@ window._lockPayroll = async (btnEl) => {
   } catch(e) {
     alert('Lock failed: '+e.message);
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = '\u{1F512} Lock Payroll Period'; }
+  }
+};
+window._approvePayroll = async (from, to, btnEl) => {
+  if (!isAdmin()) return;
+  if (!confirm("Approve this payroll period? This confirms the billable/non-billable and spiff tagging on these time punches is correct, and lets the Bookkeeper run, export, and lock payroll. If any punch in this period changes after approval, this approval is automatically cleared and must be re-approved.")) return;
+  const periodId = periodKey(from, to);
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Approving...'; }
+  try {
+    await setDoc(doc(db,'payrollLocks',periodId), {
+      from, to,
+      approved: true,
+      approvedBy: userProfile?.name || currentUser?.email || '',
+      approvedAt: serverTimestamp(),
+      revokedBy: null, revokedAt: null, revokedReason: null
+    }, { merge: true });
+    $('pr-run-btn').click();
+  } catch(e) {
+    alert('Approve failed: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Approve Tagging & Unlock Payroll'; }
   }
 };
 window._unlockPayroll = async (btnEl, from, to) => {
@@ -4627,6 +4716,7 @@ $('lt-save').onclick=async()=>{
       loggedBy:userProfile?.name||currentUser?.email||'',
       loggedAt:serverTimestamp()
     });
+    await revokeApprovalForMs(ciDate.getTime());
     $('lt-err').textContent='';
     $('lt-success').textContent=t('entrySavedFor')+user?.name;show('lt-success');
     setTimeout(()=>hide('lt-success'),4000);

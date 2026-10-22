@@ -452,6 +452,10 @@ let activeSession=null,elapsedTimer=null,currentPos=null,lastGeoErrorCode=null;
 let inPhotoFile=null,outPhotoFile=null;
 let submitting=false;
 
+// Bookkeepers/admins aren't expected to be on job sites, so they don't
+// get nagged about a missing job photo when clocking out.
+function isPriv(){return['admin','bookkeeper'].includes((userProfile?.role||'').toLowerCase())}
+
 // ── GEOLOCATION ──────────────────────────────────────────────────────────────
 function updateGeoText(){
   let txt;
@@ -639,7 +643,7 @@ $('clock-in-btn').onclick=async()=>{
 // ── CLOCK OUT ────────────────────────────────────────────────────────────────
 $('clock-out-btn').onclick=async()=>{
   if(submitting||!activeSession)return;
-  if(!outPhotoFile&&!confirm(t('nophotoreminder')))return;
+  if(!outPhotoFile&&!isPriv()&&!confirm(t('nophotoreminder')))return;
   submitting=true;$('clock-out-btn').disabled=true;$('tt-clockoutbtn').textContent=t('clockingout');$('out-err').textContent='';
   try{
     const now=new Date();

@@ -1096,6 +1096,7 @@ function isPayrollLocked(entry){
   return (window._payrollLockedRanges||[]).some(p=>ms>=p.fromMs&&ms<=p.toMs);
 }
 function payrollLockBadge(){return'<span class="badge" style="background:#f5dada;color:var(--red)" title="Payroll for this period is locked">&#128274; Payroll Locked</span>'}
+function overlapBadge(){return'<span class="badge" style="background:#f5dada;color:var(--red)" title="This entry overlaps another time punch for the same employee">&#9888; Overlap</span>'}
 window._archiveRec=async(col,id,archive)=>{
   const list=col==='receipts'?(window._allReceipts||[]):[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=list.find(x=>x.id===id);
@@ -2259,6 +2260,14 @@ function renderMyLog(){
   const hasExpired=!isPriv()&&rows.some(r=>now-tlTsMs(r.clockIn)>=2592000000);
   if(hasExpired)$('time-edit-notice').style.display='';
   else $('time-edit-notice').style.display='none';
+
+  // Highlight overlapping entries right here in the Time Log table, not just at payroll time --
+  // same check, same findPayrollOverlaps(), run against whatever's currently loaded.
+  const overlapMap={};
+  findPayrollOverlaps(allRows.filter(r=>!isArchivedRec(r))).forEach(c=>{
+    (overlapMap[c.a.id]=overlapMap[c.a.id]||[]).push(c.b);
+    (overlapMap[c.b.id]=overlapMap[c.b.id]||[]).push(c.a);
+  });
   tb.innerHTML=rows.map(r=>{
     const entryMs=tlTsMs(r.clockIn);
     const withinWindow=now-entryMs<2592000000;
@@ -2271,8 +2280,10 @@ function renderMyLog(){
     const archBtn=arch
       ?(isAdmin()?` <button class="btn btn-green btn-sm" onclick="window._archiveRec('timeLogs','${r.id}',false)">Restore</button>`:'')
       :(isPriv()?` <button class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" ${payrollLocked?'disabled title="Payroll for this period is locked"':''} onclick="window._archiveRec('timeLogs','${r.id}',true)">Archive</button>`:'');
-    return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':''}">
-    <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}${!arch&&payrollLocked?'<br>'+payrollLockBadge():''}</td>
+    const overlapsWith=!arch?overlapMap[r.id]:null;
+    const overlapTitle=overlapsWith?('Overlaps with: '+overlapsWith.map(o=>fmtDate(o.clockIn)+' '+fmtTime(o.clockIn)+'\u2013'+(o.clockOut?fmtTime(o.clockOut):'(open)')+' '+(o.costCode||o.scope||'')).join('; ')):'';
+    return`<tr id="tl-row-${r.id}" style="${arch?'opacity:.55':(overlapsWith?'background:#f5dada':'')}" ${overlapsWith?`title="${esc(overlapTitle)}"`:''}>
+    <td>${fmtDate(r.clockIn)}${arch?'<br>'+archivedBadge(r):''}${!arch&&payrollLocked?'<br>'+payrollLockBadge():''}${overlapsWith?'<br>'+overlapBadge():''}</td>
     ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
     <td>${r.projectName||'--'}</td>
     <td class="cc-cell" style="font-size:11px" title="${esc(r.costCode||r.scope||'')}"><span class="tag">${r.costCode||r.scope||''}</span></td>

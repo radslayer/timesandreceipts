@@ -2212,8 +2212,8 @@ function loadMyLog(){
     $('log-all-btn').onclick=()=>{_logViewAll=true;$('log-all-btn').classList.add('on');$('log-mine-btn').classList.remove('on');$('time-log-heading').textContent=t('allTimeLogs');$('log-emp-col').style.display='';show('log-emp-filter');loadMyLog()};
   }
   const q=(_logViewAll&&isPriv())
-    ?query(collection(db,'timeLogs'),limit(200))
-    :query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),limit(50));
+    ?query(collection(db,'timeLogs'),orderBy('clockIn','desc'),limit(200))
+    :query(collection(db,'timeLogs'),where('userId','==',currentUser.uid));
   onSnapshot(q,snap=>{
     const allRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
       const ta=tlTsMs(a.clockIn);
@@ -2373,7 +2373,7 @@ function receiptTsMs(v){
 }
 function loadReceipts(){
   if(!currentUser)return;
-  const q=isPriv()?query(collection(db,'receipts'),limit(100)):query(collection(db,'receipts'),where('userId','==',currentUser.uid),limit(100));
+  const q=isPriv()?query(collection(db,'receipts'),orderBy('submittedAt','desc'),limit(100)):query(collection(db,'receipts'),where('userId','==',currentUser.uid));
   onSnapshot(q,snap=>{
     const allList=snap.docs.map(d=>({id:d.id,...d.data()}));
     window._allReceipts=allList;
@@ -3048,7 +3048,7 @@ $('sp-submit').onclick=async()=>{
 };
 function loadSitePhotos(){
   if(!currentUser)return;
-  onSnapshot(query(collection(db,'sitePhotos'),limit(200)),snap=>{
+  onSnapshot(query(collection(db,'sitePhotos'),orderBy('uploadedAt','desc'),limit(200)),snap=>{
     const tsMs=v=>{
       if(!v)return 0;
       if(typeof v.toMillis==='function')return v.toMillis();

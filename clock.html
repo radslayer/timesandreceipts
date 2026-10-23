@@ -53,9 +53,19 @@
   .summary-card .pc{display:flex;flex-direction:column;gap:2px}
   .summary-card .pname{font-size:14px;font-weight:600;color:var(--ink)}
   .summary-card .pcode{font-size:12px;color:#50545C}
-  .photo-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:12px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);font-size:14px;font-weight:600}
+  .photo-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:12px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);font-size:13.5px;font-weight:600;flex:1 1 0;min-width:0}
   .photo-btn.has-photo{border-color:var(--green);color:var(--green)}
+  .btn-row{display:flex;gap:8px}
   .spacer{flex:1 1 auto;min-height:4px}
+  .modal-bg{position:fixed;inset:0;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:0}
+  .modal-sheet{background:var(--bg);width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 18px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+  .modal-sheet h3{margin:0 0 2px;font-size:17px;font-weight:700}
+  .modal-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;color:var(--muted);line-height:1;padding:4px}
+  .modal-field{display:flex;flex-direction:column;gap:3px}
+  .modal-field .lbl{font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+  .modal-field select,.modal-field input{border:1px solid var(--border);border-radius:12px;background:var(--card);font-size:15px;font-weight:600;color:var(--ink);padding:9px 14px;font-family:inherit;width:100%}
+  .modal-field select:disabled{color:#C3C7CE}
+  .receipt-thumb{width:100%;max-height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--border)}
   .cta{display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:16px;color:#fff;font-size:18px;font-weight:700;border:none;flex:0 0 auto}
   .cta.in{background:var(--green);box-shadow:0 6px 16px rgba(47,125,79,.28)}
   .cta.out{background:var(--red);box-shadow:0 6px 16px rgba(194,59,34,.28)}
@@ -138,12 +148,21 @@
       </div>
       <input class="notes-input" id="ci-notes" type="text" placeholder="">
 
-      <div id="in-photo-area">
-        <button type="button" class="photo-btn" id="in-photo-btn">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
-          <span id="tt-addphoto">Add Job Photo</span>
-        </button>
-        <input type="file" id="in-photo-input" accept="image/*" capture="environment" class="hidden">
+      <div class="btn-row">
+        <div id="in-photo-area">
+          <button type="button" class="photo-btn" id="in-photo-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span id="tt-addphoto">Add Job Photo</span>
+          </button>
+          <input type="file" id="in-photo-input" accept="image/*" capture="environment" class="hidden">
+        </div>
+        <div id="in-receipt-area">
+          <button type="button" class="photo-btn" id="in-receipt-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span id="tt-addreceipt">Add Receipt</span>
+          </button>
+          <input type="file" id="in-receipt-input" accept="image/*" capture="environment" class="hidden">
+        </div>
       </div>
 
       <div class="spacer"></div>
@@ -175,12 +194,21 @@
         </div>
       </div>
 
-      <div id="out-photo-area">
-        <button type="button" class="photo-btn" id="out-photo-btn">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
-          <span id="tt-addphoto2">Add Job Photo</span>
-        </button>
-        <input type="file" id="out-photo-input" accept="image/*" capture="environment" class="hidden">
+      <div class="btn-row">
+        <div id="out-photo-area">
+          <button type="button" class="photo-btn" id="out-photo-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A1.6 1.6 0 0 1 9.5 3.7h5a1.6 1.6 0 0 1 1.4.8L16.8 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span id="tt-addphoto2">Add Job Photo</span>
+          </button>
+          <input type="file" id="out-photo-input" accept="image/*" capture="environment" class="hidden">
+        </div>
+        <div id="out-receipt-area">
+          <button type="button" class="photo-btn" id="out-receipt-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span id="tt-addreceipt2">Add Receipt</span>
+          </button>
+          <input type="file" id="out-receipt-input" accept="image/*" capture="environment" class="hidden">
+        </div>
       </div>
 
       <div class="spacer"></div>
@@ -218,12 +246,51 @@
     </div>
   </div>
 
+  <!-- ADD RECEIPT MODAL -->
+  <div id="receipt-modal" class="modal-bg hidden">
+    <div class="modal-sheet" style="position:relative">
+      <button type="button" class="modal-close" id="rc-close">&times;</button>
+      <h3 id="tt-receipttitle">Add Receipt</h3>
+      <img id="rc-thumb" class="receipt-thumb hidden" alt="">
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-project-lbl">PROJECT</span>
+        <select id="rc-project"><option value="" id="tt-rc-select-project">Select project...</option></select>
+      </div>
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-room-lbl">ROOM</span>
+        <select id="rc-room" disabled><option value="" id="tt-rc-select-room">Select project first...</option></select>
+      </div>
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-category-lbl">COST CATEGORY</span>
+        <select id="rc-cat"><option value="" id="tt-rc-select-category">Select category...</option></select>
+      </div>
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-code-lbl">COST CODE</span>
+        <select id="rc-code" disabled><option value="" id="tt-rc-select-code">Select category first...</option></select>
+      </div>
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-vendor-lbl">VENDOR</span>
+        <select id="rc-vendor-sel"><option value="" id="tt-rc-select-vendor">Select vendor...</option></select>
+        <input type="text" id="rc-vendor-new" class="hidden" placeholder="">
+      </div>
+      <div class="modal-field">
+        <span class="lbl" id="tt-rc-amount-lbl">AMOUNT ($)</span>
+        <input type="number" step="0.01" inputmode="decimal" id="rc-amount" placeholder="0.00">
+      </div>
+      <input class="notes-input" id="rc-notes" type="text" placeholder="">
+      <div class="err" id="rc-err"></div>
+      <button class="cta in" id="rc-submit" style="margin-top:4px">
+        <span id="tt-rc-submit">SUBMIT RECEIPT</span>
+      </button>
+    </div>
+  </div>
+
 </div>
 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,collection,doc,getDoc,getDocs,addDoc,updateDoc,onSnapshot,query,where,limit,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,collection,doc,getDoc,setDoc,getDocs,addDoc,updateDoc,onSnapshot,query,where,limit,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const app=initializeApp({apiKey:"AIzaSyCfCholttfnLxgJwaxGwTu1-FDmO0Ob1hs",authDomain:"motif-times-and-receipts.firebaseapp.com",projectId:"motif-times-and-receipts",storageBucket:"motif-times-and-receipts.firebasestorage.app",messagingSenderId:"837311030358",appId:"1:837311030358:web:a7a391ecf6b2302d6a07f7"});
@@ -399,7 +466,13 @@ const T={
     requiredfields:'Select a project, cost category, cost code, and room.',
     alreadyclockedin:"You're already clocked in.",genericerror:'Something went wrong. Please try again.',
     sincelbl:'since',punchessuffix:'punches',site:'Site',
-    nophotoreminder:"You haven't added a job photo yet. Tap Cancel to take one, or OK to clock out without a photo."
+    nophotoreminder:"You haven't added a job photo yet. Tap Cancel to take one, or OK to clock out without a photo.",
+    addreceipt:'Add Receipt',receipttitle:'Add Receipt',amount:'AMOUNT ($)',vendor:'VENDOR',
+    selectvendor:'Select vendor...',newvendorph:'Enter new vendor name...',
+    rcnotesph:'Notes (optional)',submitreceipt:'SUBMIT RECEIPT',submittingreceipt:'Submitting...',
+    rcrequiredfields:'Project, room, cost code, vendor, and amount are all required.',
+    rcselectvendor:'Select or enter a vendor.',
+    duplicateReceiptError:'This looks like a duplicate — a receipt for this vendor and amount on this project was already submitted on '
   },
   es:{
     sub:'Reloj de Tiempo',notclockedin:'Sin Registrar',clockedin:'Registrado',
@@ -415,7 +488,13 @@ const T={
     requiredfields:'Seleccione un proyecto, categoría, código y habitación.',
     alreadyclockedin:'Ya tienes una sesión activa.',genericerror:'Algo salió mal. Intenta de nuevo.',
     sincelbl:'desde',punchessuffix:'registros',site:'Sitio',
-    nophotoreminder:'Aún no has agregado una foto del trabajo. Toca Cancelar para tomar una, o Aceptar para registrar la salida sin foto.'
+    nophotoreminder:'Aún no has agregado una foto del trabajo. Toca Cancelar para tomar una, o Aceptar para registrar la salida sin foto.',
+    addreceipt:'Agregar Recibo',receipttitle:'Agregar Recibo',amount:'CANTIDAD ($)',vendor:'PROVEEDOR',
+    selectvendor:'Seleccionar proveedor...',newvendorph:'Ingrese el nombre del nuevo proveedor...',
+    rcnotesph:'Notas (opcional)',submitreceipt:'ENVIAR RECIBO',submittingreceipt:'Enviando...',
+    rcrequiredfields:'Proyecto, habitación, código de costo, proveedor y cantidad son obligatorios.',
+    rcselectvendor:'Seleccione o ingrese un proveedor.',
+    duplicateReceiptError:'Esto parece un duplicado — ya se envio un recibo para este proveedor y monto en este proyecto el '
   }
 };
 function t(k){return T[currentLang][k]||T.en[k]||k}
@@ -444,6 +523,23 @@ function applyTranslations(){
   if(!$('ci-code').value)$('ci-code').querySelector('option[value=""]').textContent=$('ci-cat').value?t('selectcodeph'):t('selectcategoryfirst');
   if(!$('ci-room').value)$('ci-room').querySelector('option[value=""]').textContent=$('ci-project').value?t('selectroomph'):t('selectprojectfirst');
   updateGeoText();
+  $('tt-addreceipt').textContent=t('addreceipt');
+  $('tt-addreceipt2').textContent=t('addreceipt');
+  $('tt-receipttitle').textContent=t('receipttitle');
+  $('tt-rc-project-lbl').textContent=t('project');
+  $('tt-rc-room-lbl').textContent=t('room');
+  $('tt-rc-category-lbl').textContent=t('category');
+  $('tt-rc-code-lbl').textContent=t('code');
+  $('tt-rc-vendor-lbl').textContent=t('vendor');
+  $('tt-rc-amount-lbl').textContent=t('amount');
+  $('tt-rc-submit').textContent=t('submitreceipt');
+  $('tt-rc-select-project').textContent=t('selectproject');
+  $('tt-rc-select-vendor').textContent=t('selectvendor');
+  $('rc-vendor-new').placeholder=t('newvendorph');
+  $('rc-notes').placeholder=t('rcnotesph');
+  if(!$('rc-code').value)$('rc-code').querySelector('option[value=""]').textContent=$('rc-cat').value?t('selectcodeph'):t('selectcategoryfirst');
+  if(!$('rc-room').value)$('rc-room').querySelector('option[value=""]').textContent=$('rc-project').value?t('selectroomph'):t('selectprojectfirst');
+  if(!$('rc-cat').value)$('rc-cat').querySelector('option[value=""]').textContent=t('selectcategory');
 }
 $('lang-toggle').onclick=async()=>{
   currentLang=currentLang==='en'?'es':'en';
@@ -456,10 +552,12 @@ let currentUser=null,userProfile=null,allProjects=[],activeProjects=[];
 let activeSession=null,elapsedTimer=null,currentPos=null,lastGeoErrorCode=null;
 let inPhotoFile=null,outPhotoFile=null;
 let submitting=false;
+let approvedVendors=[],pendingVendors=[],rcPhotoFile=null,rcSubmitting=false;
 
 // Bookkeepers/admins aren't expected to be on job sites, so they don't
 // get nagged about a missing job photo when clocking out.
 function isPriv(){return['admin','bookkeeper'].includes((userProfile?.role||'').toLowerCase())}
+function isAdmin(){return(userProfile?.role||'').toLowerCase()==='admin'}
 
 // ── GEOLOCATION ──────────────────────────────────────────────────────────────
 function updateGeoText(){
@@ -596,6 +694,162 @@ function validateInForm(){
   $('clock-in-btn').disabled=!ok||submitting;
 }
 
+// ── RECEIPTS (mirrors index.html's Submit Receipt flow) ──────────────────────
+// Bills AND receipts share one number sequence per project, assigned the same
+// way the desktop app does it.
+function autoPrefix(name){return(name||'').trim().split(/\s+/).map(w=>w.replace(/[^a-zA-Z]/g,'').toUpperCase()).filter(Boolean).map(w=>w[0]).join('').slice(0,6)||'PRJ'}
+function projPrefix(proj){return(proj?.billPrefix||autoPrefix(proj?.name||'')).toUpperCase()}
+function fmtBillNum(prefix,n){return prefix+'-'+String(n).padStart(3,'0')}
+function maxBillNum(records){let max=0;records.forEach(r=>{const m=String(r.billNumber||'').match(/(\d+)\s*$/);if(m)max=Math.max(max,parseInt(m[1],10))});return max}
+async function nextBillNumber(pid){
+  const proj=allProjects.find(p=>p.id===pid);if(!proj)return null;
+  const snap=await getDocs(query(collection(db,'receipts'),where('projectId','==',pid)));
+  const recs=snap.docs.map(d=>d.data());
+  return fmtBillNum(projPrefix(proj),maxBillNum(recs)+1);
+}
+function receiptTsMs(v){
+  if(!v)return 0;
+  if(typeof v.toMillis==='function')return v.toMillis();
+  if(typeof v.toDate==='function')return v.toDate().getTime();
+  return 0;
+}
+function fmtTs(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+
+function loadVendors(){
+  onSnapshot(doc(db,'settings','vendors'),snap=>{
+    const data=snap.exists()?snap.data():{};
+    approvedVendors=(data.approved||[]).slice().sort();
+    pendingVendors=data.pending||[];
+    fillVendorDropdown();
+  });
+}
+function fillVendorDropdown(){
+  const sel=$('rc-vendor-sel'),v=sel.value;
+  sel.innerHTML=`<option value="">${t('selectvendor')}</option>`;
+  approvedVendors.forEach(ven=>{const o=document.createElement('option');o.value=ven;o.textContent=ven;sel.appendChild(o)});
+  const other=document.createElement('option');other.value='__new__';other.textContent='Other / New Vendor...';sel.appendChild(other);
+  if(v)sel.value=v;
+}
+function resolveVendor(selId,newId){
+  const sel=$(selId).value;
+  if(sel==='__new__')return $(newId).value.trim();
+  return sel;
+}
+async function submitNewVendor(name){
+  if(!name||approvedVendors.includes(name)||pendingVendors.includes(name))return;
+  try{
+    const ref=doc(db,'settings','vendors');
+    const snap=await getDoc(ref);
+    const data=snap.exists()?snap.data():{approved:[],pending:[]};
+    data.pending=[...new Set([...(data.pending||[]),name])];
+    await setDoc(ref,data);
+  }catch(e){/* field crew may not have write access to settings; the vendor name is
+    still used on the receipt itself, it just won't be added to the approved list */}
+}
+
+function fillReceiptRoomDropdown(proj){
+  const sel=$('rc-room');
+  sel.disabled=!proj;
+  sel.innerHTML=`<option value="">${proj?t('selectroomph'):t('selectprojectfirst')}</option>`;
+  const rooms=proj?.rooms||DEF_ROOMS;
+  rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o)});
+  const na=document.createElement('option');na.value='N/A';na.textContent='N/A';sel.appendChild(na);
+}
+function fillReceiptCatDropdown(){
+  const sel=$('rc-cat'),v=sel.value;
+  sel.innerHTML=`<option value="">${t('selectcategory')}</option>`;
+  const cats=[...new Set(ALL_CODES.filter(c=>!archivedCodes.has(c.code)).map(c=>c.cat))].sort();
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o)});
+  sel.value=v;
+}
+function fillReceiptCodeDropdown(){
+  const cat=$('rc-cat').value,sel=$('rc-code');
+  sel.disabled=!cat;
+  sel.innerHTML=`<option value="">${cat?t('selectcodeph'):t('selectcategoryfirst')}</option>`;
+  ALL_CODES.filter(c=>c.cat===cat&&!archivedCodes.has(c.code)).forEach(c=>{
+    const o=document.createElement('option');o.value=c.code;o.textContent=c.code;sel.appendChild(o);
+  });
+}
+$('rc-project').onchange=()=>{fillReceiptRoomDropdown(activeProjects.find(p=>p.id===$('rc-project').value))};
+$('rc-cat').onchange=fillReceiptCodeDropdown;
+$('rc-vendor-sel').onchange=()=>{$('rc-vendor-sel').value==='__new__'?show('rc-vendor-new'):hide('rc-vendor-new')};
+
+function openReceiptModal(file){
+  rcPhotoFile=file;
+  $('rc-err').textContent='';
+  $('rc-project').value='';fillReceiptRoomDropdown(null);
+  fillReceiptCatDropdown();$('rc-cat').value='';fillReceiptCodeDropdown();
+  fillVendorDropdown();$('rc-vendor-sel').value='';hide('rc-vendor-new');$('rc-vendor-new').value='';
+  $('rc-amount').value='';$('rc-notes').value='';
+  const thumb=$('rc-thumb');
+  if(file){
+    const r=new FileReader();
+    r.onload=ev=>{thumb.src=ev.target.result;thumb.classList.remove('hidden')};
+    r.readAsDataURL(file);
+  }else{thumb.classList.add('hidden')}
+  show('receipt-modal');
+}
+function closeReceiptModal(){
+  hide('receipt-modal');
+  rcPhotoFile=null;
+  $('in-receipt-input').value='';$('out-receipt-input').value='';
+}
+$('rc-close').onclick=closeReceiptModal;
+$('in-receipt-btn').onclick=()=>$('in-receipt-input').click();
+$('in-receipt-input').onchange=e=>{const f=e.target.files[0];if(f)openReceiptModal(f)};
+$('out-receipt-btn').onclick=()=>$('out-receipt-input').click();
+$('out-receipt-input').onchange=e=>{const f=e.target.files[0];if(f)openReceiptModal(f)};
+
+$('rc-submit').onclick=async()=>{
+  if(rcSubmitting)return;
+  const pid=$('rc-project').value,rm=$('rc-room').value,cat=$('rc-cat').value,code=$('rc-code').value;
+  const amt=$('rc-amount').value,vendor=resolveVendor('rc-vendor-sel','rc-vendor-new');
+  if(!pid||!rm||!code||!amt){$('rc-err').textContent=t('rcrequiredfields');return}
+  if(!vendor){$('rc-err').textContent=t('rcselectvendor');return}
+  rcSubmitting=true;$('rc-submit').disabled=true;$('tt-rc-submit').textContent=t('submittingreceipt');$('rc-err').textContent='';
+  try{
+    const amtNum=parseFloat(amt);
+    const proj=activeProjects.find(p=>p.id===pid);
+    const vLower=vendor.trim().toLowerCase();
+    try{
+      const dupSnap=await getDocs(query(collection(db,'receipts'),where('userId','==',currentUser.uid),where('projectId','==',pid)));
+      const nowMs=Date.now();
+      const dup=dupSnap.docs.map(d=>({id:d.id,...d.data()})).find(r=>{
+        if((r.vendor||'').trim().toLowerCase()!==vLower)return false;
+        if(Math.abs((parseFloat(r.amount)||0)-amtNum)>=0.01)return false;
+        const subMs=receiptTsMs(r.submittedAt||r.createdAt);
+        if(!subMs)return false;
+        return(nowMs-subMs)<=24*3600*1000;
+      });
+      if(dup){$('rc-err').textContent=t('duplicateReceiptError')+fmtTs(dup.submittedAt||dup.createdAt);rcSubmitting=false;$('rc-submit').disabled=false;$('tt-rc-submit').textContent=t('submitreceipt');return}
+    }catch(e){console.warn('Duplicate receipt check failed:',e)}
+    let imageUrl=null;
+    if(rcPhotoFile){
+      const resized=await resizeImage(rcPhotoFile);
+      const r=sRef(storage,'receipts/'+currentUser.uid+'/'+Date.now()+'_'+resized.name);
+      await uploadBytes(r,resized);
+      imageUrl=await getDownloadURL(r);
+    }
+    if($('rc-vendor-sel').value==='__new__')await submitNewVendor(vendor);
+    const autoApprove=isAdmin();
+    let billNumber=null;
+    try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
+    await addDoc(collection(db,'receipts'),{
+      userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,
+      projectId:pid,projectName:proj?.name||pid,
+      vendor,imageUrl,archived:false,paidDate:null,billType:'receipt',
+      status:autoApprove?'approved':'submitted',
+      reviewedBy:autoApprove?(userProfile?.name||''):null,
+      reviewedAt:autoApprove?serverTimestamp():null,
+      submittedAt:serverTimestamp(),
+      costCodes:[code],costCodeCategory:cat,room:rm,
+      amount:amtNum,notes:$('rc-notes').value||'',billNumber
+    });
+    closeReceiptModal();
+  }catch(e){console.error('Receipt submit failed:',e);$('rc-err').textContent=t('genericerror')}
+  rcSubmitting=false;$('rc-submit').disabled=false;$('tt-rc-submit').textContent=t('submitreceipt');
+};
+
 // ── ACTIVE SESSION / VIEW SWITCHING ──────────────────────────────────────────
 function loadActiveSession(){
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)),snap=>{
@@ -731,7 +985,7 @@ onAuthStateChanged(auth,async u=>{
       if(userProfile.lang&&userProfile.lang!==currentLang){currentLang=userProfile.lang;applyTranslations();}
     }
   });
-  loadProjects();loadCustomCodes();loadActiveSession();
+  loadProjects();loadCustomCodes();loadActiveSession();loadVendors();
 });
 applyTranslations();
 </script>

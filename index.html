@@ -363,6 +363,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           </div>
           <button class="btn btn-gold" id="pr-run-btn" style="width:auto;padding:10px 24px">Run Payroll Report</button>
         </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:6px">Audit Locked Payroll</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Re-checks every locked payroll period against the current overtime calculation and flags any employee whose Reg/OT/DT hours (and pay) would come out different today. Read-only — it does not change any locked record.</div>
+          <button class="btn btn-outline" id="pr-audit-btn" style="width:auto;padding:10px 24px">Audit Locked Payroll</button>
+        </div>
+        <div id="pr-audit-results"></div>
         <div id="pr-results"></div>
       </div>
 
@@ -3837,66 +3843,81 @@ window._setBillable = async (id, val) => {
 // Colorado OT calculation
 // Sunday=0 ... Saturday=6, workweek Sun-Sat
 function calcColoradoOT(entries) {
-  // Group by workweek (Sun-Sat)
-  const weeks = {};
+  // Colorado's daily/weekly OT thresholds apply PER EMPLOYEE -- never pooled across the
+  // crew. Group by employee first, then by workweek (Sun-Sat), then by day within that
+  // employee's own week, so one person's hours can never push another person's punches
+  // into OT/DT. (Bug fixed 2026-10-23: this used to group only by week/day across every
+  // employee at once, which could tag a short punch as OT/DT just because someone else
+  // worked a long day on the same date.)
+  const byEmp = {};
   entries.forEach(e => {
     if (!e.clockIn || !e.durationMs) return;
-    const d = e.clockIn.toDate ? e.clockIn.toDate() : new Date(e.clockIn);
-    // Find Sunday of that week
-    const day = d.getDay(); // 0=Sun
-    const sun = new Date(d); sun.setDate(d.getDate() - day); sun.setHours(0,0,0,0);
-    const wk = toYMD(sun);
-    if (!weeks[wk]) weeks[wk] = [];
-    weeks[wk].push(e);
+    const key = e.userId || e.userName || 'unknown';
+    if (!byEmp[key]) byEmp[key] = [];
+    byEmp[key].push(e);
   });
 
-  // For each week, apply daily then weekly OT
   const result = {}; // entry.id -> {reg, ot, dt}
-  Object.values(weeks).forEach(wkEntries => {
-    // Group by day
-    const days = {};
-    wkEntries.forEach(e => {
+  Object.values(byEmp).forEach(empAllEntries => {
+    // Group this employee's entries by workweek (Sun-Sat)
+    const weeks = {};
+    empAllEntries.forEach(e => {
       const d = e.clockIn.toDate ? e.clockIn.toDate() : new Date(e.clockIn);
-      const dk = toYMD(d);
-      if (!days[dk]) days[dk] = [];
-      days[dk].push(e);
+      // Find Sunday of that week
+      const day = d.getDay(); // 0=Sun
+      const sun = new Date(d); sun.setDate(d.getDate() - day); sun.setHours(0,0,0,0);
+      const wk = toYMD(sun);
+      if (!weeks[wk]) weeks[wk] = [];
+      weeks[wk].push(e);
     });
 
-    let weeklyRegUsed = 0;
-    Object.values(days).forEach(dayEntries => {
-      const totalHrs = dayEntries.reduce((s,e) => s + (e.durationMs||0)/3600000, 0);
-      let regHrs = Math.min(totalHrs, 8);
-      let otHrs = totalHrs > 8 ? Math.min(totalHrs - 8, 4) : 0; // 8-12 = OT
-      let dtHrs = totalHrs > 12 ? totalHrs - 12 : 0; // >12 = DT
-      weeklyRegUsed += regHrs;
-
-      // Distribute proportionally across entries
-      dayEntries.forEach(e => {
-        const hrs = (e.durationMs||0)/3600000;
-        const frac = totalHrs > 0 ? hrs/totalHrs : 0;
-        result[e.id] = {
-          reg: +(regHrs * frac).toFixed(4),
-          ot: +(otHrs * frac).toFixed(4),
-          dt: +(dtHrs * frac).toFixed(4)
-        };
+    // For each week, apply daily then weekly OT -- scoped to this one employee
+    Object.values(weeks).forEach(wkEntries => {
+      // Group by day
+      const days = {};
+      wkEntries.forEach(e => {
+        const d = e.clockIn.toDate ? e.clockIn.toDate() : new Date(e.clockIn);
+        const dk = toYMD(d);
+        if (!days[dk]) days[dk] = [];
+        days[dk].push(e);
       });
+
+      let weeklyRegUsed = 0;
+      Object.values(days).forEach(dayEntries => {
+        const totalHrs = dayEntries.reduce((s,e) => s + (e.durationMs||0)/3600000, 0);
+        let regHrs = Math.min(totalHrs, 8);
+        let otHrs = totalHrs > 8 ? Math.min(totalHrs - 8, 4) : 0; // 8-12 = OT
+        let dtHrs = totalHrs > 12 ? totalHrs - 12 : 0; // >12 = DT
+        weeklyRegUsed += regHrs;
+
+        // Distribute proportionally across this employee's entries that day
+        dayEntries.forEach(e => {
+          const hrs = (e.durationMs||0)/3600000;
+          const frac = totalHrs > 0 ? hrs/totalHrs : 0;
+          result[e.id] = {
+            reg: +(regHrs * frac).toFixed(4),
+            ot: +(otHrs * frac).toFixed(4),
+            dt: +(dtHrs * frac).toFixed(4)
+          };
+        });
+      });
+
+      // Weekly OT: if this employee's reg > 40 for the week, excess moves to weekly OT
+      if (weeklyRegUsed > 40) {
+        const weeklyOtHrs = weeklyRegUsed - 40;
+        // Apply to this employee's last entries of the week until covered
+        let remaining = weeklyOtHrs;
+        [...wkEntries].reverse().forEach(e => {
+          if (remaining <= 0) return;
+          const r = result[e.id];
+          if (!r) return;
+          const convert = Math.min(r.reg, remaining);
+          r.reg -= convert;
+          r.ot += convert;
+          remaining -= convert;
+        });
+      }
     });
-
-    // Weekly OT: if reg > 40, excess moves to weekly OT
-    if (weeklyRegUsed > 40) {
-      const weeklyOtHrs = weeklyRegUsed - 40;
-      // Apply to last entries of the week until covered
-      let remaining = weeklyOtHrs;
-      [...wkEntries].reverse().forEach(e => {
-        if (remaining <= 0) return;
-        const r = result[e.id];
-        if (!r) return;
-        const convert = Math.min(r.reg, remaining);
-        r.reg -= convert;
-        r.ot += convert;
-        remaining -= convert;
-      });
-    }
   });
   return result;
 }
@@ -4296,6 +4317,91 @@ window._unlockPayroll = async (btnEl, from, to) => {
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Unlock'; }
   }
 };
+// Read-only re-check of every locked payroll period against the current overtime
+// calculation. Added 2026-10-23 after calcColoradoOT was fixed to group hours per
+// employee instead of pooling every employee's hours together for the day/week
+// threshold math -- this flags any already-locked period/employee whose Reg/OT/DT
+// split (and resulting pay) comes out different with the corrected logic, so a
+// human can decide what, if anything, needs correcting for periods already paid.
+// Never writes anything -- it only reads payrollRuns and timeLogs and renders a report.
+$('pr-audit-btn').onclick = async () => {
+  const btn = $('pr-audit-btn');
+  btn.disabled = true; btn.textContent = 'Auditing...';
+  $('pr-audit-results').innerHTML = '<div class="empty">Loading locked payroll periods...</div>';
+  try {
+    const snap = await getDocs(query(collection(db,'payrollRuns'), where('locked','==',true)));
+    const periods = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.from||'').localeCompare(b.from||''));
+    if (!periods.length) {
+      $('pr-audit-results').innerHTML = '<div class="empty">No locked payroll periods found.</div>';
+      btn.disabled = false; btn.textContent = 'Audit Locked Payroll';
+      return;
+    }
+    const findings = [];
+    for (const period of periods) {
+      const entryIds = period.entryIds||[];
+      if (!entryIds.length) continue;
+      const entries = [];
+      for (const id of entryIds) {
+        try {
+          const eSnap = await getDoc(doc(db,'timeLogs',id));
+          if (eSnap.exists()) entries.push({id:eSnap.id,...eSnap.data()});
+        } catch(e) { /* entry may have been deleted since locking -- can't recompute it, skip */ }
+      }
+      const otMap = calcColoradoOT(entries);
+      // Recompute per-employee reg/ot/dt/pay using the ORIGINAL baseRate stored on each
+      // row at lock time, so this isolates "did the hours/split change" from any later
+      // pay-rate change, which is a separate question.
+      const newByEmp = {};
+      (period.rows||[]).forEach(row => {
+        const ot = otMap[row.entryId] || {reg:0,ot:0,dt:0};
+        if (!newByEmp[row.employee]) newByEmp[row.employee] = {reg:0,ot:0,dt:0,pay:0};
+        const b = newByEmp[row.employee];
+        b.reg += ot.reg; b.ot += ot.ot; b.dt += ot.dt;
+        b.pay += row.baseRate ? (ot.reg*row.baseRate + ot.ot*row.baseRate*1.5 + ot.dt*row.baseRate*2) : 0;
+      });
+      (period.empTotals||[]).forEach(emp => {
+        const nb = newByEmp[emp.employee];
+        if (!nb) return;
+        const newReg = +nb.reg.toFixed(2), newOT = +nb.ot.toFixed(2), newDT = +nb.dt.toFixed(2), newPay = +nb.pay.toFixed(2);
+        const diff = Math.abs(newReg-emp.regHrs) >= 0.02 || Math.abs(newOT-emp.otHrs) >= 0.02 || Math.abs(newDT-emp.dtHrs) >= 0.02 || Math.abs(newPay-emp.basePay) >= 0.02;
+        if (diff) {
+          findings.push({
+            from:period.from, to:period.to, employee:emp.employee,
+            storedReg:emp.regHrs, storedOT:emp.otHrs, storedDT:emp.dtHrs, storedPay:emp.basePay,
+            newReg, newOT, newDT, newPay, payDelta:+(newPay-emp.basePay).toFixed(2)
+          });
+        }
+      });
+    }
+    if (!findings.length) {
+      $('pr-audit-results').innerHTML = `<div class="card" style="background:#d4edd9;border:2px solid var(--green);margin-bottom:16px">
+        <div style="font-size:13px;color:var(--ink)">&#9989; Checked ${periods.length} locked payroll period${periods.length===1?'':'s'} against the current overtime calculation — no differences found. Every locked Reg/OT/DT split and pay amount still matches.</div>
+      </div>`;
+    } else {
+      const totalDelta = findings.reduce((s,f)=>s+f.payDelta,0);
+      $('pr-audit-results').innerHTML = `<div class="card" style="background:#f5dada;border:2px solid var(--red);margin-bottom:16px">
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--red);margin-bottom:8px">&#9888; ${findings.length} employee-period${findings.length===1?'':'s'} across ${periods.length} locked period${periods.length===1?'':'s'} would calculate differently today</div>
+        <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">This is a read-only check — nothing has been changed. Net pay difference across everything flagged below: <strong>${totalDelta>=0?'+':''}\$${totalDelta.toFixed(2)}</strong> (positive means the corrected calculation pays MORE than what was locked).</div>
+        <div style="overflow-x:auto"><table class="tbl" style="min-width:700px">
+          <thead><tr><th>Period</th><th>Employee</th><th style="text-align:right">Locked Reg/OT/DT</th><th style="text-align:right">Corrected Reg/OT/DT</th><th style="text-align:right">Locked Pay</th><th style="text-align:right">Corrected Pay</th><th style="text-align:right">Diff</th></tr></thead>
+          <tbody>${findings.map(f=>`<tr style="font-size:12px">
+            <td style="padding:6px 8px">${f.from} to ${f.to}</td>
+            <td style="padding:6px 8px">${esc(f.employee)}</td>
+            <td style="padding:6px 8px;text-align:right">${f.storedReg.toFixed(2)} / ${f.storedOT.toFixed(2)} / ${f.storedDT.toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right">${f.newReg.toFixed(2)} / ${f.newOT.toFixed(2)} / ${f.newDT.toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right">\$${f.storedPay.toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right">\$${f.newPay.toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right;color:${f.payDelta>=0?'var(--green)':'var(--red)'}">${f.payDelta>=0?'+':''}\$${f.payDelta.toFixed(2)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+    }
+  } catch(e) {
+    $('pr-audit-results').innerHTML = '<div class="err">Audit failed: '+e.message+'</div>';
+  }
+  btn.disabled = false; btn.textContent = 'Audit Locked Payroll';
+};
+
 function renderLockedPayrollView(rec) {
   window._prLockedData = rec;
   const lockedAtStr = rec.lockedAt?.toDate ? rec.lockedAt.toDate().toLocaleString() : '';

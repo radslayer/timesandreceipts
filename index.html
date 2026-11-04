@@ -907,7 +907,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp,arrayUnion,arrayRemove}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import{getStorage,ref as sRef,uploadBytes,getDownloadURL,deleteObject}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
@@ -4678,11 +4678,15 @@ function loadUsers(){
         <div class="avatar" style="background:${isDeactivated?'var(--muted)':'var(--gold)'}">${ini(u.name)}</div>
         <div style="flex:1">
           <div style="font-weight:500">${u.name||'--'} ${isDeactivated?'<span class="badge" style="background:var(--border);color:var(--muted);font-size:9px">Deactivated</span>':''}</div>
-          <div style="font-size:12px;color:var(--muted)">${u.email||''}</div>
+          <div style="font-size:12px;color:var(--muted)">${u.email||''}${isAdmin()?` <button style="background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;padding:0;font-size:11px" onclick="window._changeEmail('${u.id}','${(u.email||'').replace(/'/g,"\\'")}')">change</button>`:''}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">
             Base: ${u.baseRate?'$'+u.baseRate+'/hr':'not set'} &nbsp;|&nbsp;
             Spiff: ${u.spiffEligible?'$'+(u.spiffRate||0)+'/hr':'not eligible'}
           </div>
+          ${isAdmin()?`<div style="font-size:11px;color:var(--muted);margin-top:2px">
+            Also allowed to email receipts/invoices from: ${(u.altEmails||[]).map(e=>`<span class="badge" style="background:var(--border);color:var(--text);font-size:10px">${e} <a href="javascript:void(0)" onclick="window._removeAltEmail('${u.id}','${e.replace(/'/g,"\\'")}')" style="color:var(--red);text-decoration:none">&times;</a></span>`).join(' ')||'<em>none</em>'}
+            &nbsp;<button style="background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;padding:0;font-size:11px" onclick="window._addAltEmail('${u.id}')">+ add</button>
+          </div>`:''}
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
@@ -4700,6 +4704,32 @@ function loadUsers(){
   });
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
+window._changeEmail=async(uid,currentEmail)=>{
+  const newEmail=prompt('New login email for this user:',currentEmail||'');
+  if(newEmail===null)return;
+  const email=newEmail.trim().toLowerCase();
+  if(!email||!email.includes('@')){alert('Enter a valid email address.');return}
+  if(!confirm(`Change this user's login email to ${email}? They will sign in with this address going forward. Their role, pay rates, time logs, and receipts are unaffected.`))return;
+  try{
+    const updateUserEmail=httpsCallable(functions,'updateUserEmail');
+    await updateUserEmail({uid,newEmail:email});
+  }catch(e){alert('Email change failed: '+e.message)}
+};
+window._addAltEmail=async(uid)=>{
+  const alt=prompt('Alternate email address this person is also allowed to send PDF invoices/receipts from (in addition to their login email):');
+  if(alt===null)return;
+  const email=alt.trim().toLowerCase();
+  if(!email||!email.includes('@')){alert('Enter a valid email address.');return}
+  try{
+    await updateDoc(doc(db,'users',uid),{altEmails:arrayUnion(email)});
+  }catch(e){alert('Failed: '+e.message)}
+};
+window._removeAltEmail=async(uid,email)=>{
+  if(!confirm(`Remove ${email} as a recognized sender for this user?`))return;
+  try{
+    await updateDoc(doc(db,'users',uid),{altEmails:arrayRemove(email)});
+  }catch(e){alert('Failed: '+e.message)}
+};
 window._deleteUser=async(uid,name)=>{
   if(!confirm(`Permanently delete ${name}? This cannot be undone. Their time logs and receipts will be preserved.`))return;
   try{

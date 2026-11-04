@@ -50,6 +50,37 @@ exports.deactivateUser = onCall(async (request) => {
   return { success: true };
 });
 
+// Changes a user's Firebase Authentication login email (and the matching Firestore
+// users/{uid}.email field, which also drives the inbound-email-receipt sender match
+// in receiveEmailReceipt below). Added 2026-11-04: Rochelle had two separate
+// accounts — one tied to a working gmail.com address, one tied to her
+// motifdesignsolutions.com address whose Auth account no longer existed (reactivating
+// it threw an unrecoverable "internal" error). Rather than trying to resurrect a
+// missing Auth account, this lets an admin re-point an existing, working account's
+// login email instead — same uid, same role/pay rate/time logs/receipts, just a
+// different sign-in address.
+exports.updateUserEmail = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Not signed in.");
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = (callerDoc.data()?.role || "").toLowerCase();
+  if (callerRole !== "admin") throw new HttpsError("permission-denied", "Admins only.");
+  const { uid, newEmail } = request.data;
+  if (!uid || !newEmail) throw new HttpsError("invalid-argument", "User ID and new email are required.");
+  const email = String(newEmail).trim().toLowerCase();
+  if (!email.includes("@")) throw new HttpsError("invalid-argument", "Enter a valid email address.");
+  try {
+    await admin.auth().updateUser(uid, { email });
+  } catch (e) {
+    throw new HttpsError("internal", e.message);
+  }
+  await admin.firestore().collection("users").doc(uid).update({
+    email,
+    emailChangedAt: admin.firestore.FieldValue.serverTimestamp(),
+    emailChangedBy: request.auth.uid
+  });
+  return { success: true };
+});
+
 // ── CLOCK-OUT REMINDER ────────────────────────────────────────────────────────
 // Runs every 30 minutes. Finds active sessions between 8 and 8.5 hours old and
 // emails the user a reminder (the 30-min window + the app's own client-side
@@ -209,7 +240,15 @@ exports.receiveEmailReceipt = onRequest({ secrets: [mailgunSigningKey], cors: fa
     return;
   }
   const db = admin.firestore();
-  const staffSnap = await db.collection("users").where("email", "==", fromEmail).limit(1).get();
+  // Match on the account's primary login email first, then fall back to any
+  // per-user altEmails on file (e.g. a staffer's personal address explicitly
+  // allow-listed by an admin) — added 2026-11-04. This is NOT a domain allow-list;
+  // it only ever recognizes exact addresses an admin has put on a specific
+  // account, primary or alt.
+  let staffSnap = await db.collection("users").where("email", "==", fromEmail).limit(1).get();
+  if (staffSnap.empty) {
+    staffSnap = await db.collection("users").where("altEmails", "array-contains", fromEmail).limit(1).get();
+  }
   if (staffSnap.empty) {
     console.warn(`Rejected inbound email from unrecognized sender: ${fromEmail}`);
     // Return 200 so Mailgun doesn't retry — this isn't a transient failure, it's a permanent rejection.

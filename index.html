@@ -244,15 +244,19 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <!-- RECEIPTS TAB -->
     <div id="tab-receipts" class="hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <h2 style="margin:0">Receipts &amp; Bills</h2>
+        <h2 style="margin:0">Receipts</h2>
         <div style="display:flex;gap:8px;align-items:center">
           <div class="seg priv-only hidden" id="rcpt-view-toggle" style="margin-bottom:0;margin-right:6px">
             <button type="button" class="seg-btn on" id="rcpt-view-cards-btn">Cards</button>
             <button type="button" class="seg-btn" id="rcpt-view-table-btn">Table</button>
           </div>
-          <button class="btn btn-outline priv-only hidden" id="new-bill-btn" style="width:auto;padding:10px 18px">+ Add Bill</button>
+          <button class="btn btn-outline priv-only hidden" id="new-bill-btn" style="width:auto;padding:10px 18px">+ Add Vendor Invoice</button>
           <button class="btn btn-gold" id="new-receipt-btn" style="width:auto;padding:10px 18px">+ Submit Receipt</button>
         </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:16px;flex-wrap:wrap;margin:-6px 0 14px">
+        <div class="priv-only hidden" id="new-bill-caption" style="font-size:11px;color:var(--muted);max-width:260px;text-align:right">Already paid — use this for a vendor's invoice or any project cost that needs to be coded and billed to the client.</div>
+        <div id="new-receipt-caption" style="font-size:11px;color:var(--muted);max-width:260px;text-align:right">For any receipt related to a project. We'll ask after you submit whether it needs to be reimbursed.</div>
       </div>
       <div class="priv-only hidden" id="rcpt-billing-summary" style="font-size:13px;margin-bottom:12px"></div>
       <div class="filter-row" id="rcpt-filter-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
@@ -553,6 +557,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   </div>
 </div>
 
+<!-- REIMBURSEMENT FOLLOW-UP (field crew, shown right after Submit Receipt) -->
+<div id="reimb-modal" class="modal-bg hidden">
+  <div class="modal" style="max-width:380px">
+    <h2 id="reimb-q" style="margin-top:0;font-size:17px">Was this charged to the company, or do we need to reimburse you?</h2>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-outline" id="reimb-company-btn" style="flex:1">Charged to Company</button>
+      <button class="btn btn-gold" id="reimb-me-btn" style="flex:1">Reimburse Me</button>
+    </div>
+  </div>
+</div>
+
 <!-- JOB SITE PHOTO UPLOAD MODAL -->
 <div id="photo-modal" class="modal-bg hidden">
   <div class="modal modal-wide">
@@ -584,7 +599,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <!-- VENDOR BILL MODAL (bookkeeper/admin only) -->
 <div id="bill-modal" class="modal-bg hidden">
   <div class="modal modal-wide">
-    <h2>Add Vendor Bill</h2>
+    <h2>Add Vendor Invoice</h2>
     <div class="row2">
       <div class="field"><label>Project *</label><select id="bm-project"><option value="">Select project...</option></select></div>
       <div class="field"><label>Bill #</label><input type="text" id="bm-billnum" placeholder="Auto-assigned" readonly style="background:#f0ece6;color:var(--muted)"></div>
@@ -651,7 +666,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="card" id="tq-source-info" style="margin-bottom:14px;font-size:13px"></div>
     <div class="row2">
       <div class="field"><label>Record Type</label>
-        <select id="tq-type"><option value="receipt">Receipt</option><option value="bill">Vendor Bill</option></select>
+        <select id="tq-type"><option value="receipt">Receipt</option><option value="bill">Vendor Invoice</option></select>
       </div>
       <div class="field"><label>Project *</label><select id="tq-project"><option value="">Select project...</option></select></div>
     </div>
@@ -771,7 +786,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <!-- EDIT RECEIPT MODAL -->
 <div id="edit-receipt-modal" class="modal-bg hidden">
   <div class="modal">
-    <h2>Edit Receipt / Bill</h2>
+    <h2>Edit Receipt / Invoice</h2>
     <div class="field"><label>Project *</label><select id="er-project"><option value="">Select project...</option></select></div>
     <div class="row2">
       <div class="field"><label>Amount ($) *</label><input type="number" step="0.01" id="er-amount" placeholder="0.00" inputmode="decimal"></div>
@@ -1669,18 +1684,20 @@ const T={
     selectCode:'Select code...',selectRoom:'Select room...',
     notesOptional:'Optional...',
     clockInBtn:'⏵ Clock In',clockOutBtn:'⏹ Clock Out',
-    receiptsTitle:'Receipts & Bills',submitReceipt:'+ Submit Receipt',addBill:'+ Add Bill',
+    receiptsTitle:'Receipts',submitReceipt:'+ Submit Receipt',addBill:'+ Add Vendor Invoice',
     submitReceiptTitle:'Submit Receipt',amount:'Amount ($)',vendor:'Vendor',
     costCodes:'Cost Codes',tapToUpload:'Tap to photo or upload receipt',
     jpgOrPng:'JPG or PNG',cancel:'Cancel',submit:'Submit Receipt',
-    addBillTitle:'Add Vendor Bill',payTo:'Pay To (Vendor)',invoiceDate:'Invoice Date',
+    addBillTitle:'Add Vendor Invoice',payTo:'Pay To (Vendor)',invoiceDate:'Invoice Date',
+    addBillCaption:"Already paid \u2014 use this for a vendor's invoice or any project cost that needs to be coded and billed to the client.",submitReceiptCaption:"For any receipt related to a project. We'll ask after you submit whether it needs to be reimbursed.",
+    reimbQuestion:'Was this charged to the company, or do we need to reimburse you?',reimbCompanyBtn:'Charged to Company',reimbMeBtn:'Reimburse Me',
     attachInvoice:'Attach Invoice (optional)',tapToAttach:'Tap to attach invoice or photo',
-    qbEntryDate:'QB Entry Date',dbEntryDate:'DB Entry Date',saveBill:'Save Bill',
+    qbEntryDate:'QB Entry Date',dbEntryDate:'DB Entry Date',saveBill:'Save Invoice',
     approved:'approved',submitted:'submitted',rejected:'rejected',
     billable:'Billable',nonBillable:'Non-Bill',
     qbMark:'QB: mark entered',dbMark:'DB: mark entered',
     approve:'Approve',reject:'Reject',edit:'Edit',delete:'Delete',
-    editReceipt:'Edit Receipt / Bill',status:'Status',saveChanges:'Save Changes',
+    editReceipt:'Edit Receipt / Invoice',status:'Status',saveChanges:'Save Changes',
     editTime:'Edit Time Entry',clockInTime:'Clock In',clockOutTime:'Clock Out',
     recordsNotice:'Records can be edited for 30 days after clock-in. After that time, contact your system administrator to request a revision.',
     shiftEnded:'My shift just ended — clock out now',clockOutAtTime:'Clock out at this time',
@@ -1722,11 +1739,13 @@ const T={
     selectCode:'Seleccionar código...',selectRoom:'Seleccionar habitación...',
     notesOptional:'Opcional...',
     clockInBtn:'⏵ Registrar Entrada',clockOutBtn:'⏹ Registrar Salida',
-    receiptsTitle:'Recibos y Facturas',submitReceipt:'+ Enviar Recibo',addBill:'+ Agregar Factura',
+    receiptsTitle:'Recibos',submitReceipt:'+ Enviar Recibo',addBill:'+ Agregar Factura de Proveedor',
     submitReceiptTitle:'Enviar Recibo',amount:'Cantidad ($)',vendor:'Proveedor',
     costCodes:'Códigos de Costo',tapToUpload:'Toca para fotografiar o subir recibo',
     jpgOrPng:'JPG o PNG',cancel:'Cancelar',submit:'Enviar Recibo',
     addBillTitle:'Agregar Factura de Proveedor',payTo:'Pagar A (Proveedor)',invoiceDate:'Fecha de Factura',
+    addBillCaption:'Ya pagado \u2014 \u00fasalo para la factura de un proveedor o cualquier costo del proyecto que deba codificarse y facturarse al cliente.',submitReceiptCaption:'Para cualquier recibo relacionado con un proyecto. Te preguntaremos despu\u00e9s de enviarlo si necesita reembolso.',
+    reimbQuestion:'\u00bfEsto se carg\u00f3 a la empresa, o necesitamos reembolsarte?',reimbCompanyBtn:'Cargado a la Empresa',reimbMeBtn:'Reembolsarme',
     attachInvoice:'Adjuntar Factura (opcional)',tapToAttach:'Toca para adjuntar factura o foto',
     qbEntryDate:'Fecha Entrada QB',dbEntryDate:'Fecha Entrada DB',saveBill:'Guardar Factura',
     approved:'aprobado',submitted:'enviado',rejected:'rechazado',
@@ -1913,6 +1932,11 @@ function applyTranslations(){
   const rTitle=document.querySelector('#tab-receipts h2');if(rTitle)rTitle.textContent=t('receiptsTitle');
   const srBtn=$('new-receipt-btn');if(srBtn)srBtn.textContent=t('submitReceipt');
   const abBtn=$('new-bill-btn');if(abBtn)abBtn.textContent=t('addBill');
+  const abCap=$('new-bill-caption');if(abCap)abCap.textContent=t('addBillCaption');
+  const srCap=$('new-receipt-caption');if(srCap)srCap.textContent=t('submitReceiptCaption');
+  const reimbQ=$('reimb-q');if(reimbQ)reimbQ.textContent=t('reimbQuestion');
+  const reimbCo=$('reimb-company-btn');if(reimbCo)reimbCo.textContent=t('reimbCompanyBtn');
+  const reimbMe=$('reimb-me-btn');if(reimbMe)reimbMe.textContent=t('reimbMeBtn');
   // Receipts filter row
   const rcptFP=$('rcpt-filter-project');if(rcptFP&&rcptFP.options[0])rcptFP.options[0].textContent=t('allProjectsFilter');
   const rcptFBN=$('rcpt-filter-billnum');if(rcptFBN)rcptFBN.placeholder=t('receiptNumPlaceholder');
@@ -2460,14 +2484,14 @@ function renderReceipts(){
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div class="receipt-amt">$${parseFloat(r.amount||0).toFixed(2)}</div>
             <span class="badge ${r.status}">${r.status}</span>
-            ${isBill?'<span class="badge bill">Bill</span>':''}
+            ${isBill?'<span class="badge bill">Invoice</span>':''}
             ${lockBadge(r)}
           </div>
           <div class="receipt-meta">${billNumHtml}${r.vendor?r.vendor+' · ':''}${r.projectName||''} · ${fmtDate(r.submittedAt||r.createdAt)}${r.submittedByName?' · '+r.submittedByName:''}</div>
           ${r.invoiceDate?`<div style="font-size:11px;color:var(--muted)">Invoice: ${r.invoiceDate}</div>`:''}
           <div style="margin-top:6px">${codes.map(c=>`<span class="tag">${c}</span>`).join('')}${r.room?'<span class="tag">'+r.room+'</span>':''}</div>
           ${r.notes?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${r.notes}</div>`:''}
-          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}${invClientHtml}</div>`:''}
+          ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}${invClientHtml}${!isBill&&r.reimbursementNeeded===true?'<span class="entry-pending" style="background:#fff3cd;border-color:#f0d58c;cursor:default">\u{1F4B0} Reimbursement Needed</span>':''}</div>`:''}
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${canEditRec?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}
             ${isPriv()&&r.status==='submitted'&&r.userId!==currentUser?.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}
@@ -2767,7 +2791,7 @@ function runGlobalSearch(qRaw){
     html+=rcptMatches.map(r=>{
       const isBill=r.billType==='bill';
       return`<button class="search-hit" onclick="window._goRcpt('${r.id}')">
-      <div class="sh-type">${isBill?'Bill':'Receipt'}</div>
+      <div class="sh-type">${isBill?'Invoice':'Receipt'}</div>
       <div class="sh-title">${esc(r.vendor||'(no vendor)')} &mdash; $${parseFloat(r.amount||0).toFixed(2)}</div>
       <div class="sh-meta">${esc(r.projectName||'')}${r.billNumber?' · #'+esc(r.billNumber):''} · ${esc(r.status||'')}</div>
     </button>`;
@@ -2931,23 +2955,46 @@ $('rm-submit').onclick=async()=>{
   if($('rm-vendor-sel').value==='__new__')await submitNewVendor(vendor);
   const autoApprove=isAdmin();
   const base={userId:currentUser.uid,submittedByName:userProfile?.name||currentUser.email,projectId:pid,projectName:proj?.name||pid,vendor,imageUrl,archived:false,paidDate:null,billType:'receipt',status:autoApprove?'approved':'submitted',reviewedBy:autoApprove?userProfile?.name||'':null,reviewedAt:autoApprove?serverTimestamp():null,submittedAt:serverTimestamp()};
+  const createdReceiptIds=[];
   if(!splitMode){
     // Receipts share the bill-number sequence with bills. If this user can't read the project's
     // other receipts (field crew), leave it blank — a bookkeeper/admin client assigns it on next load.
     let billNumber=null;
     try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
-    await addDoc(collection(db,'receipts'),{...base,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),notes:$('rm-notes').value,billNumber});
+    const newRef=await addDoc(collection(db,'receipts'),{...base,costCodes:rmSelectedCodes,room:rm,amount:parseFloat(amt),notes:$('rm-notes').value,billNumber});
+    createdReceiptIds.push(newRef.id);
   }else{
     const items=lineItemsState.rm;
     for(const li of items){
       let billNumber=null;
       try{billNumber=await nextBillNumber(pid)}catch(e){billNumber=null}
-      await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room,amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('rm-notes').value||''),billNumber});
+      const newRef=await addDoc(collection(db,'receipts'),{...base,costCodes:li.costCodes,room:li.room,amount:parseFloat(li.amount)||0,notes:(li.description?li.description+' — ':'')+($('rm-notes').value||''),billNumber});
+      createdReceiptIds.push(newRef.id);
     }
   }
   hide('receipt-modal');resetRM();$('rm-submit').disabled=false;$('rm-submit').textContent='Submit Receipt';
+  askReimbursement(createdReceiptIds);
 };
 function resetRM(){['rm-project','rm-room'].forEach(id=>$(id).value='');$('rm-vendor-sel').value='';$('rm-vendor-new').value='';hide('rm-vendor-new');['rm-amount','rm-notes'].forEach(id=>$(id).value='');$('rm-file').value='';hideFilePreview('rm');$('rm-filename').textContent='';$('rm-err').textContent='';rmFile=null;rmSelectedCodes=[];$('rm-codes-chips').innerHTML='';resetLineItems('rm')}
+let reimbPendingIds=[];
+function askReimbursement(ids){
+  if(!ids||!ids.length)return;
+  reimbPendingIds=ids;
+  show('reimb-modal');
+}
+async function answerReimbursement(needed){
+  const ids=reimbPendingIds;reimbPendingIds=[];
+  hide('reimb-modal');
+  try{
+    await Promise.all(ids.map(id=>updateDoc(doc(db,'receipts',id),{
+      reimbursementNeeded:needed,
+      reimbursementAnsweredBy:userProfile?.name||currentUser?.email||'',
+      reimbursementAnsweredAt:serverTimestamp()
+    })));
+  }catch(e){console.warn('Failed to record reimbursement answer:',e)}
+}
+$('reimb-company-btn').onclick=()=>answerReimbursement(false);
+$('reimb-me-btn').onclick=()=>answerReimbursement(true);
 
 // ── JOB SITE PHOTOS ────────────────────────────────────────────────────────────
 let spFiles=[];
@@ -3677,7 +3724,7 @@ function renderReport(data){
       h+=`<tr>
         <td style="white-space:nowrap">${fmtDate(r.submittedAt||r.createdAt)}</td>
         <td style="font-size:11px">${r.billNumber||'--'}</td>
-        <td>${r.billType==='bill'?'<span class="badge bill">Bill</span>':'Receipt'}</td>
+        <td>${r.billType==='bill'?'<span class="badge bill">Invoice</span>':'Receipt'}</td>
         <td>${r.submittedByName||'--'}</td>
         <td>${r.projectName||'--'}</td>
         <td style="font-size:11px">${codes.map(c=>'<span class="tag">'+c+'</span>').join('')}</td>

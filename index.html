@@ -3709,7 +3709,7 @@ function renderReport(data){
 
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
     <div style="display:flex;gap:16px;align-items:center"><span style="font-size:13px;color:var(--muted)">${data.length} records</span>${totalsHtml}</div>
-    <button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>
+    <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>${it?'<button class="btn btn-gold btn-sm" onclick="window._xlsx()">Export Excel</button>':''}</div>
   </div><div style="overflow-x:auto"><table class="tbl tbl-actions-sticky"><thead><tr>`;
   if(it){
     h+='<th>Date</th><th>Employee</th><th>Project</th><th class="col-hide-sm">Cost Category</th><th>Cost Code</th><th class="col-hide-sm">Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th class="col-hide-sm">Location</th><th>Notes</th><th>Billable</th><th></th>';
@@ -3778,6 +3778,62 @@ window._csv=()=>{
   });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_'+(it?'time':'receipts')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+};
+
+// ── EXCEL EXPORT OF THE TIME REPORT (admin/bookkeeper, added 2026-11-06) ─────────────────────
+// Buildertrend-style workbook: an "All Shifts" tab plus one tab per employee. Uses the rows
+// currently shown in the report (so the date range and the filters above it apply). Regular /
+// OT / DT come from calcColoradoOT() over the full queried set, so they match the payroll
+// report. SheetJS is self-hosted (vendor/xlsx.mini.min.js) because the CSP only allows 'self'.
+function loadXlsxLib(){
+  if(window.XLSX)return Promise.resolve();
+  return new Promise((res,rej)=>{const s=document.createElement('script');s.src='vendor/xlsx.mini.min.js';s.onload=res;s.onerror=()=>rej(new Error('Could not load the Excel library'));document.head.appendChild(s)});
+}
+function xlTime(ts){const d=ts?.toDate?ts.toDate():(ts?new Date(ts):null);return d?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):''}
+function xlShort(ms){const d=new Date(ms);return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' AM','am').replace(' PM','pm')}
+function xlStamp(ms){const d=new Date(ms);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+xlShort(ms)}
+function xlEditText(r){
+  const h=Array.isArray(r.editHistory)?r.editHistory:[];
+  const label={clockIn:'clock in',clockOut:'clock out',project:'project',costCode:'cost code',room:'room',notes:'notes',billable:'billable'};
+  return h.map(it=>{
+    const when=it.at?.toMillis?xlStamp(it.at.toMillis()):'';
+    return (it.changes||[]).map(c=>{
+      const f=label[c.field]||c.field;
+      const fmt=v=>{if(v===null||v===undefined||v==='')return 'blank';if(c.field==='clockIn'||c.field==='clockOut')return xlShort(+v);if(typeof v==='boolean')return v?'yes':'no';return String(v)};
+      const verb=(c.from===null||c.from===undefined)&&c.field==='clockOut'?'was set to '+fmt(c.to):'was changed from '+fmt(c.from)+' to '+fmt(c.to);
+      return f+' '+verb+' ('+when+(it.by?' by '+it.by:'')+')';
+    }).join('; ');
+  }).filter(Boolean).join(' | ');
+}
+window._xlsx=async()=>{
+  const shown=window._rptData||[];
+  if(_rptType!=='time'||!shown.length){alert('Run a Time Log report first, then export.');return}
+  try{
+    await loadXlsxLib();
+    const ot=calcColoradoOT(_rptRawData.filter(r=>r.clockOut));
+    const headers=['Date','Job','Name','Room','Time In','Time Out','Regular Time','OT','DT','Total Work Time','Billable','Cost Category','Cost Codes','Notes','In Location','Out Location','Payroll Locked','Edited'];
+    const rowFor=r=>{
+      const o=ot[r.id]||{};const hrs=(r.durationMs||0)/3600000;
+      const d=r.clockIn?.toDate?r.clockIn.toDate():null;
+      return[d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):'',r.projectName||'',r.userName||'',r.room||'',xlTime(r.clockIn),r.clockOut?xlTime(r.clockOut):'ACTIVE',
+        r.clockOut?+(o.reg||0).toFixed(2):'',r.clockOut&&(o.ot||0)?+o.ot.toFixed(2):'',r.clockOut&&(o.dt||0)?+o.dt.toFixed(2):'',r.clockOut?+hrs.toFixed(2):'',
+        effectiveBillable(r)?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.notes||'',
+        r.clockInGeoStatus||'',r.clockOutGeoStatus||'',isPayrollLocked(r)?'Y':'N',xlEditText(r)];
+    };
+    const sorted=[...shown].sort((a,b)=>(a.clockIn?.toMillis?.()||0)-(b.clockIn?.toMillis?.()||0));
+    const mk=rows=>{const ws=XLSX.utils.aoa_to_sheet([headers,...rows.map(rowFor)],{cellDates:true});
+      ws['!cols']=[{wch:11},{wch:28},{wch:20},{wch:14},{wch:9},{wch:9},{wch:8},{wch:6},{wch:6},{wch:10},{wch:8},{wch:22},{wch:40},{wch:50},{wch:10},{wch:10},{wch:8},{wch:70}];
+      ws['!autofilter']={ref:ws['!ref']};
+      Object.keys(ws).forEach(k=>{if(k[0]!=='!'&&ws[k].t==='d'){ws[k].z='m/d/yyyy'}});return ws};
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,mk(sorted),'All Shifts');
+    const names=[...new Set(sorted.map(r=>r.userName||'Unknown'))].sort();
+    const used=new Set(['All Shifts']);
+    names.forEach(n=>{let t=n.replace(/[\\\/?*\[\]:]/g,'').replace(/\s+/g,' ').trim().slice(0,31)||'Unknown';let i=2;while(used.has(t))t=t.slice(0,28)+' '+(i++);used.add(t);
+      XLSX.utils.book_append_sheet(wb,mk(sorted.filter(r=>(r.userName||'Unknown')===n)),t)});
+    const fr=$('rpt-from').value,to=$('rpt-to').value;
+    XLSX.writeFile(wb,'MOTIF_Time_Report_'+(fr||'start')+'_to_'+(to||'today')+'.xlsx');
+  }catch(e){alert('Excel export failed: '+e.message)}
 };
 
 // ── PAYROLL REPORT ────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const Busboy = require("busboy");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { buildLaborRecap } = require("./laborRecap");
 admin.initializeApp();
 
 exports.inviteUser = onCall(async (request) => {
@@ -136,6 +137,22 @@ exports.sendClockOutReminder = onSchedule("every 30 minutes", async (event) => {
 
   await Promise.all(promises);
   console.log(`Sent ${snapshot.docs.length} clock-out reminder(s).`);
+});
+
+// ── DAILY LABOR RECAP ─────────────────────────────────────────────────────────
+// Weekdays at 6:00 AM Mountain. Tue-Fri covers the prior 24 hours; Monday covers
+// Friday 6am through Monday 6am. Read-only against timeLogs; delivered through the
+// same inviteEmails collection (Trigger Email extension) the other notices use.
+// To change who receives it, edit this list and redeploy functions.
+const LABOR_RECAP_RECIPIENTS = ["rodsalyer@gmail.com", "jennifer@motifdesignsolutions.com"];
+exports.sendDailyLaborRecap = onSchedule({ schedule: "0 6 * * 1-5", timeZone: "America/Denver" }, async (event) => {
+  const scheduledMs = event.scheduleTime ? Date.parse(event.scheduleTime) : Date.now();
+  const recap = await buildLaborRecap(admin.firestore(), admin.firestore.Timestamp, scheduledMs);
+  await admin.firestore().collection("inviteEmails").add({
+    to: LABOR_RECAP_RECIPIENTS,
+    message: { subject: recap.subject, html: recap.html }
+  });
+  console.log(`Queued labor recap "${recap.subject}" for ${LABOR_RECAP_RECIPIENTS.join(", ")}`, recap.stats);
 });
 
 // ── EMAILED RECEIPT INTAKE ──────────────────────────────────────────────────

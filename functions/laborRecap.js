@@ -55,6 +55,10 @@ const fmtDay = ymd => {
     timeZone: "UTC", weekday: "short", month: "short", day: "numeric"
   });
 };
+// "8:40am" / "Thu 4:15pm" style used when describing edits
+const fmtShortTime = ms => new Date(ms).toLocaleString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).replace(/\s/g, "").toLowerCase();
+const fmtDayTime = ms => new Date(ms).toLocaleString("en-US", { timeZone: TZ, weekday: "short" }) + " " + fmtShortTime(ms);
+const EDIT_TOLERANCE_MS = 5 * 60000; // edit timestamps come from the editor's device clock, updatedAt from the server
 const hrs = ms => ms / 3600000;
 const money = n => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 const f2 = n => (Math.round(n * 100) / 100).toFixed(2);
@@ -86,7 +90,8 @@ async function buildLaborRecap(db, Timestamp, scheduledMs) {
     return { id: d.id, ...e,
       inMs: e.clockIn && e.clockIn.toMillis ? e.clockIn.toMillis() : null,
       outMs: e.clockOut && e.clockOut.toMillis ? e.clockOut.toMillis() : null,
-      editedMs: e.updatedAt && e.updatedAt.toMillis ? e.updatedAt.toMillis() : null };
+      editedMs: e.updatedAt && e.updatedAt.toMillis ? e.updatedAt.toMillis() : null,
+      history: Array.isArray(e.editHistory) ? e.editHistory : [] };
   };
   const live = snap => snap.docs.map(norm).filter(e => e.archived !== true);
   const weekEntries = live(weekSnap);
@@ -175,8 +180,40 @@ async function buildLaborRecap(db, Timestamp, scheduledMs) {
       exc.push({ sev: 3, text: `<b>${esc(who(e))}</b> has an entry with no ${!e.projectId ? "project" : "cost code"} (${esc(fmtStamp(e.inMs))}).` });
     }
   });
+  // Describe what changed using the entry's editHistory when it has one for this period; entries edited
+  // before history was recorded (or through a path that doesn't record it) only get a generic line.
+  const describeChange = (c, entry) => {
+    const timeVal = ms => {
+      if (ms == null) return null;
+      return ymdOf(ms) === ymdOf(entry.inMs) ? fmtShortTime(ms) : fmtStamp(ms);
+    };
+    const val = v => v === "" || v == null ? "(blank)" : esc(v);
+    switch (c.field) {
+      case "clockIn": return `clock in was changed from ${esc(timeVal(c.from))} to ${esc(timeVal(c.to))}`;
+      case "clockOut":
+        if (c.from == null) return `clock out was set to ${esc(timeVal(c.to))}`;
+        if (c.to == null) return `clock out of ${esc(timeVal(c.from))} was removed`;
+        return `clock out was changed from ${esc(timeVal(c.from))} to ${esc(timeVal(c.to))}`;
+      case "project": return `project was changed from ${val(c.from)} to ${val(c.to)}`;
+      case "costCode": return `cost code was changed from ${val(c.from)} to ${val(c.to)}`;
+      case "room": return `room was changed from ${val(c.from)} to ${val(c.to)}`;
+      case "notes": return "notes were edited";
+      case "billable": return `billable was changed from ${c.from === true ? "billable" : c.from === false ? "not billable" : "automatic"} to ${c.to ? "billable" : "not billable"}`;
+      default: return `${esc(c.field)} was changed`;
+    }
+  };
   edited.forEach(e => {
-    exc.push({ sev: 3, text: `An entry for <b>${esc(who(e))}</b> on ${esc(proj(e))} (${esc(fmtStamp(e.inMs))}) was edited during this period.` });
+    const items = e.history.filter(h => h && h.at && h.at.toMillis &&
+      h.at.toMillis() >= startMs - EDIT_TOLERANCE_MS && h.at.toMillis() < endMs + EDIT_TOLERANCE_MS &&
+      Array.isArray(h.changes) && h.changes.length);
+    const where = `${esc(proj(e))}, ${esc(fmtStamp(e.inMs))}`;
+    if (!items.length) {
+      exc.push({ sev: 3, text: `An entry for <b>${esc(who(e))}</b> (${where}) was edited during this period; no change details were recorded.` });
+      return;
+    }
+    items.sort((a, b) => a.at.toMillis() - b.at.toMillis()).forEach(h => {
+      exc.push({ sev: 3, text: `<b>${esc(who(e))}</b> (${where}): ${h.changes.map(c => describeChange(c, e)).join("; ")} (at ${esc(fmtDayTime(h.at.toMillis()))}` + (h.by ? ` by ${esc(h.by)}` : "") + ")." });
+    });
   });
   exc.sort((a, b) => a.sev - b.sev);
 

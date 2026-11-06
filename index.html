@@ -3544,10 +3544,26 @@ $('et-save').onclick=async()=>{
     return;
   }
   try{
-    await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp()});
-    hide('edit-time-modal');
-    await revokeApprovalForMs(editingTimeOrigMs);
-    await revokeApprovalForMs(ciDate.getTime());
+    // Work out what actually changed (compared with what is stored now) for the edit history.
+    const oldSnap=await getDoc(doc(db,'timeLogs',editingTimeId));
+    const old=oldSnap.exists()?oldSnap.data():{};
+    const oldIn=old.clockIn?.toMillis?old.clockIn.toMillis():null,oldOut=old.clockOut?.toMillis?old.clockOut.toMillis():null;
+    const newIn=ciDate.getTime(),newOut=coDate?coDate.getTime():null;
+    const chg=[];
+    const minDiff=(a,b)=>(a==null||b==null)?a!==b:Math.floor(a/60000)!==Math.floor(b/60000);
+    if(minDiff(oldIn,newIn))chg.push({field:'clockIn',from:oldIn,to:newIn});
+    if(minDiff(oldOut,newOut))chg.push({field:'clockOut',from:oldOut,to:newOut});
+    if((old.projectId||'')!==pid)chg.push({field:'project',from:old.projectName||old.projectId||null,to:proj?.name||pid});
+    if((old.costCode||'')!==code)chg.push({field:'costCode',from:old.costCode||null,to:code});
+    if((old.room||'')!==rm)chg.push({field:'room',from:old.room||null,to:rm});
+    if((old.notes||'')!==($('et-notes').value||''))chg.push({field:'notes',from:old.notes||'',to:$('et-notes').value||''});
+    if(!chg.length){hide('edit-time-modal')}
+    else{
+      await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp(),editHistory:arrayUnion(editHistoryItem(chg))});
+      hide('edit-time-modal');
+      await revokeApprovalForMs(editingTimeOrigMs);
+      await revokeApprovalForMs(ciDate.getTime());
+    }
   }catch(e){$('et-err').textContent=t('saveFailed')+e.message}
   $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
 };
@@ -3869,6 +3885,15 @@ function isCodeBillable(code) {
 function effectiveBillable(entry) {
   return typeof entry.billable === 'boolean' ? entry.billable : isBillableEntry(entry);
 }
+// ── TIME-ENTRY EDIT HISTORY (added 2026-11-06) ───────────────────────────────
+// Every edit to a timeLogs entry appends one item to its editHistory array:
+// {at, by, byUid, changes:[{field, from, to}]}. Clock times are stored as epoch ms, billable as a
+// boolean, everything else as text. The daily labor recap email reads this to describe each edit
+// ("clock in was changed from 8:40am to 8:30am"). Entries edited before this existed have no
+// history, so the recap can only say they were edited. Client-written, like the rest of timeLogs.
+function editHistoryItem(changes) {
+  return { at: Timestamp.now(), by: userProfile?.name || currentUser?.email || '', byUid: currentUser?.uid || '', changes };
+}
 function billableBadge(b) {
   return `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${b?'#d4edd9':'#f5dada'};color:${b?'var(--green)':'var(--red)'}">${b?'Billable':'Non-Bill'}</span>`;
 }
@@ -3879,7 +3904,9 @@ window._setBillable = async (id, val) => {
     await updateDoc(doc(db, 'timeLogs', id), {
       billable: val,
       billableSetBy: userProfile?.name || currentUser?.email || '',
-      billableSetAt: serverTimestamp()
+      billableSetAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      editHistory: arrayUnion(editHistoryItem([{ field: 'billable', from: r ? effectiveBillable(r) : null, to: val }]))
     });
     if (r) await revokeApprovalForMs(tlTsMs(r.clockIn));
   } catch (e) {
@@ -4708,7 +4735,9 @@ window._adminClockOut=async(logId,userName)=>{
     durationMs:clockOutTime-start,
     status:'complete',
     clockOutGeo:null,
-    clockOutGeoStatus:'unknown'
+    clockOutGeoStatus:'unknown',
+    updatedAt:serverTimestamp(),
+    editHistory:arrayUnion(editHistoryItem([{field:'clockOut',from:null,to:clockOutTime.getTime()}]))
   });
 };
 

@@ -335,7 +335,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <div class="field" style="margin-bottom:0"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
             <div class="field" id="rpt-billable-wrap" style="margin-bottom:0"><label>Billable</label><select id="rpt-billable"><option value="">All</option><option value="yes">Billable Only</option><option value="no">Not Billable</option></select></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
+          <div style="display:grid;grid-template-columns:minmax(200px,1.4fr) 1fr 1fr auto;gap:12px;align-items:flex-end">
+            <div class="field" style="margin-bottom:0"><label>Week of</label><select id="rpt-week" style="width:100%"><option value="">All (use the dates)</option></select></div>
             <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
             <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
             <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button>
@@ -3642,6 +3643,28 @@ $('rpt-rcpt-btn').onclick=()=>{currentRptType='receipts';$('rpt-rcpt-btn').class
 $('rpt-payroll-btn').onclick=()=>{$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');hide('rpt-logtime-panel');buildPayrollPresets()};
 $('rpt-logtime-btn').onclick=()=>{$('rpt-logtime-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');hide('rpt-standard-panel');hide('rpt-payroll-panel');show('rpt-logtime-panel');initLogTimeForm()};
 
+// ── "WEEK OF" FILTER (added 2026-11-06) ─────────────────────────────────────────────────────
+// Clients are billed in Sunday-Saturday weeks. Choosing a week fills From/To with that Sunday and
+// Saturday and locks them; "All" unlocks them again and leaves the dates as typed.
+(function buildWeekOptions(){
+  const sel=$('rpt-week');if(!sel)return;
+  const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const t0=new Date();const sun=new Date(t0.getFullYear(),t0.getMonth(),t0.getDate()-t0.getDay());
+  for(let i=0;i<104;i++){
+    const s0=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()-7*i),e0=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
+    const o=document.createElement('option');o.value=ymd(s0);o.dataset.to=ymd(e0);
+    o.textContent='Week of Sun '+fmt(s0)+(i===0?'  (this week)':i===1?'  (last week)':'');
+    sel.appendChild(o);
+  }
+  sel.onchange=()=>{
+    const o=sel.selectedOptions[0],has=!!sel.value;
+    if(has){$('rpt-from').value=sel.value;$('rpt-to').value=o.dataset.to}
+    $('rpt-from').disabled=has;$('rpt-to').disabled=has;
+    $('rpt-results').innerHTML='';$('rpt-active-filters').textContent='';
+  };
+})();
+
 $('rpt-run-btn').onclick=async()=>{
   const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value;
   if(!pid&&!fr&&!to){alert('Select at least a project or a date range before running.');return}
@@ -3650,8 +3673,10 @@ $('rpt-run-btn').onclick=async()=>{
   const tf=currentRptType==='time'?'clockIn':'submittedAt';
   let c=[];
   if(pid)c.push(where('projectId','==',pid));
-  if(fr)c.push(where(tf,'>=',Timestamp.fromDate(new Date(fr))));
-  if(to){const e=new Date(to);e.setDate(e.getDate()+1);c.push(where(tf,'<=',Timestamp.fromDate(e)))}
+  // Dates are read as LOCAL midnight (a bare 'YYYY-MM-DD' string parses as UTC, which shifted the
+  // boundaries by 6-7 hours -- unacceptable now that clients are billed by Sun-Sat week).
+  if(fr)c.push(where(tf,'>=',Timestamp.fromDate(new Date(fr+'T00:00:00'))));
+  if(to){const e=new Date(to+'T00:00:00');e.setDate(e.getDate()+1);c.push(where(tf,'<',Timestamp.fromDate(e)))}
   try{
     const snap=await getDocs(query(collection(db,col),...c));
     _rptRawData=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -3832,7 +3857,7 @@ window._xlsx=async()=>{
     names.forEach(n=>{let t=n.replace(/[\\\/?*\[\]:]/g,'').replace(/\s+/g,' ').trim().slice(0,31)||'Unknown';let i=2;while(used.has(t))t=t.slice(0,28)+' '+(i++);used.add(t);
       XLSX.utils.book_append_sheet(wb,mk(sorted.filter(r=>(r.userName||'Unknown')===n)),t)});
     const fr=$('rpt-from').value,to=$('rpt-to').value;
-    XLSX.writeFile(wb,'MOTIF_Time_Report_'+(fr||'start')+'_to_'+(to||'today')+'.xlsx');
+    XLSX.writeFile(wb,'MOTIF_Time_Report_'+($('rpt-week')?.value?'Week_of_'+$('rpt-week').value:(fr||'start')+'_to_'+(to||'today'))+'.xlsx');
   }catch(e){alert('Excel export failed: '+e.message)}
 };
 

@@ -4038,7 +4038,7 @@ function renderTM(){
   const D=window._tmData;if(!D)return;const {proj,fr,to,labor,empList,mats,subs,T,ex,noRate}=D;
   const wk=$('tm-week').value?'Week of '+new Date(fr+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):fr+' to '+to;
   const td='style="text-align:right;white-space:nowrap"';
-  let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${esc(wk)} &middot; Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap" onclick="window._tmXlsx()">Export Excel</button></div>`;
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${esc(wk)} &middot; Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap;width:auto" onclick="window._tmXlsx()">Export Excel</button></div>`;
   if(noRate.length)h+=`<div class="err" style="margin-bottom:10px">No client bill rate is set for: ${noRate.map(e=>esc(e.name)).join(', ')}. Their labor is shown at $0.00 and is not in the totals. An admin can set it in Payroll, pay rates (Client Bill Rate).</div>`;
   const notes=[];
   if(ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');

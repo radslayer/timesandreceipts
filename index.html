@@ -168,6 +168,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .inv-st td{font-weight:600;border-bottom:1px solid #e8e0d6;text-align:right}.inv-st td:first-child{color:#8a7f74;font-weight:500}
 .inv-total{display:flex;justify-content:space-between;margin-top:18px;padding:12px 6px;border-top:2px solid #1a1714;font:600 16px 'DM Sans',sans-serif}
 .inv-tag{font-size:11px;color:#8a7f74;margin-top:2px}
+.inv-addr{font-size:11px;color:#8a7f74;margin-top:5px;letter-spacing:.3px}
+.inv-terms{margin-top:18px;font-size:12px;color:#5c534a}
 .inv-empty{padding:30px 0;color:#8a7f74;text-align:center}
 
 .invm-tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
@@ -4130,7 +4132,7 @@ $('tm-run-btn').onclick=async()=>{
       const isSub=codes.some(c=>tmCodeType(c)==='labor');
       const div=isSub?subDiv:matDiv;
       const d=new Date(m);
-      (isSub?wk(d).subs:wk(d).mats).push({date:d,vendor:r.vendor||'',num:r.billNumber||'',room:r.room||'',codes:codes.join('; '),desc:r.notes||'',by:r.submittedByName||'',cost,price:tmR2(cost/div)});
+      (isSub?wk(d).subs:wk(d).mats).push({rid:r.id,date:d,vendor:r.vendor||'',num:r.billNumber||'',room:r.room||'',codes:codes.join('; '),desc:r.notes||'',by:r.submittedByName||'',cost,price:tmR2(cost/div)});
     });
     const weekList=Object.values(weeks).sort((a,b)=>a.sun-b.sun);
     const sum=(a,k)=>tmR2(a.reduce((s,x)=>s+x[k],0));
@@ -4193,8 +4195,10 @@ function tmReviewHtml(){
 const INV_LOGO='<svg class="inv-mark" viewBox="-10 0 140 140" aria-hidden="true"><g transform="rotate(-32 22 84)"><path d="M22,56 C32,74.5 32,90.7 22,112 C12,90.7 12,74.5 22,56 Z" fill="#cdb48d"/></g><g transform="rotate(32 98 84)"><path d="M98,56 C108,74.5 108,90.7 98,112 C88,90.7 88,74.5 98,56 Z" fill="#cdb48d"/></g><g transform="rotate(-16 40 70)"><path d="M40,24 C56,54.4 56,81.0 40,116 C24,81.0 24,54.4 40,24 Z" fill="#b89a6a"/></g><g transform="rotate(16 80 70)"><path d="M80,24 C96,54.4 96,81.0 80,116 C64,81.0 64,54.4 80,24 Z" fill="#b89a6a"/></g><path d="M60,48 C73,70.4 73,90.2 60,116 C47,90.2 47,70.4 60,48 Z" fill="#1a1714"/></svg>';
 function tmLongDate(x){const d=new Date(x+'T00:00:00');return isNaN(d)?x:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function tmIsDesignMaterial(codeStr){return String(codeStr||'').split('; ').some(c=>{const e=COST_CODES.find(x=>x.code===c)||(customCodes||[]).find(x=>x.code===c);return /^21 /.test(e?.cat||'')})}
+const INV_ADDR='2679 Main Street, Littleton, CO 80120';
+const INV_TERMS='Due upon receipt per terms of our agreement.';
 function tmInvHead(title,proj,period,numLabel){
-  return `<div class="inv-head"><div class="inv-brand">${INV_LOGO}<div><div class="inv-name">MOTIF</div><div class="inv-sub">DESIGN SOLUTIONS</div></div></div><div class="inv-meta"><div class="inv-title">${title}</div><div>${esc(period)}</div></div></div>
+  return `<div class="inv-head"><div class="inv-brand">${INV_LOGO}<div><div class="inv-name">MOTIF</div><div class="inv-sub">DESIGN SOLUTIONS</div><div class="inv-addr">${INV_ADDR}</div></div></div><div class="inv-meta"><div class="inv-title">${title}</div><div>${esc(period)}</div></div></div>
   <div class="inv-billto"><div><div class="inv-lbl">Bill to</div><div class="inv-val">${esc(proj.name||'Job')}</div></div><div><div class="inv-lbl">${numLabel}</div><div class="inv-val">&nbsp;</div></div></div>`;
 }
 function tmLaborInvoiceHtml(D){
@@ -4210,7 +4214,7 @@ function tmLaborInvoiceHtml(D){
       w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L))} ${rg}</td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
       h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(w.T.labor)}</td></tr>`;
     });
-    h+=`</tbody></table><div class="inv-total"><span>Total labor</span><span>${tmMoney(T.labor)}</span></div>`;
+    h+=`</tbody></table><div class="inv-total"><span>Total labor</span><span>${tmMoney(T.labor)}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
   }
   return h+'</div>';
 }
@@ -4224,7 +4228,7 @@ function tmMaterialsInvoiceHtml(D){
   let h=`<div class="inv-doc">${tmInvHead('Materials Invoice',proj,tmLongDate(fr)+' to '+tmLongDate(to),'Invoice number')}`;
   if(!sec.con.length&&!sec.des.length&&!sec.sub.length)h+='<div class="inv-empty">No billable materials or subcontractor charges in this period.</div>';
   else{
-    h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`+block('Construction materials',sec.con)+block('Design materials',sec.des)+block('Labor / installation by outside subcontractors',sec.sub)+`</tbody></table><div class="inv-total"><span>Total materials and subcontractors</span><span>${tmMoney(tmR2(T.mat+T.sub))}</span></div>`;
+    h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`+block('Construction materials',sec.con)+block('Design materials',sec.des)+block('Labor / installation by outside subcontractors',sec.sub)+`</tbody></table><div class="inv-total"><span>Total materials and subcontractors</span><span>${tmMoney(tmR2(T.mat+T.sub))}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
   }
   return h+'</div>';
 }
@@ -4308,7 +4312,7 @@ function invBuildFromReport(D){
     const b=base('materials');
     [['con','Construction materials'],['des','Design materials'],['sub','Labor / installation by outside subcontractors']].forEach(([k,h])=>{
       const arr=items.filter(x=>x.sec===k);
-      if(arr.length)b.sections.push({id:invId(),heading:h,lines:arr.map(({m})=>({id:invId(),desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price}))});
+      if(arr.length)b.sections.push({id:invId(),heading:h,lines:arr.map(({m})=>({id:invId(),desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||''}))});
     });
     out.push(invCalc(b));
   }
@@ -4347,8 +4351,8 @@ function invRenderList(){
   if(invTab==='ready')h+='<div class="notice" style="margin:10px 0;font-size:12px">These invoices are finalized and have a PDF. Lotus does not email clients: download the PDF and deliver it yourself, then click Mark as sent.</div>';
   if(!rows.length)h+=`<div class="empty">No ${invStatusName(invTab).toLowerCase()} invoices${invJob?' for this job':''}.${invTab==='draft'?' Create drafts from the Time + Receipts tab (Client invoice view, Save as invoice drafts).':''}</div>`;
   else{
-    h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Number</th><th>Job</th><th>Type</th><th>Period</th><th style="text-align:right">Total</th><th>Updated</th><th></th></tr></thead><tbody>';
-    rows.forEach(x=>{h+=`<tr><td style="white-space:nowrap;font-weight:600">${x.number?esc(x.number):'<span style="color:var(--muted);font-weight:400">Draft</span>'}</td><td>${esc(x.projectName)}</td><td>${invKindName(x.kind)}</td><td style="white-space:nowrap">${esc(tmLongDate(x.periodFrom))} to ${esc(tmLongDate(x.periodTo))}</td><td style="text-align:right;white-space:nowrap">${tmMoney(x.total)}</td><td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(invDate(x.updatedAt))}${x.updatedBy?' by '+esc(x.updatedBy):''}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invOpen('${x.id}')">${x.status==='draft'?'Edit':'Open'}</button>${(x.status==='ready'||x.status==='sent')?` <button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${x.id}')">PDF</button>`:''}</td></tr>`});
+    h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Number</th><th>Job</th><th>Type</th><th>Period</th><th style="text-align:right">Total</th><th>'+(invTab==='sent'?'Delivered':'Updated')+'</th><th></th></tr></thead><tbody>';
+    rows.forEach(x=>{h+=`<tr><td style="white-space:nowrap;font-weight:600">${x.number?esc(x.number)+(x.status==='draft'?' <span style="color:var(--muted);font-weight:400;font-size:11px">(reopened)</span>':''):'<span style="color:var(--muted);font-weight:400">Draft</span>'}</td><td>${esc(x.projectName)}</td><td>${invKindName(x.kind)}</td><td style="white-space:nowrap">${esc(tmLongDate(x.periodFrom))} to ${esc(tmLongDate(x.periodTo))}</td><td style="text-align:right;white-space:nowrap">${tmMoney(x.total)}</td><td style="font-size:12px;color:var(--muted);white-space:nowrap">${invTab==='sent'?esc(x.sentDate?tmLongDate(x.sentDate):invDate(x.sentAt)):esc(invDate(x.updatedAt))+(x.updatedBy?' by '+esc(x.updatedBy):'')}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invOpen('${x.id}')">${x.status==='draft'?'Edit':'Open'}</button>${(x.status==='ready'||x.status==='sent')?` <button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${x.id}')">PDF</button>`:''}</td></tr>`});
     h+='</tbody></table></div>';
   }
   root.innerHTML=h;
@@ -4368,12 +4372,12 @@ function invRenderEditor(){
   else{
     h+=`<button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${v.id}')">Download PDF</button>`;
     if(v.status==='ready')h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invMarkSent()">Mark as sent</button>`;
-    if(isAdmin()&&(v.status==='ready'||v.status==='sent'))h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invVoid()">Void</button>`;
+    if(isAdmin()&&(v.status==='ready'||v.status==='sent'))h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invReopen()">Reopen for editing</button><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invVoid()">Void</button>`;
   }
   h+='</div></div><div id="inv-msg"></div>';
-  if(ed)h+='<div class="notice" style="font-size:12px;margin:8px 0">Draft: click any description, note, quantity or rate to change it. Amounts and totals recalculate. The invoice number is assigned when you finalize. Lotus does not email clients; finalizing only makes a PDF for you to deliver.</div>';
+  if(ed)h+=`<div class="notice" style="font-size:12px;margin:8px 0">Draft: click any description, note, quantity or rate to change it. Amounts and totals recalculate. ${v.number?'This invoice was reopened by '+esc(v.reopenedBy||'an admin')+(v.reopenReason?' ('+esc(v.reopenReason)+')':'')+' and keeps its number '+esc(v.number)+'.':'The invoice number is assigned when you finalize.'} Lotus does not email clients; finalizing only makes a PDF for you to deliver.</div>`;
   else if(v.status==='void')h+=`<div class="err" style="margin:8px 0">Void${v.voidedBy?' (by '+esc(v.voidedBy)+')':''}${v.voidReason?': '+esc(v.voidReason):''}. The number ${esc(v.number||'')} is not reused.</div>`;
-  else if(v.status==='sent')h+=`<div class="notice" style="font-size:12px;margin:8px 0">Marked as sent${v.sentBy?' by '+esc(v.sentBy):''}${v.sentAt?' on '+esc(invDate(v.sentAt)):''}${v.sentNote?': '+esc(v.sentNote):''}.</div>`;
+  else if(v.status==='sent')h+=`<div class="notice" style="font-size:12px;margin:8px 0">Delivered to the client on <b>${esc(v.sentDate?tmLongDate(v.sentDate):invDate(v.sentAt))}</b>${v.sentBy?' (recorded by '+esc(v.sentBy)+')':''}${v.sentNote?': '+esc(v.sentNote):''}.</div>`;
   h+=`<div class="inv-doc invm-doc">${tmInvHead(invKindName(v.kind)+' Invoice',{name:v.projectName},tmLongDate(v.periodFrom)+' to '+tmLongDate(v.periodTo),'Invoice number').replace('<div class="inv-val">&nbsp;</div>',`<div class="inv-val">${v.number?esc(v.number):'<span style="color:#8a7f74;font-weight:400;font-size:12px">Assigned when finalized</span>'}</div>`)}`;
   h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th>${ed?'<th></th>':''}</tr></thead><tbody>`;
   v.sections.forEach((s,si)=>{
@@ -4388,7 +4392,7 @@ function invRenderEditor(){
     h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td} id="ie-s-${si}">${tmMoney(s.subtotal)}</td>${ed?'<td></td>':''}</tr>`;
   });
   h+=`</tbody></table>${ed?'<button class="ie-add" style="margin-top:8px" onclick="window._invAddSec()">+ Add a section</button>':''}<div class="inv-total"><span>Total</span><span id="ie-t">${tmMoney(v.total)}</span></div>`;
-  h+=`<div class="inv-lbl" style="margin-top:22px">Notes (printed on the invoice)</div>${ed?`<textarea class="ie-in ie-notes" rows="3" placeholder="Optional message to the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea>`:`<div style="white-space:pre-wrap">${esc(v.notes||'')}</div>`}</div>`;
+  h+=`<div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div><div class="inv-lbl" style="margin-top:22px">Notes (printed on the invoice)</div>${ed?`<textarea class="ie-in ie-notes" rows="3" placeholder="Optional message to the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea>`:`<div style="white-space:pre-wrap">${esc(v.notes||'')}</div>`}</div>`;
   $('inv-root').innerHTML=h;
   document.querySelectorAll('#inv-root .ie-desc').forEach(window._invGrow);
 }
@@ -4403,7 +4407,7 @@ window._invAddLine=si=>{invCur.sections[si].lines.push({id:invId(),desc:'',note:
 window._invDelLine=(si,li)=>{invCur.sections[si].lines.splice(li,1);invMark();invRenderEditor()};
 window._invAddSec=()=>{invCur.sections.push({id:invId(),heading:'New section',lines:[{id:invId(),desc:'',note:'',qty:1,rate:0,amount:0}]});invMark();invRenderEditor()};
 window._invDelSec=si=>{if(!confirm('Remove this whole section and its lines?'))return;invCur.sections.splice(si,1);invMark();invRenderEditor()};
-function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount}))})),total:invCur.total,notes:String(invCur.notes||'')}}
+function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount,rid:String(l.rid||'')}))})),total:invCur.total,notes:String(invCur.notes||'')}}
 function invFlash(html,cls){const m=$('inv-msg');if(m)m.innerHTML=`<div class="${cls||'notice'}" style="margin:8px 0">${html}</div>`}
 window._invSave=async()=>{
   if(!invCur||invCur.status!=='draft')return;
@@ -4419,50 +4423,93 @@ window._invDelete=async()=>{
   try{await deleteDoc(doc(db,'invoices',invCur.id));invAll=invAll.filter(x=>x.id!==invCur.id);invDirty=false;invCur=null;invRenderList()}catch(e){invFlash('Could not delete: '+esc(e.message),'err')}
 };
 // ── finalize: number + PDF + Ready to send ──
+const invToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+// Mark / release the receipts on an invoice using the existing "Invoiced Client" fields on receipts.
+async function invMarkReceipts(rids,number){
+  const fails=[];
+  for(const rid of rids){try{await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:invToday(),invoicedClientNumber:number,invoicedClientBy:invWho(),invoicedClientAt:serverTimestamp()})}catch(e){fails.push(rid)}}
+  return fails;
+}
+async function invReleaseReceipts(inv){
+  const fails=[];let n=0;
+  for(const rid of (inv.receiptIds||[])){
+    try{
+      const s=await getDoc(doc(db,'receipts',rid));
+      if(s.exists()&&s.data().invoicedClientNumber===inv.number){await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:null,invoicedClientNumber:null,invoicedClientBy:null,invoicedClientAt:null,invoicedClientUnlockedBy:invWho(),invoicedClientUnlockedAt:serverTimestamp()});n++}
+    }catch(e){fails.push(rid)}
+  }
+  return{n,fails};
+}
 window._invFinalize=async()=>{
   const v=invCur;if(!v||v.status!=='draft')return;
   const bad=v.sections.flatMap(s=>s.lines||[]).filter(l=>!String(l.desc||'').trim());
   if(!v.sections.some(s=>(s.lines||[]).length)){invFlash('Add at least one line before finalizing.','err');return}
   if(bad.length){invFlash('Every line needs a description. '+bad.length+' line'+(bad.length>1?'s are':' is')+' blank.','err');return}
   invCalc(v);
-  const key=v.prefix+'-'+invLetter(v.kind);
-  if(!confirm('Finalize this '+invKindName(v.kind).toLowerCase()+' invoice for '+v.projectName+' ('+tmMoney(v.total)+')?\n\nIt gets the next number ('+key+'-###), a PDF is made, and it can no longer be edited (it can only be voided). Nothing is sent to the client.'))return;
+  const key=v.prefix+'-'+invLetter(v.kind),reuse=!!v.number;
+  const rids=[...new Set(v.sections.flatMap(s=>s.lines||[]).map(l=>l.rid).filter(Boolean))];
+  if(!confirm('Finalize this '+invKindName(v.kind).toLowerCase()+' invoice for '+v.projectName+' ('+tmMoney(v.total)+')?\n\n'+(reuse?'It keeps its number '+v.number+'.':'It gets the next number ('+key+'-###).')+' A PDF is made, it can no longer be edited (an admin can reopen it), and '+(rids.length?rids.length+' receipt'+(rids.length>1?'s are':' is')+' marked as invoiced to the client':'no receipts are marked')+'. Nothing is sent to the client.'))return;
   const btns=[...document.querySelectorAll('.invm-actions button')];btns.forEach(b=>b.disabled=true);invFlash('Making the PDF...');
   try{
     const cRef=doc(db,'settings','invoiceCounters'),iRef=doc(db,'invoices',v.id),fRef=doc(db,'invoiceFiles',v.id);
     const p=invPayload();let done=null;
     for(let tries=0;tries<4&&!done;tries++){
-      const snap=await getDoc(cRef);const cur=(snap.exists()?snap.data()[key]:0)||0,next=cur+1;
-      const number=key+'-'+String(next).padStart(3,'0');
+      let cur=0,next=0,number=v.number;
+      if(!reuse){const snap=await getDoc(cRef);cur=(snap.exists()?snap.data()[key]:0)||0;next=cur+1;number=key+'-'+String(next).padStart(3,'0')}
       const dateStr=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
       const pdf=await invMakePdf({...v,...p,number,invoiceDate:dateStr});
       if(pdf.length>900000)throw new Error('The PDF is too large to store ('+Math.round(pdf.length/1024)+' KB). Split the invoice into smaller ones.');
       try{
         await runTransaction(db,async tx=>{
-          const [c,i]=await Promise.all([tx.get(cRef),tx.get(iRef)]);
-          if(((c.exists()?c.data()[key]:0)||0)!==cur)throw new Error('COUNTER_MOVED');
+          const i=await tx.get(iRef);
           if(!i.exists()||i.data().status!=='draft')throw new Error('This invoice is no longer a draft.');
-          tx.set(cRef,{[key]:next},{merge:true});
-          tx.update(iRef,{...p,number,status:'ready',finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
+          if(!reuse){
+            const c=await tx.get(cRef);
+            if(((c.exists()?c.data()[key]:0)||0)!==cur)throw new Error('COUNTER_MOVED');
+            tx.set(cRef,{[key]:next},{merge:true});
+          }
+          tx.update(iRef,{...p,number,status:'ready',receiptIds:rids,finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
           tx.set(fRef,{pdf,number,projectId:v.projectId,createdAt:serverTimestamp()});
         });
         done=number;
       }catch(e){if(e.message!=='COUNTER_MOVED')throw e}
     }
     if(!done)throw new Error('Another invoice was being numbered at the same moment. Try again.');
+    const fails=await invMarkReceipts(rids,done);
     await invLoad();invDirty=false;invCur=null;invTab='ready';invRenderList();
-    $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(done)}</b> is final and in the Ready to send list. Download the PDF and deliver it yourself; Lotus does not email clients.</div>`);
+    $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(done)}</b> is final and in the Ready to send list. Download the PDF and deliver it yourself; Lotus does not email clients.${rids.length?' '+(rids.length-fails.length)+' receipt'+(rids.length-fails.length===1?'':'s')+' marked as invoiced to the client.':''}</div>${fails.length?`<div class="err" style="margin:8px 0">${fails.length} receipt${fails.length>1?'s':''} could not be marked as invoiced (for example a paid receipt a bookkeeper cannot change). Mark ${fails.length>1?'them':'it'} on the Receipts tab, or an admin can.</div>`:''}`);
   }catch(e){invFlash('Could not finalize: '+esc(e.message),'err');btns.forEach(b=>b.disabled=false)}
 };
-window._invMarkSent=async()=>{
+window._invMarkSent=()=>{
   const v=invCur;if(!v||v.status!=='ready')return;
-  const note=prompt('Optional note about how and when it was delivered (for example "emailed by Jennifer 11/9"):','');if(note===null)return;
-  try{await updateDoc(doc(db,'invoices',v.id),{status:'sent',sentAt:serverTimestamp(),sentBy:invWho(),sentNote:note.trim()});await invLoad();invCur=null;invTab='sent';invRenderList()}catch(e){invFlash('Could not update: '+esc(e.message),'err')}
+  invFlash(`<b>Mark as sent</b><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:8px"><div><div class="inv-lbl">Date it was delivered to the client</div><input type="date" id="inv-sent-date" value="${invToday()}" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"></div><div style="flex:1;min-width:220px"><div class="inv-lbl">Note (optional)</div><input type="text" id="inv-sent-note" placeholder="for example: emailed by Jennifer" style="width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"></div><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invSentConfirm()">Save sent date</button><button class="btn btn-outline btn-sm" style="width:auto" onclick="document.getElementById('inv-msg').innerHTML=''">Cancel</button></div>`);
+};
+window._invSentConfirm=async()=>{
+  const v=invCur;if(!v||v.status!=='ready')return;
+  const d=$('inv-sent-date').value,note=$('inv-sent-note').value.trim();
+  if(!d){alert('Choose the date it was delivered.');return}
+  if(d>invToday()&&!confirm('That date is in the future. Save it anyway?'))return;
+  try{await updateDoc(doc(db,'invoices',v.id),{status:'sent',sentDate:d,sentAt:serverTimestamp(),sentBy:invWho(),sentNote:note});await invLoad();invCur=null;invTab='sent';invRenderList()}catch(e){invFlash('Could not update: '+esc(e.message),'err')}
 };
 window._invVoid=async()=>{
   const v=invCur;if(!v||!isAdmin()||!['ready','sent'].includes(v.status))return;
-  const why=prompt('Void '+v.number+'? Its number is not reused. Reason:','');if(why===null)return;
-  try{await updateDoc(doc(db,'invoices',v.id),{status:'void',voidedAt:serverTimestamp(),voidedBy:invWho(),voidReason:why.trim()});await invLoad();invCur=null;invTab='void';invRenderList()}catch(e){invFlash('Could not void: '+esc(e.message),'err')}
+  const why=prompt('Void '+v.number+'? Its number is not reused, and its receipts are released so they can be billed again. Reason:','');if(why===null)return;
+  try{
+    await updateDoc(doc(db,'invoices',v.id),{status:'void',voidedAt:serverTimestamp(),voidedBy:invWho(),voidReason:why.trim()});
+    const r=await invReleaseReceipts(v);
+    await invLoad();invCur=null;invTab='void';invRenderList();
+    if(r.fails.length)$('inv-root').insertAdjacentHTML('afterbegin',`<div class="err" style="margin:8px 0">Voided, but ${r.fails.length} receipt${r.fails.length>1?'s':''} could not be released. Clear the invoiced-client date on the Receipts tab.</div>`);
+  }catch(e){invFlash('Could not void: '+esc(e.message),'err')}
+};
+window._invReopen=async()=>{
+  const v=invCur;if(!v||!isAdmin()||!['ready','sent'].includes(v.status))return;
+  const why=prompt('Reopen '+v.number+' as a draft so it can be edited?'+(v.status==='sent'?'\n\nThis invoice was already delivered to the client; they have the earlier version.':'')+'\n\nIt keeps its number, its PDF is replaced when you finalize again, and its receipts are released until then. Reason:','');if(why===null)return;
+  try{
+    await updateDoc(doc(db,'invoices',v.id),{status:'draft',reopenedAt:serverTimestamp(),reopenedBy:invWho(),reopenReason:why.trim(),sentAt:null,sentBy:null,sentNote:null,sentDate:null});
+    const r=await invReleaseReceipts(v);
+    await invLoad();invTab='draft';invRenderList();
+    $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(v.number)}</b> is a draft again. Edit it, then Finalize; it keeps the same number.${r.fails.length?' '+r.fails.length+' receipt(s) could not be released; clear their invoiced-client date on the Receipts tab.':''}</div>`);
+  }catch(e){invFlash('Could not reopen: '+esc(e.message),'err')}
 };
 window._invDownload=async id=>{
   try{
@@ -4499,15 +4546,16 @@ async function invMakePdf(inv){
       pdf.addImage(INV_LOGO_PNG,'PNG',M,36,46,46);
       pdf.setFont('helvetica','normal');pdf.setFontSize(27);tc(ink);pdf.text('MOTIF',M+58,68,{charSpace:7});
       pdf.setFont('helvetica','bold');pdf.setFontSize(7.5);tc(gold);pdf.text('DESIGN SOLUTIONS',M+58,85,{charSpace:3.6});
+      pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text(INV_ADDR,M+58,98);
       pdf.setFont('helvetica','bold');pdf.setFontSize(14);tc(ink);pdf.text(kind.toUpperCase()+' INVOICE',R,58,{align:'right'});
       pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text(pdfTxt(per),R,76,{align:'right'});
-      pdf.setDrawColor(gold[0],gold[1],gold[2]);pdf.setLineWidth(1.6);pdf.line(M,102,R,102);
-      lbl('BILL TO',M,128);lbl('INVOICE NUMBER',330,128);lbl('INVOICE DATE',R,128,'right');
-      pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text(pdf.splitTextToSize(pdfTxt(inv.projectName),250)[0],M,146);
-      pdf.setFontSize(11);pdf.text(inv.number||'DRAFT',330,146);
-      pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.text(inv.invoiceDate||'',R,146,{align:'right'});
-      pdf.setDrawColor(hair[0],hair[1],hair[2]);pdf.setLineWidth(.6);pdf.line(M,156,R,156);
-      y=190;
+      pdf.setDrawColor(gold[0],gold[1],gold[2]);pdf.setLineWidth(1.6);pdf.line(M,112,R,112);
+      lbl('BILL TO',M,138);lbl('INVOICE NUMBER',330,138);lbl('INVOICE DATE',R,138,'right');
+      pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text(pdf.splitTextToSize(pdfTxt(inv.projectName),250)[0],M,156);
+      pdf.setFontSize(11);pdf.text(inv.number||'DRAFT',330,156);
+      pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.text(inv.invoiceDate||'',R,156,{align:'right'});
+      pdf.setDrawColor(hair[0],hair[1],hair[2]);pdf.setLineWidth(.6);pdf.line(M,166,R,166);
+      y=200;
     }else{
       pdf.setFont('helvetica','normal');pdf.setFontSize(11);tc(ink);pdf.text('MOTIF',M,46,{charSpace:3});
       pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text((inv.number||'DRAFT')+'  |  '+kind+' invoice  |  '+pdfTxt(inv.projectName),R,46,{align:'right'});
@@ -4538,12 +4586,13 @@ async function invMakePdf(inv){
   ensure(70,false);
   pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(1.2);pdf.line(M,y-8,R,y-8);
   pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text('Total',M+6,y+12);pdf.setFontSize(13);pdf.text(tmMoney(inv.total),cA,y+12,{align:'right'});y+=44;
+  ensure(46,false);lbl('TERMS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);pdf.text(INV_TERMS,M,y);y+=30;
   if(String(inv.notes||'').trim()){
     ensure(40,false);lbl('NOTES',M,y);y+=16;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);
     pdf.splitTextToSize(pdfTxt(inv.notes),R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=13});
   }
   const n=pdf.getNumberOfPages();
-  for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text('MOTIF Design Solutions',M,H-30);pdf.text('Page '+i+' of '+n,R,H-30,{align:'right'})}
+  for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text('MOTIF Design Solutions  |  '+INV_ADDR,M,H-30);pdf.text('Page '+i+' of '+n,R,H-30,{align:'right'})}
   const uri=pdf.output('datauristring');return uri.slice(uri.indexOf('base64,')+7);
 }
 // ── Invoices tab wiring ──

@@ -190,6 +190,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .ie-desc{resize:none;overflow:hidden;line-height:1.35;font-family:inherit}
 .invm-doc td[id^=ie-a-]{padding-top:11px}
 .ie-notes{resize:vertical;min-height:64px;border-color:#e8e0d6}
+.inv-comm-ed{margin-top:18px}
 .ie-x{border:0;background:transparent;color:#b0a79c;font-size:18px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:4px}.ie-x:hover{color:#8b3a3a;background:#f4e3e3}
 .ie-add{border:1px dashed #cdb48d;background:transparent;color:#8a6d3b;border-radius:6px;padding:6px 12px;font:500 12px 'DM Sans',sans-serif;cursor:pointer}.ie-add:hover{background:#faf5ec}
 .invm-doc .inv-tbl th:nth-child(2),.invm-doc .inv-tbl th:nth-child(3){width:96px}.invm-doc .inv-tbl th:nth-child(4){width:110px}
@@ -4196,7 +4197,7 @@ const INV_LOGO='<svg class="inv-mark" viewBox="-10 0 140 140" aria-hidden="true"
 function tmLongDate(x){const d=new Date(x+'T00:00:00');return isNaN(d)?x:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function tmIsDesignMaterial(codeStr){return String(codeStr||'').split('; ').some(c=>{const e=COST_CODES.find(x=>x.code===c)||(customCodes||[]).find(x=>x.code===c);return /^21 /.test(e?.cat||'')})}
 const INV_ADDR='2679 Main Street, Littleton, CO 80120';
-const INV_TERMS='Due upon receipt per terms of our agreement.';
+const INV_TERMS='Due upon receipt per the terms of our agreement.';
 function tmInvHead(title,proj,period,numLabel){
   return `<div class="inv-head"><div class="inv-brand">${INV_LOGO}<div><div class="inv-name">MOTIF</div><div class="inv-sub">DESIGN SOLUTIONS</div><div class="inv-addr">${INV_ADDR}</div></div></div><div class="inv-meta"><div class="inv-title">${title}</div><div>${esc(period)}</div></div></div>
   <div class="inv-billto"><div><div class="inv-lbl">Bill to</div><div class="inv-val">${esc(proj.name||'Job')}</div></div><div><div class="inv-lbl">${numLabel}</div><div class="inv-val">&nbsp;</div></div></div>`;
@@ -4392,7 +4393,10 @@ function invRenderEditor(){
     h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td} id="ie-s-${si}">${tmMoney(s.subtotal)}</td>${ed?'<td></td>':''}</tr>`;
   });
   h+=`</tbody></table>${ed?'<button class="ie-add" style="margin-top:8px" onclick="window._invAddSec()">+ Add a section</button>':''}<div class="inv-total"><span>Total</span><span id="ie-t">${tmMoney(v.total)}</span></div>`;
-  h+=`<div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div><div class="inv-lbl" style="margin-top:22px">Notes (printed on the invoice)</div>${ed?`<textarea class="ie-in ie-notes" rows="3" placeholder="Optional message to the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea>`:`<div style="white-space:pre-wrap">${esc(v.notes||'')}</div>`}</div>`;
+  const hasCom=!!String(v.notes||'').trim();
+  if(ed)h+=`<div class="inv-comm-ed"><div class="inv-lbl">Comments (printed below the total; leave blank and nothing prints)</div><textarea class="ie-in ie-notes" rows="3" placeholder="Optional comments for the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea></div>`;
+  else if(hasCom)h+=`<div class="inv-terms"><b>Comments:</b> <span style="white-space:pre-wrap">${esc(v.notes)}</span></div>`;
+  h+=`<div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div></div>`;
   $('inv-root').innerHTML=h;
   document.querySelectorAll('#inv-root .ie-desc').forEach(window._invGrow);
 }
@@ -4586,11 +4590,11 @@ async function invMakePdf(inv){
   ensure(70,false);
   pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(1.2);pdf.line(M,y-8,R,y-8);
   pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text('Total',M+6,y+12);pdf.setFontSize(13);pdf.text(tmMoney(inv.total),cA,y+12,{align:'right'});y+=44;
-  ensure(46,false);lbl('TERMS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);pdf.text(INV_TERMS,M,y);y+=30;
   if(String(inv.notes||'').trim()){
-    ensure(40,false);lbl('NOTES',M,y);y+=16;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);
-    pdf.splitTextToSize(pdfTxt(inv.notes),R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=13});
+    ensure(46,false);lbl('COMMENTS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);
+    pdf.splitTextToSize(pdfTxt(inv.notes),R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=13});y+=17;
   }
+  ensure(46,false);lbl('TERMS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);pdf.text(INV_TERMS,M,y);y+=30;
   const n=pdf.getNumberOfPages();
   for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text('MOTIF Design Solutions  |  '+INV_ADDR,M,H-30);pdf.text('Page '+i+' of '+n,R,H-30,{align:'right'})}
   const uri=pdf.output('datauristring');return uri.slice(uri.indexOf('base64,')+7);

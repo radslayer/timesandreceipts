@@ -51,6 +51,35 @@ exports.deactivateUser = onCall(async (request) => {
   return { success: true };
 });
 
+// Permanently removes a user's Firebase Authentication login. The Delete button in the
+// Users list (window._deleteUser in index.html) calls this and then deletes the Firestore
+// users/{uid} document itself; time logs and receipts are never touched here. Added
+// 2026-11-06: the button called this function but it had never been written, so Delete
+// always failed. Safeguards: admins only, never your own account, and only an account that
+// is already deactivated (the same rule the button follows). If the Auth account is
+// already gone (an orphaned record, like Rochelle's old one), that counts as success so
+// the Firestore document can still be cleaned up.
+exports.deleteUser = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Not signed in.");
+  const db = admin.firestore();
+  const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+  const callerRole = (callerDoc.data()?.role || "").toLowerCase();
+  if (callerRole !== "admin") throw new HttpsError("permission-denied", "Admins only.");
+  const { uid } = request.data || {};
+  if (!uid) throw new HttpsError("invalid-argument", "User ID required.");
+  if (uid === request.auth.uid) throw new HttpsError("failed-precondition", "You cannot delete your own account.");
+  const targetDoc = await db.collection("users").doc(uid).get();
+  if (targetDoc.exists && targetDoc.data()?.deactivated !== true) {
+    throw new HttpsError("failed-precondition", "Deactivate this user before deleting.");
+  }
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (e) {
+    if (e.code !== "auth/user-not-found") throw new HttpsError("internal", "Could not delete the login: " + e.message);
+  }
+  return { success: true };
+});
+
 // Changes a user's Firebase Authentication login email (and the matching Firestore
 // users/{uid}.email field, which also drives the inbound-email-receipt sender match
 // in receiveEmailReceipt below). Added 2026-11-04: Rochelle had two separate

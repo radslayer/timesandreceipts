@@ -378,7 +378,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <!-- PAYROLL PANEL -->
       <div id="rpt-tm-panel" class="hidden">
         <div class="card">
-          <div class="notice" style="font-size:12px;margin-bottom:12px">Billable labor and materials for one job and one period, to check before it becomes a client invoice. Only billable time entries and receipts are included; receipts already marked as invoiced to the client are left out. This report is for internal review (it shows our cost next to the client price).</div>
+          <div class="notice" style="font-size:12px;margin-bottom:12px">Billable labor and receipts for one job and one period, laid out like a QuickBooks invoice, to check before invoicing. Only billable time entries and receipts are included; receipts already marked as invoiced to the client are left out. This report is for internal review (it shows our cost next to the client price).</div>
+          <details id="tm-rates-wrap" style="margin-bottom:14px"><summary style="cursor:pointer;font-weight:700;font-size:13px">Client billing rates</summary><div id="tm-rates"></div></details>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px">
             <div class="field" style="margin-bottom:0"><label>Job *</label><select id="tm-project" style="width:100%"><option value="">Select a job</option></select></div>
             <div class="field" style="margin-bottom:0"><label>Materials: cost &divide;</label><input type="number" step="0.01" id="tm-mat-div" value="0.65" style="width:100%"></div>
@@ -401,7 +402,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
               </div>
             </div>
           </div>
-          <div style="margin-top:14px;text-align:right"><button class="btn btn-gold" id="tm-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Time &amp; Materials</button></div>
+          <div style="margin-top:14px;text-align:right"><button class="btn btn-gold" id="tm-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Time + Receipts</button></div>
           <div id="tm-results"></div>
         </div>
       </div>
@@ -899,7 +900,6 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </select>
       </div>
     </div>
-    <div class="field"><label>Client Bill Rate ($/hr)</label><input type="number" step="0.01" id="pay-bill" placeholder="0.00" inputmode="decimal"><div style="font-size:11px;color:var(--muted);margin-top:4px">What the client is charged per hour for this person. Used only on the Time &amp; Materials report; never affects payroll.</div></div>
     <div class="field">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="checkbox" id="pay-spiff-eligible" style="width:auto;margin:0">
@@ -3959,24 +3959,72 @@ window._xlsx=async()=>{
   }catch(e){alert('Excel export failed: '+e.message)}
 };
 
-// ── TIME & MATERIALS REPORT (admin/bookkeeper, added 2026-11-06) ─────────────────────────────
-// One job, one period (usually a Sun-Sat billing week): billable labor priced at each person's client
-// bill rate (users.billRate, set in the pay-rate modal) plus billable receipts priced from our cost:
-// materials = cost / 0.65, subcontractor (labor-type cost codes) = cost / 0.75. Each receipt is marked
-// up on its full amount as paid (Guapo: we are a reseller, and the whole amount is marked up); no sales
-// tax is tracked or added. Same markup rules as the estimating notes.
+// ── TIME + RECEIPTS REPORT (admin/bookkeeper, added 2026-11-06) ──────────────────────────────
+// One job, one period (usually a Sun-Sat billing week), laid out like MOTIF's QuickBooks invoices:
+// one block per week, labor lines by cost code ("Paint Labor 10.12.26 - 10.18.26", hours x rate),
+// then marked-up receipts and subcontractor invoices, then a week subtotal. Labor is priced by
+// RATE CLASS per client (Construction / Design / Procurement), from the "Client billing rates" table
+// (settings/clientBillingRates). Clients with no saved rates use the defaults 85 / 145 / 95.
+// Receipts are marked up on their full amount as paid: materials = cost / 0.65, subcontractor
+// (labor-type cost codes) = cost / 0.75; no sales tax is tracked or added (MOTIF is a reseller).
 // Internal review report: it shows our cost next to the client price. Queries are single-field
 // (projectId only) and the period is applied in the browser, so no Firestore index is needed.
+const TM_CLASSES=[{key:'construction',label:'Construction',def:85},{key:'design',label:'Design',def:145},{key:'procurement',label:'Procurement',def:95}];
+// ASSUMPTION (Guapo to confirm): which cost codes bill at the Design and Procurement rates. Everything
+// else that is labor (including Construction Project Management) bills at the Construction rate.
+const TM_DESIGN_CODES=['01.00','01.05','01.10','01.20','01.30','01.35'];
+const TM_PROCUREMENT_CODES=['01.15'];
+function tmRateClass(code){const n=String(code||'').split(' - ')[0].trim();if(TM_PROCUREMENT_CODES.includes(n))return'procurement';if(TM_DESIGN_CODES.includes(n))return'design';return'construction'}
 function tmCodeType(code){const e=COST_CODES.find(x=>x.code===code)||(customCodes||[]).find(x=>x.code===code);return e?.type||'materials'}
+function tmCodeLabel(code){if(!code)return'Labor (no cost code)';const p=String(code).split(' - ');return(p.length>1?p.slice(1).join(' - '):code).trim()}
 const tmMoney=n=>'$'+(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const tmR2=n=>Math.round((+n||0)*100)/100;
-$('rpt-tm-btn').onclick=()=>{
+const tmMDY=d=>String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0')+'.'+String(d.getFullYear()).slice(2);
+const tmSunday=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());
+window._clientRates={};
+async function tmLoadRates(){
+  try{const snap=await getDoc(doc(db,'settings','clientBillingRates'));window._clientRates=snap.exists()?(snap.data().rates||{}):{}}catch(e){window._clientRates={}}
+}
+function tmRatesFor(pid){
+  const saved=window._clientRates[pid];const r={};
+  TM_CLASSES.forEach(c=>{const v=parseFloat(saved?.[c.key]);r[c.key]=v>0?v:c.def});
+  r._saved=!!saved;return r;
+}
+function renderTmRatesTable(){
+  const el=$('tm-rates');if(!el)return;
+  const canEdit=isAdmin();
+  const rows=[...allProjects].filter(p=>p.clientProject!==false&&!isArchivedRec(p)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(!rows.length){el.innerHTML='<div class="empty">No client projects.</div>';return}
+  let h=`<div style="font-size:12px;color:var(--muted);margin:8px 0">Hourly rates charged to each client, by type of work. Design = design development, design project management, design or construction admin, construction documents and design meetings. Procurement = procurement of design elements. Construction = all other labor, including construction project management. A client with no saved rates uses the defaults (${TM_CLASSES.map(c=>c.label+' $'+c.def).join(', ')}). ${canEdit?'':'Only an admin can change these.'}</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Client / job</th>${TM_CLASSES.map(c=>'<th>'+c.label+' $/hr</th>').join('')}<th>Status</th><th></th></tr></thead><tbody>`;
+  rows.forEach(p=>{
+    const r=tmRatesFor(p.id),sv=window._clientRates[p.id];
+    h+=`<tr data-pid="${p.id}"><td>${esc(p.name)}</td>${TM_CLASSES.map(c=>`<td><input type="number" step="0.01" min="0" data-k="${c.key}" value="${r[c.key]}" style="width:90px" ${canEdit?'':'disabled'}></td>`).join('')}<td style="font-size:11px;color:var(--muted)">${sv?('Saved'+(sv.updatedBy?' by '+esc(sv.updatedBy):'')):'Default rates'}</td><td>${canEdit?`<button class="btn btn-outline btn-sm" type="button" onclick="window._saveTmRates('${p.id}')">Save</button>`:''}</td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table></div>';
+}
+window._saveTmRates=async pid=>{
+  if(!isAdmin()){alert('Only an admin can change client billing rates.');return}
+  const tr=document.querySelector('#tm-rates tr[data-pid="'+pid+'"]');if(!tr)return;
+  const next={};
+  for(const c of TM_CLASSES){const v=parseFloat(tr.querySelector('[data-k="'+c.key+'"]').value);if(!(v>0)){alert('Enter a rate greater than zero for '+c.label+'.');return}next[c.key]=tmR2(v)}
+  const proj=allProjects.find(p=>p.id===pid)||{};
+  const was=window._clientRates[pid]||null;
+  try{
+    await setDoc(doc(db,'settings','clientBillingRates'),{
+      rates:{[pid]:{...next,updatedBy:userProfile?.name||currentUser?.email||'',updatedAt:Timestamp.now()}},
+      history:arrayUnion({at:Timestamp.now(),by:userProfile?.name||currentUser?.email||'',projectId:pid,projectName:proj.name||'',from:was?{construction:was.construction,design:was.design,procurement:was.procurement}:null,to:next})
+    },{merge:true});
+    await tmLoadRates();renderTmRatesTable();
+  }catch(e){alert('Save failed: '+e.message)}
+};
+$('rpt-tm-btn').onclick=async()=>{
   ['rpt-time-btn','rpt-rcpt-btn','rpt-payroll-btn','rpt-logtime-btn'].forEach(id=>$(id)?.classList.remove('on'));
   $('rpt-tm-btn').classList.add('on');
   hide('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');show('rpt-tm-panel');
   const sel=$('tm-project'),v=sel.value;sel.innerHTML='<option value="">Select a job</option>';
   [...allProjects].filter(p=>p.clientProject!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
   sel.value=v;
+  await tmLoadRates();renderTmRatesTable();
 };
 $('tm-run-btn').onclick=async()=>{
   const pid=$('tm-project').value,fr=$('tm-from').value,to=$('tm-to').value;
@@ -3988,31 +4036,29 @@ $('tm-run-btn').onclick=async()=>{
   $('tm-run-btn').disabled=true;$('tm-run-btn').textContent='Running...';out.innerHTML='<div class="empty">Loading...</div>';
   try{
     const lo=new Date(fr+'T00:00:00').getTime();const hiD=new Date(to+'T00:00:00');hiD.setDate(hiD.getDate()+1);const hi=hiD.getTime();
-    const [tSnap,rSnap,uSnap]=await Promise.all([
+    await tmLoadRates();
+    const [tSnap,rSnap]=await Promise.all([
       getDocs(query(collection(db,'timeLogs'),where('projectId','==',pid))),
-      getDocs(query(collection(db,'receipts'),where('projectId','==',pid))),
-      getDocs(collection(db,'users'))
+      getDocs(query(collection(db,'receipts'),where('projectId','==',pid)))
     ]);
-    const users={};uSnap.docs.forEach(d=>{users[d.id]={id:d.id,...d.data()}});
     const proj=allProjects.find(p=>p.id===pid)||{};
-    // ---- labor ----
+    const rates=tmRatesFor(pid);
     const ex={nonBillTime:0,nonBillHrs:0,openTime:0,invoicedRcpt:0,invoicedAmt:0,rejectedRcpt:0};
-    const labor=[];
+    const weeks={};
+    const wk=d=>{const s=tmSunday(d),k=s.getTime();return weeks[k]||(weeks[k]={sun:s,sat:new Date(s.getFullYear(),s.getMonth(),s.getDate()+6),labor:{},mats:[],subs:[]})};
+    const entries=[]; // time entries, for the detail views
     tSnap.docs.map(d=>({id:d.id,...d.data()})).forEach(r=>{
       const m=r.clockIn?.toMillis?r.clockIn.toMillis():0;
       if(m<lo||m>=hi||isArchivedRec(r))return;
       if(!r.clockOut){ex.openTime++;return}
       if(!effectiveBillable(r)){ex.nonBillTime++;ex.nonBillHrs+=(r.durationMs||0)/3600000;return}
-      const rate=parseFloat(users[r.userId]?.billRate)||0;
-      const hrs=tmR2((r.durationMs||0)/3600000);
-      labor.push({date:new Date(m),name:r.userName||'Unknown',userId:r.userId,room:r.room||'',code:r.costCode||r.scope||'',tin:r.clockIn,tout:r.clockOut,hrs,rate,amt:rate?tmR2(hrs*rate):0,notes:r.notes||''});
+      const d=new Date(m),code=r.costCode||r.scope||'',cls=tmRateClass(code),hrs=tmR2((r.durationMs||0)/3600000);
+      const w=wk(d),key=code||'(none)';
+      const L=w.labor[key]||(w.labor[key]={code,label:tmCodeLabel(code),cls,rate:rates[cls],hrs:0,amt:0});
+      L.hrs=tmR2(L.hrs+hrs);
+      entries.push({date:d,name:r.userName||'Unknown',room:r.room||'',code,cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:rates[cls],amt:tmR2(hrs*rates[cls]),notes:r.notes||''});
     });
-    labor.sort((a,b)=>a.date-b.date);
-    const byEmp={};labor.forEach(l=>{const e=byEmp[l.userId||l.name]||(byEmp[l.userId||l.name]={name:l.name,rate:l.rate,hrs:0,amt:0,n:0});e.hrs=tmR2(e.hrs+l.hrs);e.amt=tmR2(e.amt+l.amt);e.n++});
-    const empList=Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name));
-    const noRate=empList.filter(e=>!e.rate);
-    // ---- materials and subcontractors ----
-    const mats=[],subs=[];
+    Object.values(weeks).forEach(w=>Object.values(w.labor).forEach(L=>{L.amt=tmR2(L.hrs*L.rate)}));
     rSnap.docs.map(d=>({id:d.id,...d.data()})).forEach(r=>{
       const m=receiptTsMs(r.submittedAt||r.createdAt);
       if(m<lo||m>=hi||isArchivedRec(r))return;
@@ -4023,80 +4069,95 @@ $('tm-run-btn').onclick=async()=>{
       if(r.invoicedClientDate){ex.invoicedRcpt++;ex.invoicedAmt+=cost;return}
       const isSub=codes.some(c=>tmCodeType(c)==='labor');
       const div=isSub?subDiv:matDiv;
-      (isSub?subs:mats).push({date:new Date(m),vendor:r.vendor||'',num:r.billNumber||'',room:r.room||'',codes:codes.join('; '),desc:r.notes||'',by:r.submittedByName||'',cost,price:tmR2(cost/div)});
+      const d=new Date(m);
+      (isSub?wk(d).subs:wk(d).mats).push({date:d,vendor:r.vendor||'',num:r.billNumber||'',room:r.room||'',codes:codes.join('; '),desc:r.notes||'',by:r.submittedByName||'',cost,price:tmR2(cost/div)});
     });
-    mats.sort((a,b)=>a.date-b.date);subs.sort((a,b)=>a.date-b.date);
+    const weekList=Object.values(weeks).sort((a,b)=>a.sun-b.sun);
     const sum=(a,k)=>tmR2(a.reduce((s,x)=>s+x[k],0));
-    const T={labor:sum(labor,'amt'),hrs:sum(labor,'hrs'),matCost:sum(mats,'cost'),mat:sum(mats,'price'),subCost:sum(subs,'cost'),sub:sum(subs,'price')};
+    weekList.forEach(w=>{
+      w.laborLines=Object.values(w.labor).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+      w.mats.sort((a,b)=>a.date-b.date);w.subs.sort((a,b)=>a.date-b.date);
+      w.T={hrs:sum(w.laborLines,'hrs'),labor:sum(w.laborLines,'amt'),matCost:sum(w.mats,'cost'),mat:sum(w.mats,'price'),subCost:sum(w.subs,'cost'),sub:sum(w.subs,'price')};
+      w.T.total=tmR2(w.T.labor+w.T.mat+w.T.sub);
+    });
+    const T={hrs:sum(weekList.map(w=>w.T),'hrs'),labor:sum(weekList.map(w=>w.T),'labor'),matCost:sum(weekList.map(w=>w.T),'matCost'),mat:sum(weekList.map(w=>w.T),'mat'),subCost:sum(weekList.map(w=>w.T),'subCost'),sub:sum(weekList.map(w=>w.T),'sub')};
     T.grand=tmR2(T.labor+T.mat+T.sub);
-    window._tmData={proj,fr,to,matDiv,subDiv,labor,empList,mats,subs,T,ex,noRate};
+    entries.sort((a,b)=>a.date-b.date);
+    const byEmp={};entries.forEach(e=>{const x=byEmp[e.name]||(byEmp[e.name]={name:e.name,n:0,hrs:0});x.n++;x.hrs=tmR2(x.hrs+e.hrs)});
+    window._tmData={proj,fr,to,matDiv,subDiv,rates,weekList,entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
     renderTM();
   }catch(e){out.innerHTML='<div class="err">Report failed: '+esc(e.message)+'</div>'}
-  $('tm-run-btn').disabled=false;$('tm-run-btn').textContent='Run Time & Materials';
+  $('tm-run-btn').disabled=false;$('tm-run-btn').textContent='Run Time + Receipts';
 };
 function renderTM(){
-  const D=window._tmData;if(!D)return;const {proj,fr,to,labor,empList,mats,subs,T,ex,noRate}=D;
-  const wk=$('tm-week').value?'Week of '+new Date(fr+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):fr+' to '+to;
+  const D=window._tmData;if(!D)return;const {proj,fr,to,weekList,entries,empList,T,ex,rates}=D;
   const td='style="text-align:right;white-space:nowrap"';
-  let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${esc(wk)} &middot; Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap;width:auto" onclick="window._tmXlsx()">Export Excel</button></div>`;
-  if(noRate.length)h+=`<div class="err" style="margin-bottom:10px">No client bill rate is set for: ${noRate.map(e=>esc(e.name)).join(', ')}. Their labor is shown at $0.00 and is not in the totals. An admin can set it in Payroll, pay rates (Client Bill Rate).</div>`;
+  const rng=(a,b)=>tmMDY(a)+' - '+tmMDY(b);
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${fr} to ${to} &middot; billing weeks run Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap;width:auto" onclick="window._tmXlsx()">Export Excel</button></div>`;
+  h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
   const notes=[];
   if(ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');
   if(ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')');
   if(ex.openTime)notes.push(ex.openTime+' time entr'+(ex.openTime===1?'y':'ies')+' still clocked in (not counted)');
   if(ex.rejectedRcpt)notes.push(ex.rejectedRcpt+' rejected receipt'+(ex.rejectedRcpt===1?'':'s'));
   if(notes.length)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Left out: ${notes.join('; ')}.</div>`;
-  // labor
-  h+=`<h3 style="margin:14px 0 6px;font-size:14px">Labor</h3>`;
-  if(!empList.length)h+='<div class="empty">No billable time in this period.</div>';
-  else{
-    h+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Employee</th><th ${td}>Entries</th><th ${td}>Hours</th><th ${td}>Bill rate</th><th ${td}>Amount</th></tr></thead><tbody>`;
-    empList.forEach(e=>{h+=`<tr><td>${esc(e.name)}</td><td ${td}>${e.n}</td><td ${td}>${e.hrs.toFixed(2)}</td><td ${td}>${e.rate?tmMoney(e.rate):'<span style="color:var(--red)">not set</span>'}</td><td ${td}>${e.rate?tmMoney(e.amt):'--'}</td></tr>`});
-    h+=`<tr style="font-weight:700"><td>Labor total</td><td></td><td ${td}>${T.hrs.toFixed(2)}</td><td></td><td ${td}>${tmMoney(T.labor)}</td></tr></tbody></table></div>`;
-    h+=`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Show each time entry (${labor.length})</summary><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Employee</th><th>Cost code</th><th>Room</th><th>In</th><th>Out</th><th ${td}>Hours</th><th>Notes</th></tr></thead><tbody>`;
-    labor.forEach(l=>{h+=`<tr><td style="white-space:nowrap">${l.date.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})}</td><td>${esc(l.name)}</td><td style="font-size:11px">${esc(l.code)}</td><td>${esc(l.room)}</td><td style="white-space:nowrap">${xlTime(l.tin)}</td><td style="white-space:nowrap">${xlTime(l.tout)}</td><td ${td}>${l.hrs.toFixed(2)}</td><td style="font-size:11px;max-width:260px;white-space:normal">${esc(l.notes)}</td></tr>`});
-    h+='</tbody></table></div></details>';
-  }
-  // materials + subs
-  const lines=(title,arr,divTxt,costK,priceK)=>{
-    let x=`<h3 style="margin:18px 0 6px;font-size:14px">${title} <span style="font-weight:400;color:var(--muted);font-size:12px">(cost &divide; ${divTxt})</span></h3>`;
-    if(!arr.length)return x+'<div class="empty">None in this period.</div>';
-    x+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Vendor</th><th>Receipt #</th><th>Cost codes / notes</th><th ${td}>Our cost</th><th ${td}>Client price</th></tr></thead><tbody>`;
-    arr.forEach(m=>{x+=`<tr><td style="white-space:nowrap">${m.date.toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</td><td>${esc(m.vendor)}</td><td style="font-size:11px">${esc(m.num)}</td><td style="font-size:11px;max-width:300px;white-space:normal">${esc(m.codes)}${m.desc?' &mdash; '+esc(m.desc):''}</td><td ${td}>${tmMoney(m.cost)}</td><td ${td}>${tmMoney(m.price)}</td></tr>`});
-    x+=`<tr style="font-weight:700"><td colspan="4">${title} total</td><td ${td}>${tmMoney(T[costK])}</td><td ${td}>${tmMoney(T[priceK])}</td></tr></tbody></table></div>`;
-    return x;
-  };
-  h+=lines('Materials',mats,D.matDiv,'matCost','mat');
-  h+=lines('Subcontractors',subs,D.subDiv,'subCost','sub');
-  // totals
-  h+=`<h3 style="margin:18px 0 6px;font-size:14px">Totals</h3><table class="tbl" style="max-width:420px"><tbody>
-    <tr><td>Labor</td><td ${td}>${tmMoney(T.labor)}</td></tr>
+  if(!weekList.length)h+='<div class="empty">No billable time or receipts in this period.</div>';
+  weekList.forEach(w=>{
+    h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} Labor Hours ${rng(w.sun,w.sat)}</div>`;
+    h+=`<table class="tbl"><thead><tr><th>Description</th><th ${td}>Hours</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`;
+    if(!w.laborLines.length)h+='<tr><td colspan="4" style="color:var(--muted)">No billable labor this week.</td></tr>';
+    w.laborLines.forEach(L=>{h+=`<tr><td>${esc(L.label)} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
+    if(w.mats.length||w.subs.length){
+      h+=`<tr><td colspan="4" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:12px">Materials and subcontractors (our cost shown for review)</td></tr>`;
+      [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr,div])=>arr.forEach(m=>{h+=`<tr><td>${esc(m.vendor||lab)}${m.desc?' &mdash; '+esc(m.desc):''} <span style="font-size:10px;color:var(--muted)">${lab}${m.num?' &middot; '+esc(m.num):''} &middot; cost ${tmMoney(m.cost)} &divide; ${div}</span></td><td ${td}></td><td ${td}></td><td ${td}>${tmMoney(m.price)}</td></tr>`}));
+    }
+    h+=`<tr style="font-weight:700"><td>Subtotal</td><td ${td}>${w.T.hrs.toFixed(2)}</td><td></td><td ${td}>${tmMoney(w.T.total)}</td></tr></tbody></table></div>`;
+  });
+  h+=`<table class="tbl" style="max-width:420px;margin-top:8px"><tbody>
+    <tr><td>Labor (${T.hrs.toFixed(2)} hrs)</td><td ${td}>${tmMoney(T.labor)}</td></tr>
     <tr><td>Materials</td><td ${td}>${tmMoney(T.mat)}</td></tr>
     <tr><td>Subcontractors</td><td ${td}>${tmMoney(T.sub)}</td></tr>
     <tr style="font-weight:700;font-size:15px"><td>Total to bill</td><td ${td}>${tmMoney(T.grand)}</td></tr></tbody></table>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">Each receipt is marked up on its full amount, exactly as paid. Labor is billed at each person's client bill rate times their total hours (overtime is not marked up).</div>`;
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Each receipt is marked up on its full amount, exactly as paid. Labor is hours times the client's rate for that type of work (overtime is not marked up).</div>`;
+  if(entries.length){
+    h+=`<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Hours by employee and each time entry (for reference, not for the client)</summary><div style="overflow-x:auto"><table class="tbl" style="max-width:420px;margin:8px 0"><thead><tr><th>Employee</th><th ${td}>Entries</th><th ${td}>Hours</th></tr></thead><tbody>${empList.map(e=>`<tr><td>${esc(e.name)}</td><td ${td}>${e.n}</td><td ${td}>${e.hrs.toFixed(2)}</td></tr>`).join('')}</tbody></table>
+    <table class="tbl"><thead><tr><th>Date</th><th>Employee</th><th>Cost code</th><th>Room</th><th>In</th><th>Out</th><th ${td}>Hours</th><th>Notes</th></tr></thead><tbody>`;
+    entries.forEach(l=>{h+=`<tr><td style="white-space:nowrap">${l.date.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})}</td><td>${esc(l.name)}</td><td style="font-size:11px">${esc(l.code)}</td><td>${esc(l.room)}</td><td style="white-space:nowrap">${xlTime(l.tin)}</td><td style="white-space:nowrap">${xlTime(l.tout)}</td><td ${td}>${l.hrs.toFixed(2)}</td><td style="font-size:11px;max-width:260px;white-space:normal">${esc(l.notes)}</td></tr>`});
+    h+='</tbody></table></div></details>';
+  }
   $('tm-results').innerHTML=h;
 }
 window._tmXlsx=async()=>{
   const D=window._tmData;if(!D){alert('Run the report first.');return}
   try{
     await loadXlsxLib();
-    const {proj,fr,to,labor,empList,mats,subs,T,ex,noRate}=D;
+    const {proj,fr,to,weekList,entries,empList,T,ex,rates}=D;
     const d0=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
     const wb=XLSX.utils.book_new();
     const sheet=(rows,cols)=>{const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:true});ws['!cols']=cols.map(w=>({wch:w}));Object.keys(ws).forEach(k=>{if(k[0]!=='!'&&ws[k].t==='d')ws[k].z='m/d/yyyy'});return ws};
-    const sum=[['Time & Materials',proj.name||''],['Period',fr+' to '+to],[],
+    const rng=(a,b)=>tmMDY(a)+' - '+tmMDY(b);
+    // invoice-style lines, one block per week with a subtotal, as on the QuickBooks invoice
+    const inv=[['Description','Quantity','Rate','Amount']];
+    weekList.forEach(w=>{
+      inv.push([(proj.name||'Job')+' Labor Hours '+rng(w.sun,w.sat)]);
+      w.laborLines.forEach(L=>inv.push([L.label+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
+      [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.vendor||lab)+(m.desc?' - '+m.desc:''),1,m.price,m.price])));
+      inv.push(['Subtotal: '+w.T.total.toFixed(2),'','',w.T.total]);
+    });
+    inv.push([],['Total to bill','','',T.grand]);
+    XLSX.utils.book_append_sheet(wb,sheet(inv,[70,10,10,12]),'Invoice lines');
+    const sum=[['Time + Receipts',proj.name||''],['Period',fr+' to '+to],[],
       ['Labor hours',T.hrs],['Labor',T.labor],['Materials (cost / '+D.matDiv+')',T.mat],['Subcontractors (cost / '+D.subDiv+')',T.sub],['Total to bill',T.grand],[],
+      ['Client rate: Construction',rates.construction],['Client rate: Design',rates.design],['Client rate: Procurement',rates.procurement],['Rates saved for this client?',rates._saved?'Yes':'No, defaults used'],[],
       ['Our cost: materials',T.matCost],['Our cost: subcontractors',T.subCost],[],
       ['Left out: non-billable time entries',ex.nonBillTime],['Left out: receipts already invoiced to client',ex.invoicedRcpt],['Left out: entries still clocked in',ex.openTime]];
-    if(noRate.length)sum.push([],['WARNING: no client bill rate for',noRate.map(e=>e.name).join(', ')]);
     XLSX.utils.book_append_sheet(wb,sheet(sum,[44,30]),'Summary');
-    XLSX.utils.book_append_sheet(wb,sheet([['Employee','Entries','Hours','Bill rate','Amount'],...empList.map(e=>[e.name,e.n,e.hrs,e.rate||'',e.rate?e.amt:'']),['Labor total','',T.hrs,'',T.labor]],[26,9,9,10,12]),'Labor by employee');
-    XLSX.utils.book_append_sheet(wb,sheet([['Date','Employee','Cost Code','Room','Time In','Time Out','Hours','Bill rate','Amount','Notes'],...labor.map(l=>[d0(l.date),l.name,l.code,l.room,xlTime(l.tin),xlTime(l.tout),l.hrs,l.rate||'',l.rate?l.amt:'',l.notes])],[11,22,40,14,9,9,8,9,11,60]),'Labor detail');
-    const mrow=(a,div)=>a.map(m=>[d0(m.date),m.vendor,m.num,m.room,m.codes,m.desc,m.by,m.cost,div,m.price]);
-    XLSX.utils.book_append_sheet(wb,sheet([['Date','Vendor','Receipt #','Room','Cost Codes','Notes','Submitted by','Our cost','Divisor','Client price'],...mrow(mats,D.matDiv),['Materials total','','','','','','',T.matCost,'',T.mat]],[11,24,12,14,40,40,18,11,8,12]),'Materials');
-    XLSX.utils.book_append_sheet(wb,sheet([['Date','Vendor','Receipt #','Room','Cost Codes','Notes','Submitted by','Our cost','Divisor','Client price'],...mrow(subs,D.subDiv),['Subcontractors total','','','','','','',T.subCost,'',T.sub]],[11,24,12,14,40,40,18,11,8,12]),'Subcontractors');
-    XLSX.writeFile(wb,'MOTIF_Time_and_Materials_'+(proj.name||'job').replace(/[^A-Za-z0-9]+/g,'_')+'_'+fr+'.xlsx');
+    XLSX.utils.book_append_sheet(wb,sheet([['Date','Employee','Cost Code','Rate class','Room','Time In','Time Out','Hours','Rate','Amount','Notes'],...entries.map(l=>[d0(l.date),l.name,l.code,l.cls,l.room,xlTime(l.tin),xlTime(l.tout),l.hrs,l.rate,l.amt,l.notes])],[11,22,40,13,14,9,9,8,8,11,60]),'Labor detail');
+    XLSX.utils.book_append_sheet(wb,sheet([['Employee','Entries','Hours'],...empList.map(e=>[e.name,e.n,e.hrs])],[26,9,9]),'Hours by employee');
+    const mrow=(arr,div,lab)=>arr.map(m=>[d0(m.date),lab,m.vendor,m.num,m.room,m.codes,m.desc,m.by,m.cost,div,m.price]);
+    const mats=[],subs=[];weekList.forEach(w=>{mats.push(...w.mats);subs.push(...w.subs)});
+    XLSX.utils.book_append_sheet(wb,sheet([['Date','Type','Vendor','Receipt #','Room','Cost Codes','Notes','Submitted by','Our cost','Divisor','Client price'],...mrow(mats,D.matDiv,'Material'),...mrow(subs,D.subDiv,'Subcontractor')],[11,13,24,12,14,40,40,18,11,8,12]),'Materials and subs');
+    XLSX.writeFile(wb,'MOTIF_Time_and_Receipts_'+(proj.name||'job').replace(/[^A-Za-z0-9]+/g,'_')+'_'+fr+'.xlsx');
   }catch(e){alert('Excel export failed: '+e.message)}
 };
 
@@ -4840,7 +4901,6 @@ window._editPay = id => {
   editingPayUserId = id;
   $('pay-modal-name').textContent = u.name || 'Pay Rates';
   $('pay-base').value = u.baseRate || '';
-  $('pay-bill').value = u.billRate || '';
   $('pay-type').value = u.employeeType || 'w2';
   $('pay-spiff-eligible').checked = u.spiffEligible === true;
   $('pay-spiff-rate').value = u.spiffRate || '';
@@ -4861,7 +4921,6 @@ $('pay-save').onclick = async () => {
   try {
     await updateDoc(doc(db,'users',editingPayUserId), {
       baseRate: base,
-      billRate: parseFloat($('pay-bill').value)||0,
       employeeType: $('pay-type').value,
       spiffEligible,
       spiffRate

@@ -135,6 +135,18 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .bill-num{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px}
 .entry-date{font-size:11px;color:var(--green);font-weight:600}
 .radio-label-selected{border-color:var(--gold)!important;background:#faf6f0}
+.rpt-period{border:1px solid var(--border);border-radius:10px;padding:14px;background:#faf8f4}
+.rpt-period-title{font-size:13px;font-weight:700;margin-bottom:10px}
+.rpt-period-title span{font-weight:400;color:var(--muted)}
+.rpt-period-row{display:flex;align-items:stretch;gap:0}
+.rpt-opt{flex:1;border:1px solid var(--border);border-radius:8px;padding:12px;background:#fff;transition:opacity .15s}
+.rpt-opt.off{opacity:.45;background:#f1efea}
+.rpt-opt-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px}
+.rpt-opt input,.rpt-opt select{min-width:0;max-width:100%}
+.rpt-dates{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.rpt-or{display:flex;align-items:center;justify-content:center;padding:0 10px}
+.rpt-or span{font-size:12px;font-weight:700;color:var(--muted);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:#fff}
+@media(max-width:700px){.rpt-dates{grid-template-columns:1fr}.rpt-period-row{flex-direction:column}.rpt-or{padding:8px 0}}
 </style>
 </head>
 <body>
@@ -335,12 +347,24 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <div class="field" style="margin-bottom:0"><label>Room</label><select id="rpt-room"><option value="">All Rooms</option></select></div>
             <div class="field" id="rpt-billable-wrap" style="margin-bottom:0"><label>Billable</label><select id="rpt-billable"><option value="">All</option><option value="yes">Billable Only</option><option value="no">Not Billable</option></select></div>
           </div>
-          <div style="display:grid;grid-template-columns:minmax(200px,1.4fr) 1fr 1fr auto;gap:12px;align-items:flex-end">
-            <div class="field" style="margin-bottom:0"><label>Week of</label><select id="rpt-week" style="width:100%"><option value="">All (use the dates)</option></select></div>
-            <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
-            <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
-            <button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button>
+          <div class="rpt-period">
+            <div class="rpt-period-title">Choose a time period <span>(use one or the other)</span></div>
+            <div class="rpt-period-row">
+              <div class="rpt-opt" id="rpt-opt-week">
+                <div class="rpt-opt-label">Option 1 &middot; A billing week</div>
+                <div class="field" style="margin-bottom:0"><label>Week of</label><select id="rpt-week" style="width:100%"><option value=""></option></select></div>
+              </div>
+              <div class="rpt-or"><span>OR</span></div>
+              <div class="rpt-opt" id="rpt-opt-dates">
+                <div class="rpt-opt-label">Option 2 &middot; A custom date range</div>
+                <div class="rpt-dates">
+                  <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
+                  <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
+                </div>
+              </div>
+            </div>
           </div>
+          <div style="margin-top:14px;text-align:right"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button></div>
           <div id="rpt-active-filters" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
           <div id="rpt-results"></div>
         </div>
@@ -3654,15 +3678,19 @@ $('rpt-logtime-btn').onclick=()=>{$('rpt-logtime-btn').classList.add('on');$('rp
   for(let i=0;i<104;i++){
     const s0=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()-7*i),e0=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
     const o=document.createElement('option');o.value=ymd(s0);o.dataset.to=ymd(e0);
-    o.textContent='Week of Sun '+fmt(s0)+(i===0?'  (this week)':i===1?'  (last week)':'');
+    o.textContent=fmt(s0)+' to '+fmt(e0)+(i===0?'  (this week)':i===1?'  (last week)':'');
     sel.appendChild(o);
   }
+  const optW=$('rpt-opt-week'),optD=$('rpt-opt-dates');
+  const refresh=()=>{const has=!!sel.value;$('rpt-from').disabled=has;$('rpt-to').disabled=has;optD.classList.toggle('off',has);optW.classList.toggle('off',!has&&!!($('rpt-from').value||$('rpt-to').value))};
   sel.onchange=()=>{
-    const o=sel.selectedOptions[0],has=!!sel.value;
-    if(has){$('rpt-from').value=sel.value;$('rpt-to').value=o.dataset.to}
-    $('rpt-from').disabled=has;$('rpt-to').disabled=has;
-    $('rpt-results').innerHTML='';$('rpt-active-filters').textContent='';
+    const o=sel.selectedOptions[0];
+    if(sel.value){$('rpt-from').value=sel.value;$('rpt-to').value=o.dataset.to}
+    else{$('rpt-from').value='';$('rpt-to').value=''}
+    refresh();$('rpt-results').innerHTML='';$('rpt-active-filters').textContent='';
   };
+  // typing a date means the person wants a custom range, so the week choice steps aside
+  ['rpt-from','rpt-to'].forEach(id=>$(id).addEventListener('input',()=>{if(sel.value)return;refresh()}));
 })();
 
 $('rpt-run-btn').onclick=async()=>{
@@ -3734,7 +3762,7 @@ function renderReport(data){
 
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
     <div style="display:flex;gap:16px;align-items:center"><span style="font-size:13px;color:var(--muted)">${data.length} records</span>${totalsHtml}</div>
-    <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm" onclick="window._csv()">Export CSV</button>${it?'<button class="btn btn-gold btn-sm" onclick="window._xlsx()">Export Excel</button>':''}</div>
+    <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="window._csv()">Export CSV</button>${it?'<button class="btn btn-gold btn-sm" style="white-space:nowrap" onclick="window._xlsx()">Export Excel</button>':''}</div>
   </div><div style="overflow-x:auto"><table class="tbl tbl-actions-sticky"><thead><tr>`;
   if(it){
     h+='<th>Date</th><th>Employee</th><th>Project</th><th class="col-hide-sm">Cost Category</th><th>Cost Code</th><th class="col-hide-sm">Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th class="col-hide-sm">Location</th><th>Notes</th><th>Billable</th><th></th>';

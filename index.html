@@ -854,6 +854,10 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </label>
       </div>
     </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;cursor:pointer"><input type="checkbox" id="pm-spiff" style="width:auto;margin:0" checked> Spiff eligible (billable time on this job counts toward spiff hours)</label>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Turn this off for a MOTIF-owned property invoiced at cost: the time stays billable but is not spiffed.</div>
+    </div>
     <div class="field"><label>Job Site Address</label>
       <div style="display:flex;gap:8px">
         <input type="text" id="pm-address" placeholder="Start typing address..." style="flex:1" autocomplete="off">
@@ -4048,20 +4052,30 @@ window._clientRates={};
 async function tmLoadRates(){
   try{const snap=await getDoc(doc(db,'settings','clientBillingRates'));window._clientRates=snap.exists()?(snap.data().rates||{}):{}}catch(e){window._clientRates={}}
 }
+// Jobs offered on the Time + Receipts list and in the rates table: every active project except
+// internal overhead (Guapo, 2026-11-06). Whether time on a job counts as billable is still decided
+// by the project's Client Project (Billable) setting.
+function tmListable(p){return p.active!==false&&!isArchivedRec(p)&&!/overhead/i.test(p.name||'')}
+function tmApplyClientDivisors(){const pid=$('tm-project').value;if(!pid)return;const r=tmRatesFor(pid);$('tm-mat-div').value=r.matDiv;$('tm-sub-div').value=r.subDiv}
 function tmRatesFor(pid){
   const saved=window._clientRates[pid];const r={};
   TM_CLASSES.forEach(c=>{const v=parseFloat(saved?.[c.key]);r[c.key]=v>0?v:c.def});
+  // Labor pricing: 'rate' = the hourly rates above; 'cost' = each employee's wage plus a burden % (owner-property jobs).
+  r.laborMode=saved?.laborMode==='cost'?'cost':'rate';
+  const b=parseFloat(saved?.burdenPct);r.burdenPct=b>=0?b:0;
+  const m=parseFloat(saved?.matDiv),sd=parseFloat(saved?.subDiv);
+  r.matDiv=m>0&&m<=1?m:0.65;r.subDiv=sd>0&&sd<=1?sd:0.75;
   r._saved=!!saved;return r;
 }
 function renderTmRatesTable(){
   const el=$('tm-rates');if(!el)return;
   const canEdit=isAdmin();
-  const rows=[...allProjects].filter(p=>p.clientProject!==false&&!isArchivedRec(p)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  if(!rows.length){el.innerHTML='<div class="empty">No client projects.</div>';return}
-  let h=`<div style="font-size:12px;color:var(--muted);margin:8px 0">Hourly rates charged to each client, by type of work. Design = design development, design project management, design or construction admin, construction documents and design meetings. Procurement = procurement of design elements. Construction = all other labor, including construction project management. A client with no saved rates uses the defaults (${TM_CLASSES.map(c=>c.label+' $'+c.def).join(', ')}). ${canEdit?'':'Only an admin can change these.'}</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Client / job</th>${TM_CLASSES.map(c=>'<th>'+c.label+' $/hr</th>').join('')}<th>Status</th><th></th></tr></thead><tbody>`;
+  const rows=[...allProjects].filter(tmListable).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(!rows.length){el.innerHTML='<div class="empty">No active projects.</div>';return}
+  let h=`<div style="font-size:12px;color:var(--muted);margin:8px 0">Hourly rates charged to each client, by type of work. Design = design development, design project management, design or construction admin, construction documents and design meetings. Procurement = procurement of design elements. Construction = all other labor, including construction project management. A client with no saved rates uses the defaults (${TM_CLASSES.map(c=>c.label+' $'+c.def).join(', ')}, materials &divide; 0.65, subcontractors &divide; 0.75). For a MOTIF-owned property invoiced at cost, set Labor pricing to At cost: each hour is priced at that employee's wage plus the burden % (the hourly rates are then not used), and set both divisors to 1 so materials and subcontractors are billed exactly as paid. ${canEdit?'':'Only an admin can change these.'}</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Client / job</th>${TM_CLASSES.map(c=>'<th>'+c.label+' $/hr</th>').join('')}<th>Labor pricing</th><th>Burden %</th><th>Materials &divide;</th><th>Subs &divide;</th><th>Status</th><th></th></tr></thead><tbody>`;
   rows.forEach(p=>{
     const r=tmRatesFor(p.id),sv=window._clientRates[p.id];
-    h+=`<tr data-pid="${p.id}"><td>${esc(p.name)}</td>${TM_CLASSES.map(c=>`<td><input type="number" step="0.01" min="0" data-k="${c.key}" value="${r[c.key]}" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td>`).join('')}<td style="font-size:11px;color:var(--muted)">${sv?('Saved'+(sv.updatedBy?' by '+esc(sv.updatedBy):'')):'Default rates'}</td><td>${canEdit?`<button class="btn btn-outline btn-sm" type="button" onclick="window._saveTmRates('${p.id}')">Save</button>`:''}</td></tr>`;
+    h+=`<tr data-pid="${p.id}"><td>${esc(p.name)}</td>${TM_CLASSES.map(c=>`<td><input type="number" step="0.01" min="0" data-k="${c.key}" value="${r[c.key]}" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td>`).join('')}<td><select data-k="laborMode" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" ${canEdit?'':'disabled'}><option value="rate"${r.laborMode==='rate'?' selected':''}>Billing rates</option><option value="cost"${r.laborMode==='cost'?' selected':''}>At cost (wage + burden)</option></select></td><td><input type="number" step="0.1" min="0" data-k="burdenPct" value="${r.burdenPct}" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td><input type="number" step="0.01" min="0.01" max="1" data-k="matDiv" value="${r.matDiv}" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td><input type="number" step="0.01" min="0.01" max="1" data-k="subDiv" value="${r.subDiv}" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td style="font-size:11px;color:var(--muted)">${sv?('Saved'+(sv.updatedBy?' by '+esc(sv.updatedBy):'')):'Default rates'}</td><td>${canEdit?`<button class="btn btn-outline btn-sm" type="button" onclick="window._saveTmRates('${p.id}')">Save</button>`:''}</td></tr>`;
   });
   el.innerHTML=h+'</tbody></table></div>';
 }
@@ -4070,12 +4084,17 @@ window._saveTmRates=async pid=>{
   const tr=document.querySelector('#tm-rates tr[data-pid="'+pid+'"]');if(!tr)return;
   const next={};
   for(const c of TM_CLASSES){const v=parseFloat(tr.querySelector('[data-k="'+c.key+'"]').value);if(!(v>0)){alert('Enter a rate greater than zero for '+c.label+'.');return}next[c.key]=tmR2(v)}
+  const g=k=>tr.querySelector('[data-k="'+k+'"]');
+  const mode=g('laborMode').value==='cost'?'cost':'rate',burden=parseFloat(g('burdenPct').value),md=parseFloat(g('matDiv').value),sdv=parseFloat(g('subDiv').value);
+  if(!(burden>=0&&burden<=200)){alert('Enter a burden % from 0 to 200 (use 0 for none).');return}
+  if(!(md>0&&md<=1)||!(sdv>0&&sdv<=1)){alert('The materials and subcontractor divisors must be between 0 and 1 (use 1 to bill at cost).');return}
+  next.laborMode=mode;next.burdenPct=tmR2(burden);next.matDiv=md;next.subDiv=sdv;
   const proj=allProjects.find(p=>p.id===pid)||{};
   const was=window._clientRates[pid]||null;
   try{
     await setDoc(doc(db,'settings','clientBillingRates'),{
       rates:{[pid]:{...next,updatedBy:userProfile?.name||currentUser?.email||'',updatedAt:Timestamp.now()}},
-      history:arrayUnion({at:Timestamp.now(),by:userProfile?.name||currentUser?.email||'',projectId:pid,projectName:proj.name||'',from:was?{construction:was.construction,design:was.design,procurement:was.procurement}:null,to:next})
+      history:arrayUnion({at:Timestamp.now(),by:userProfile?.name||currentUser?.email||'',projectId:pid,projectName:proj.name||'',from:was?{construction:was.construction,design:was.design,procurement:was.procurement,laborMode:was.laborMode||'rate',burdenPct:was.burdenPct??null,matDiv:was.matDiv??null,subDiv:was.subDiv??null}:null,to:next})
     },{merge:true});
     await tmLoadRates();renderTmRatesTable();
   }catch(e){alert('Save failed: '+e.message)}
@@ -4085,9 +4104,9 @@ $('rpt-tm-btn').onclick=async()=>{
   $('rpt-tm-btn').classList.add('on');
   hide('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');show('rpt-tm-panel');
   const sel=$('tm-project'),v=sel.value;sel.innerHTML='<option value="">Select a job</option>';
-  [...allProjects].filter(p=>p.clientProject!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
+  [...allProjects].filter(tmListable).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
   sel.value=v;
-  await tmLoadRates();renderTmRatesTable();
+  await tmLoadRates();renderTmRatesTable();sel.onchange=tmApplyClientDivisors;tmApplyClientDivisors();
 };
 $('tm-run-btn').onclick=async()=>{
   const pid=$('tm-project').value,fr=$('tm-from').value,to=$('tm-to').value;
@@ -4100,13 +4119,15 @@ $('tm-run-btn').onclick=async()=>{
   try{
     const lo=new Date(fr+'T00:00:00').getTime();const hiD=new Date(to+'T00:00:00');hiD.setDate(hiD.getDate()+1);const hi=hiD.getTime();
     await tmLoadRates();
+    const uSnap=await getDocs(collection(db,'users'));
+    const wageByName={};uSnap.docs.forEach(d=>{const u=d.data();wageByName[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
     const [tSnap,rSnap]=await Promise.all([
       getDocs(query(collection(db,'timeLogs'),where('projectId','==',pid))),
       getDocs(query(collection(db,'receipts'),where('projectId','==',pid)))
     ]);
     const proj=allProjects.find(p=>p.id===pid)||{};
-    const rates=tmRatesFor(pid);
-    const ex={nonBillTime:0,nonBillHrs:0,openTime:0,invoicedRcpt:0,invoicedAmt:0,rejectedRcpt:0};
+    const rates=tmRatesFor(pid),atCost=rates.laborMode==='cost';
+    const ex={noWage:new Set(),nonBillTime:0,nonBillHrs:0,openTime:0,invoicedRcpt:0,invoicedAmt:0,rejectedRcpt:0};
     const weeks={};
     const wk=d=>{const s=tmSunday(d),k=s.getTime();return weeks[k]||(weeks[k]={sun:s,sat:new Date(s.getFullYear(),s.getMonth(),s.getDate()+6),labor:{},mats:[],subs:[]})};
     const entries=[]; // time entries, for the detail views
@@ -4117,11 +4138,14 @@ $('tm-run-btn').onclick=async()=>{
       if(!effectiveBillable(r)){ex.nonBillTime++;ex.nonBillHrs+=(r.durationMs||0)/3600000;return}
       const d=new Date(m),code=r.costCode||r.scope||'',cls=tmRateClass(code),hrs=tmR2((r.durationMs||0)/3600000);
       const w=wk(d),room=String(r.room||'').trim(),key=(code||'(none)')+'|'+room;
-      const L=w.labor[key]||(w.labor[key]={code,room,task:tmCodeTask(code),label:tmCodeLabel(code),cls,rate:rates[cls],hrs:0,amt:0});
+      const L=w.labor[key]||(w.labor[key]={code,room,task:tmCodeTask(code),label:tmCodeLabel(code),cls:atCost?'at cost':cls,rate:atCost?0:rates[cls],hrs:0,amt:0});
       L.hrs=tmR2(L.hrs+hrs);
-      entries.push({date:d,name:r.userName||'Unknown',room:r.room||'',code,cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:rates[cls],amt:tmR2(hrs*rates[cls]),notes:r.notes||''});
+      // At cost: this employee's wage plus the client's burden %. A missing wage prices the hours at $0 and is reported.
+      const wage=wageByName[String(r.userName||'').trim()]||0,eRate=atCost?wage*(1+rates.burdenPct/100):rates[cls],eAmt=tmR2(hrs*eRate);
+      if(atCost){L.amt=L.amt+eAmt;if(!wage)ex.noWage.add(r.userName||'Unknown')}
+      entries.push({date:d,name:r.userName||'Unknown',room:r.room||'',code,cls:atCost?'at cost':cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:tmR2(eRate),amt:eAmt,notes:r.notes||''});
     });
-    Object.values(weeks).forEach(w=>Object.values(w.labor).forEach(L=>{L.amt=tmR2(L.hrs*L.rate)}));
+    Object.values(weeks).forEach(w=>Object.values(w.labor).forEach(L=>{if(atCost){L.amt=tmR2(L.amt);L.rate=L.hrs>0?L.amt/L.hrs:0}else L.amt=tmR2(L.hrs*L.rate)}));
     rSnap.docs.map(d=>({id:d.id,...d.data()})).forEach(r=>{
       const m=receiptTsMs(r.submittedAt||r.createdAt);
       if(m<lo||m>=hi||isArchivedRec(r))return;
@@ -4147,7 +4171,7 @@ $('tm-run-btn').onclick=async()=>{
     T.grand=tmR2(T.labor+T.mat+T.sub);
     entries.sort((a,b)=>a.date-b.date);
     const byEmp={};entries.forEach(e=>{const x=byEmp[e.name]||(byEmp[e.name]={name:e.name,n:0,hrs:0});x.n++;x.hrs=tmR2(x.hrs+e.hrs)});
-    window._tmData={proj,fr,to,matDiv,subDiv,rates,weekList,entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
+    window._tmData={proj,fr,to,matDiv,subDiv,rates,atCost,weekList,entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
     renderTM();
   }catch(e){out.innerHTML='<div class="err">Report failed: '+esc(e.message)+'</div>'}
   $('tm-run-btn').disabled=false;$('tm-run-btn').textContent='Run Time + Receipts';
@@ -4157,7 +4181,8 @@ function tmReviewHtml(){
   const td='style="text-align:right;white-space:nowrap"';
   const rng=(a,b)=>tmMDY(a)+' - '+tmMDY(b);
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${fr} to ${to} &middot; billing weeks run Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap;width:auto" onclick="window._tmXlsx()">Export Excel</button></div>`;
-  h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
+  h+=D.atCost?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor priced <b>at cost</b>: each employee's hourly wage plus ${rates.burdenPct}% burden (the rate shown on each line is the blended rate for that line). Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`:`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
+  if(D.atCost&&ex.noWage.size)h+=`<div class="err" style="margin-bottom:8px">No hourly wage on file for ${esc([...ex.noWage].join(', '))}, so their hours are priced at $0.00 here. Add a base rate for them (Payroll, pay rates) and run this again.</div>`;
   const notes=[];
   if(ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');
   if(ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')');
@@ -4181,7 +4206,7 @@ function tmReviewHtml(){
     <tr><td>Materials</td><td ${td}>${tmMoney(T.mat)}</td></tr>
     <tr><td>Subcontractors</td><td ${td}>${tmMoney(T.sub)}</td></tr>
     <tr style="font-weight:700;font-size:15px"><td>Total to bill</td><td ${td}>${tmMoney(T.grand)}</td></tr></tbody></table>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">Each receipt is marked up on its full amount, exactly as paid. Labor is hours times the client's rate for that type of work (overtime is not marked up).</div>`;
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Each receipt is marked up on its full amount, exactly as paid. ${D.atCost?'Labor is each employee&rsquo;s wage plus the burden %, straight time (overtime premiums are not included).':'Labor is hours times the client&rsquo;s rate for that type of work (overtime is not marked up).'}</div>`;
   if(entries.length){
     h+=`<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Hours by employee and each time entry (for reference, not for the client)</summary><div style="overflow-x:auto"><table class="tbl" style="max-width:420px;margin:8px 0"><thead><tr><th>Employee</th><th ${td}>Entries</th><th ${td}>Hours</th></tr></thead><tbody>${empList.map(e=>`<tr><td>${esc(e.name)}</td><td ${td}>${e.n}</td><td ${td}>${e.hrs.toFixed(2)}</td></tr>`).join('')}</tbody></table>
     <table class="tbl"><thead><tr><th>Date</th><th>Employee</th><th>Cost code</th><th>Room</th><th>In</th><th>Out</th><th ${td}>Hours</th><th>Notes</th></tr></thead><tbody>`;
@@ -4698,6 +4723,12 @@ function isBillableEntry(entry) {
   const code = entry.costCode || entry.scope || '';
   return isCodeBillable(code);
 }
+// A job can be turned off for spiffs (for example a MOTIF-owned property that is billed at cost): time on it
+// can still be billable, but it never counts toward spiff hours. Default is eligible.
+function projectSpiffOk(entry) {
+  const proj = allProjects.find(p => p.id === entry.projectId);
+  return !proj || proj.spiffEligible !== false;
+}
 function isCodeBillable(code) {
   if (!code) return false;
   // Check overrides first
@@ -4867,7 +4898,7 @@ $('pr-run-btn').onclick = async () => {
       const stDate = new Date(spiffTo); stDate.setDate(stDate.getDate()+1);
       const stTs = Timestamp.fromDate(stDate);
       const sSnap = await getDocs(query(collection(db,'timeLogs'), where('clockIn','>=',sfTs), where('clockIn','<=',stTs)));
-      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&effectiveBillable({...e.data?.(),...e}));
+      spiffEntries = sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.status==='complete'&&e.durationMs&&!isArchivedRec(e)&&effectiveBillable({...e.data?.(),...e})&&projectSpiffOk(e));
     }
 
     let approvalDoc = null;
@@ -5413,6 +5444,7 @@ window._ep=id=>{
   const isClient=p.clientProject!==false;
   $('pm-client-yes').checked=isClient;
   $('pm-client-no').checked=!isClient;
+  $('pm-spiff').checked=p.spiffEligible!==false;
   updateClientProjectRadioStyle();
   pmRooms=[...(p.rooms||DEF_ROOMS)];renderRoomChips();
   if(p.lat&&p.lng){setTimeout(()=>initMapPicker(p.lat,p.lng),50)}else{hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent=''}
@@ -5422,7 +5454,7 @@ $('new-project-btn').onclick=()=>{
   editingProjectId=null;$('pm-title').textContent='New Project';
   ['pm-name','pm-address','pm-lat','pm-lng','pm-prefix'].forEach(id=>$(id).value='');
   $('pm-err').textContent='';pmRooms=[...DEF_ROOMS];renderRoomChips();
-  $('pm-client-yes').checked=true;$('pm-client-no').checked=false;updateClientProjectRadioStyle();
+  $('pm-client-yes').checked=true;$('pm-client-no').checked=false;$('pm-spiff').checked=true;updateClientProjectRadioStyle();
   hide('pm-map');$('pm-coords-row').style.display='none';$('pm-geo-note').textContent='';
   show('project-modal');
 };
@@ -5495,7 +5527,7 @@ $('pm-save').onclick=async()=>{
   const conflict=allProjects.find(p=>p.billPrefix===prefix&&p.id!==editingProjectId&&p.active!==false);
   if(conflict){$('pm-err').textContent=`Prefix "${prefix}" is already used by "${conflict.name}". Choose a different prefix.`;return}
   $('pm-save').disabled=true;$('pm-save').textContent='Saving...';
-  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,clientProject:$('pm-client-yes').checked,active:true,updatedAt:serverTimestamp()};
+  const payload={name,address:$('pm-address').value.trim(),lat:$('pm-lat').value?parseFloat($('pm-lat').value):null,lng:$('pm-lng').value?parseFloat($('pm-lng').value):null,rooms:pmRooms,billPrefix:prefix,clientProject:$('pm-client-yes').checked,spiffEligible:$('pm-spiff').checked,active:true,updatedAt:serverTimestamp()};
   try{
     if(editingProjectId)await updateDoc(doc(db,'projects',editingProjectId),payload);
     else await addDoc(collection(db,'projects'),{...payload,createdAt:serverTimestamp()});

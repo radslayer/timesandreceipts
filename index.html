@@ -167,6 +167,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .inv-wk td{background:#f7f3ee;font-weight:600;padding:9px 6px;border-bottom:0;border-top:12px solid #fff}
 .inv-st td{font-weight:600;border-bottom:1px solid #e8e0d6;text-align:right}.inv-st td:first-child{color:#8a7f74;font-weight:500}
 .inv-total{display:flex;justify-content:space-between;margin-top:18px;padding:12px 6px;border-top:2px solid #1a1714;font:600 16px 'DM Sans',sans-serif}
+.inv-tag{font-size:11px;color:#8a7f74;margin-top:2px}
 .inv-empty{padding:30px 0;color:#8a7f74;text-align:center}
 @page{margin:14mm}
 @media print{
@@ -4006,6 +4007,8 @@ const TM_DESIGN_CODES=['01.00','01.05','01.10','01.20','01.30','01.35'];
 const TM_PROCUREMENT_CODES=['01.15'];
 function tmRateClass(code){const n=String(code||'').split(' - ')[0].trim();if(TM_PROCUREMENT_CODES.includes(n))return'procurement';if(TM_DESIGN_CODES.includes(n))return'design';return'construction'}
 function tmCodeType(code){const e=COST_CODES.find(x=>x.code===code)||(customCodes||[]).find(x=>x.code===code);return e?.type||'materials'}
+function tmCodeTask(code){if(!code)return'Labor (no cost code)';const p=String(code).split(' - ');return p.length>1?(p[0].trim()+' '+p.slice(1).join(' - ').trim()):String(code).trim()}
+function tmLaborDesc(L){return L.task+(L.room?' - '+L.room:'')}
 function tmCodeLabel(code){if(!code)return'Labor (no cost code)';const p=String(code).split(' - ');return(p.length>1?p.slice(1).join(' - '):code).trim()}
 const tmMoney=n=>{const v=+n||0;return(v<0?'-':'')+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})};
 const tmR2=n=>Math.round((+n||0)*100)/100;
@@ -4083,8 +4086,8 @@ $('tm-run-btn').onclick=async()=>{
       if(!r.clockOut){ex.openTime++;return}
       if(!effectiveBillable(r)){ex.nonBillTime++;ex.nonBillHrs+=(r.durationMs||0)/3600000;return}
       const d=new Date(m),code=r.costCode||r.scope||'',cls=tmRateClass(code),hrs=tmR2((r.durationMs||0)/3600000);
-      const w=wk(d),key=code||'(none)';
-      const L=w.labor[key]||(w.labor[key]={code,label:tmCodeLabel(code),cls,rate:rates[cls],hrs:0,amt:0});
+      const w=wk(d),room=String(r.room||'').trim(),key=(code||'(none)')+'|'+room;
+      const L=w.labor[key]||(w.labor[key]={code,room,task:tmCodeTask(code),label:tmCodeLabel(code),cls,rate:rates[cls],hrs:0,amt:0});
       L.hrs=tmR2(L.hrs+hrs);
       entries.push({date:d,name:r.userName||'Unknown',room:r.room||'',code,cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:rates[cls],amt:tmR2(hrs*rates[cls]),notes:r.notes||''});
     });
@@ -4105,7 +4108,7 @@ $('tm-run-btn').onclick=async()=>{
     const weekList=Object.values(weeks).sort((a,b)=>a.sun-b.sun);
     const sum=(a,k)=>tmR2(a.reduce((s,x)=>s+x[k],0));
     weekList.forEach(w=>{
-      w.laborLines=Object.values(w.labor).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+      w.laborLines=Object.values(w.labor).sort((a,b)=>String(a.code).localeCompare(String(b.code))||String(a.room).localeCompare(String(b.room)));
       w.mats.sort((a,b)=>a.date-b.date);w.subs.sort((a,b)=>a.date-b.date);
       w.T={hrs:sum(w.laborLines,'hrs'),labor:sum(w.laborLines,'amt'),matCost:sum(w.mats,'cost'),mat:sum(w.mats,'price'),subCost:sum(w.subs,'cost'),sub:sum(w.subs,'price')};
       w.T.total=tmR2(w.T.labor+w.T.mat+w.T.sub);
@@ -4136,7 +4139,7 @@ function tmReviewHtml(){
     h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} Labor Hours ${rng(w.sun,w.sat)}</div>`;
     h+=`<table class="tbl"><thead><tr><th>Description</th><th ${td}>Hours</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`;
     if(!w.laborLines.length)h+='<tr><td colspan="4" style="color:var(--muted)">No billable labor this week.</td></tr>';
-    w.laborLines.forEach(L=>{h+=`<tr><td>${esc(L.label)} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
+    w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L))} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
     if(w.mats.length||w.subs.length){
       h+=`<tr><td colspan="4" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:12px">Materials and subcontractors (our cost shown for review)</td></tr>`;
       [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr,div])=>arr.forEach(m=>{h+=`<tr><td>${esc(m.vendor||lab)}${m.desc?' &mdash; '+esc(m.desc):''} <span style="font-size:10px;color:var(--muted)">${lab}${m.num?' &middot; '+esc(m.num):''} &middot; cost ${tmMoney(m.cost)} &divide; ${div}</span></td><td ${td}></td><td ${td}></td><td ${td}>${tmMoney(m.price)}</td></tr>`}));
@@ -4177,7 +4180,7 @@ function tmLaborInvoiceHtml(D){
     weeks.forEach(w=>{
       const rg=tmMDY(w.sun)+' - '+tmMDY(w.sat);
       h+=`<tr class="inv-wk"><td colspan="4">${esc(proj.name||'Job')} Labor Hours ${rg}</td></tr>`;
-      w.laborLines.forEach(L=>{h+=`<tr><td>${esc(L.label)} ${rg}</td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
+      w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L))} ${rg}</td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
       h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(w.T.labor)}</td></tr>`;
     });
     h+=`</tbody></table><div class="inv-total"><span>Total labor</span><span>${tmMoney(T.labor)}</span></div>`;
@@ -4189,7 +4192,7 @@ function tmMaterialsInvoiceHtml(D){
   const sec={con:[],des:[],sub:[]};
   weekList.forEach(w=>{w.mats.forEach(m=>(tmIsDesignMaterial(m.codes)?sec.des:sec.con).push(m));w.subs.forEach(m=>sec.sub.push(m))});
   Object.values(sec).forEach(a=>a.sort((x,y)=>x.date-y.date));
-  const line=m=>{const d=(m.num?esc(m.num)+': ':'')+esc([m.vendor,m.desc].filter(Boolean).join(' - '));return `<tr><td>${d||'Materials'}</td><td ${td}>1</td><td ${td}>${tmMoney(m.price)}</td><td ${td}>${tmMoney(m.price)}</td></tr>`};
+  const line=m=>{const d=(m.num?esc(m.num)+': ':'')+esc([m.vendor,m.desc].filter(Boolean).join(' - '));const tags=[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeTask).join(', '),m.room].filter(Boolean).join(' \u00b7 ');return `<tr><td>${d||'Materials'}${tags?`<div class="inv-tag">${esc(tags)}</div>`:''}</td><td ${td}>1</td><td ${td}>${tmMoney(m.price)}</td><td ${td}>${tmMoney(m.price)}</td></tr>`};
   const block=(title,arr)=>arr.length?`<tr class="inv-wk"><td colspan="4">${title}</td></tr>`+arr.map(line).join('')+`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(tmR2(arr.reduce((s,x)=>s+x.price,0)))}</td></tr>`:'';
   let h=`<div class="inv-doc">${tmInvHead('Materials Invoice',proj,tmLongDate(fr)+' to '+tmLongDate(to),'Invoice number')}`;
   if(!sec.con.length&&!sec.des.length&&!sec.sub.length)h+='<div class="inv-empty">No billable materials or subcontractor charges in this period.</div>';
@@ -4224,8 +4227,8 @@ window._tmXlsx=async()=>{
     const inv=[['Description','Quantity','Rate','Amount']];
     weekList.forEach(w=>{
       inv.push([(proj.name||'Job')+' Labor Hours '+rng(w.sun,w.sat)]);
-      w.laborLines.forEach(L=>inv.push([L.label+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
-      [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.vendor||lab)+(m.desc?' - '+m.desc:''),1,m.price,m.price])));
+      w.laborLines.forEach(L=>inv.push([tmLaborDesc(L)+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
+      [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.num?m.num+': ':'')+(m.vendor||lab)+(m.desc?' - '+m.desc:'')+(m.codes||m.room?' ['+[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeTask).join(', '),m.room].filter(Boolean).join(' | ')+']':''),1,m.price,m.price])));
       inv.push(['Subtotal: '+w.T.total.toFixed(2),'','',w.T.total]);
     });
     inv.push([],['Total to bill','','',T.grand]);

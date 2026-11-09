@@ -4072,23 +4072,38 @@ function renderTmRatesTable(){
   const canEdit=isAdmin();
   const rows=[...allProjects].filter(tmListable).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   if(!rows.length){el.innerHTML='<div class="empty">No active projects.</div>';return}
-  let h=`<div style="font-size:12px;color:var(--muted);margin:8px 0">Hourly rates charged to each client, by type of work. Design = design development, design project management, design or construction admin, construction documents and design meetings. Procurement = procurement of design elements. Construction = all other labor, including construction project management. A client with no saved rates uses the defaults (${TM_CLASSES.map(c=>c.label+' $'+c.def).join(', ')}, materials &divide; 0.65, subcontractors &divide; 0.75). For a MOTIF-owned property invoiced at cost, set Labor pricing to At cost: each hour is priced at that employee's wage plus the burden % (the hourly rates are then not used), and set both divisors to 1 so materials and subcontractors are billed exactly as paid. Only one pricing method applies to each job, so the boxes that do not apply to the chosen Labor pricing are grayed out. ${canEdit?'':'Only an admin can change these.'}</div><div style="overflow-x:auto"><table class="tbl" style="font-size:13px"><thead><tr><th>Client / job</th><th></th>${TM_CLASSES.map(c=>'<th>'+c.label+'<br>$/hr</th>').join('')}<th>Labor pricing</th><th>Burden<br>%</th><th>Materials<br>&divide;</th><th>Subs<br>&divide;</th></tr></thead><tbody>`;
+  let h=`<div style="font-size:12px;color:var(--muted);margin:8px 0">Hourly rates charged to each client, by type of work. Design = design development, design project management, design or construction admin, construction documents and design meetings. Procurement = procurement of design elements. Construction = all other labor, including construction project management. A client with no saved rates uses the defaults (${TM_CLASSES.map(c=>c.label+' $'+c.def).join(', ')}, materials &divide; 0.65, subcontractors &divide; 0.75). For a MOTIF-owned property invoiced at cost, tick At cost: each hour is then priced at that employee's actual wage plus a 10% burden (you can change the burden % that appears next to the tick), materials and subcontractors are billed exactly as paid (no markup), and the hourly rates and divisors are grayed out because they are not used. Untick it to go back to the hourly rates and divisors. ${canEdit?'':'Only an admin can change these.'}</div><div style="overflow-x:auto"><table class="tbl" style="font-size:13px"><thead><tr><th>Client / job</th><th></th><th>At cost</th>${TM_CLASSES.map(c=>'<th>'+c.label+'<br>$/hr</th>').join('')}<th>Materials<br>&divide;</th><th>Subs<br>&divide;</th></tr></thead><tbody>`;
   rows.forEach(p=>{
     const r=tmRatesFor(p.id),sv=window._clientRates[p.id];
-    h+=`<tr data-pid="${p.id}"><td>${esc(p.name)}<div style="font-size:10px;color:var(--muted);font-weight:400">${sv?('Saved'+(sv.updatedBy?' by '+esc(sv.updatedBy):'')):'Default rates'}</div></td><td>${canEdit?`<button class="btn btn-outline btn-sm" type="button" style="width:auto" onclick="window._saveTmRates('${p.id}')">Save</button>`:''}</td>${TM_CLASSES.map(c=>`<td><input type="number" step="0.01" min="0" data-k="${c.key}" value="${r[c.key]}" style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td>`).join('')}<td><select data-k="laborMode" onchange="if(this.value==='cost'){const b=this.closest('tr').querySelector('[data-k=burdenPct]');if(!parseFloat(b.value))b.value=10;this.closest('tr').querySelectorAll('[data-k=matDiv],[data-k=subDiv]').forEach(i=>{if(parseFloat(i.value)<1&&!i.dataset.touched)i.value=1})}window._tmRowMode(this.closest('tr'))" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" ${canEdit?'':'disabled'}><option value="rate"${r.laborMode==='rate'?' selected':''}>Billing rates</option><option value="cost"${r.laborMode==='cost'?' selected':''}>At cost</option></select></td><td><input type="number" step="0.1" min="0" data-k="burdenPct" value="${r.burdenPct}" style="width:58px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td><input type="number" step="0.01" min="0.01" max="1" data-k="matDiv" value="${r.matDiv}" style="width:58px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td><input type="number" step="0.01" min="0.01" max="1" data-k="subDiv" value="${r.subDiv}" style="width:58px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td></tr>`;
+    const cost=r.laborMode==='cost';
+    h+=`<tr data-pid="${p.id}"><td>${esc(p.name)}<div style="font-size:10px;color:var(--muted);font-weight:400">${sv?('Saved'+(sv.updatedBy?' by '+esc(sv.updatedBy):'')):'Default rates'}</div></td><td>${canEdit?`<button class="btn btn-outline btn-sm" type="button" style="width:auto" onclick="window._saveTmRates('${p.id}')">Save</button>`:''}</td><td style="white-space:nowrap"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-k="atCost" style="width:auto;margin:0" ${cost?'checked':''} onchange="window._tmAtCost(this)" ${canEdit?'':'disabled'}> At cost</label><div class="tm-burd" style="font-size:11px;color:var(--muted);margin-top:4px;${cost?'':'display:none'}">wage + <input type="number" step="0.1" min="0" max="200" data-k="burdenPct" value="${r.burdenPct}" style="width:46px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}> %</div></td>${TM_CLASSES.map(c=>`<td><input type="number" step="0.01" min="0" data-k="${c.key}" value="${r[c.key]}" style="width:64px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td>`).join('')}<td><input type="number" step="0.01" min="0.01" max="1" data-k="matDiv" value="${r.matDiv}" style="width:58px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td><td><input type="number" step="0.01" min="0.01" max="1" data-k="subDiv" value="${r.subDiv}" style="width:58px;padding:6px 6px;border:1px solid var(--border);border-radius:6px;font-size:14px" ${canEdit?'':'disabled'}></td></tr>`;
   });
   el.innerHTML=h+'</tbody></table></div>';
   el.querySelectorAll('tr[data-pid]').forEach(window._tmRowMode);
 }
-// Only one pricing method applies per job: Billing rates uses the three $/hr boxes; At cost uses Burden %.
-// The boxes that do not apply to the chosen mode are grayed out so they cannot be mistaken for live settings.
-// Their values are kept, so switching back does not lose anything.
+// Only one pricing method applies per job. Ticking At cost prices labor at each employee's wage plus the burden %,
+// bills materials and subcontractors at cost (divisors 1), and grays out the hourly rates and divisors, which are then
+// not used. Their values are kept, so unticking restores them.
 window._tmRowMode=tr=>{
   if(!tr||!isAdmin())return;
-  const cost=tr.querySelector('[data-k="laborMode"]').value==='cost';
+  const cost=tr.querySelector('[data-k="atCost"]').checked;
   const set=(k,off,why)=>{const i=tr.querySelector('[data-k="'+k+'"]');if(!i)return;i.disabled=off;i.style.opacity=off?'.35':'';i.style.background=off?'#eee':'';i.title=off?why:''};
   TM_CLASSES.forEach(c=>set(c.key,cost,'Not used: this job is priced At cost (wage + burden %).'));
-  set('burdenPct',!cost,'Not used: this job is priced with the hourly Billing rates.');
+  set('matDiv',cost,'Not used: At cost bills materials exactly as paid (divisor 1).');
+  set('subDiv',cost,'Not used: At cost bills subcontractors exactly as paid (divisor 1).');
+  const bw=tr.querySelector('.tm-burd');if(bw)bw.style.display=cost?'':'none';
+};
+window._tmAtCost=cb=>{
+  const tr=cb.closest('tr');if(!tr)return;
+  const md=tr.querySelector('[data-k="matDiv"]'),sd=tr.querySelector('[data-k="subDiv"]'),bu=tr.querySelector('[data-k="burdenPct"]');
+  if(cb.checked){
+    md.dataset.prev=md.value;sd.dataset.prev=sd.value;md.value=1;sd.value=1;
+    if(!(parseFloat(bu.value)>0))bu.value=10;
+  }else{
+    const pm=parseFloat(md.dataset.prev),ps=parseFloat(sd.dataset.prev);
+    md.value=pm>0&&pm<1?pm:0.65;sd.value=ps>0&&ps<1?ps:0.75;
+  }
+  window._tmRowMode(tr);
 };
 window._saveTmRates=async pid=>{
   if(!isAdmin()){alert('Only an admin can change client billing rates.');return}
@@ -4096,7 +4111,7 @@ window._saveTmRates=async pid=>{
   const next={};
   for(const c of TM_CLASSES){const v=parseFloat(tr.querySelector('[data-k="'+c.key+'"]').value);if(!(v>0)){alert('Enter a rate greater than zero for '+c.label+'.');return}next[c.key]=tmR2(v)}
   const g=k=>tr.querySelector('[data-k="'+k+'"]');
-  const mode=g('laborMode').value==='cost'?'cost':'rate',burden=parseFloat(g('burdenPct').value),md=parseFloat(g('matDiv').value),sdv=parseFloat(g('subDiv').value);
+  const mode=g('atCost').checked?'cost':'rate',burden=parseFloat(g('burdenPct').value),md=parseFloat(g('matDiv').value),sdv=parseFloat(g('subDiv').value);
   if(!(burden>=0&&burden<=200)){alert('Enter a burden % from 0 to 200 (use 0 for none).');return}
   if(!(md>0&&md<=1)||!(sdv>0&&sdv<=1)){alert('The materials and subcontractor divisors must be between 0 and 1 (use 1 to bill at cost).');return}
   next.laborMode=mode;next.burdenPct=tmR2(burden);next.matDiv=md;next.subDiv=sdv;

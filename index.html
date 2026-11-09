@@ -208,6 +208,13 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
   body[data-print] .inv-tbl tr{break-inside:avoid}
   .inv-wk td,.inv-mark *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+.inv-det{margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.inv-det-line{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.inv-det-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.inv-det-tbl th{text-align:left;font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border)}
+.inv-det-tbl th.r{text-align:right}
+.inv-det-tbl td{padding:3px 6px;border-bottom:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -1229,6 +1236,21 @@ function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 // ── ARCHIVE / LOCK HELPERS ───────────────────────────────────────────────────
 // A paid vendor bill is locked: bookkeeper cannot edit or archive it. Admin can unlock by clearing the paid date.
 function isLockedBill(r){return !!r?.paidDate}
+// A time entry or receipt that is on a finalized client invoice is locked ("invoicing is the last stop"). The invoiceLockId field
+// holds the invoice's id; only voiding or reopening that invoice (admin) clears it. Records invoiced before this existed
+// (by hand, outside Lotus) have no invoiceLockId and keep their old behavior.
+function isInvLocked(r){return !!r?.invoiceLockId}
+const INV_TRACK_START='2026-11-09';
+function invOlderMs(ms){return !!ms&&ms<new Date(INV_TRACK_START+'T00:00:00').getTime()}
+function invLockBadge(r){return`<span class="badge" style="background:#e8e0f5;color:#4b3a7a" title="This record is on a finalized client invoice and is locked. An admin can release it by voiding or reopening that invoice.">&#128274; Invoiced ${esc(String(r.invoiceNumber||r.invoicedClientNumber||''))}</span>`}
+function invLockMsg(r,what){return'This '+what+' is on client invoice '+(r.invoiceNumber||r.invoicedClientNumber||'')+' and is locked. An admin can release it by voiding or reopening that invoice. Later corrections go on a credit invoice.'}
+function tlInvoiceLabel(r){
+  if(r.invoiceNumber)return{t:String(r.invoiceNumber),c:'#4b3a7a',lock:true};
+  if(!effectiveBillable(r))return{t:'Non-billable',c:'var(--muted)'};
+  if(invOlderMs(tlTsMs(r.clockIn)))return{t:'Older record',c:'var(--muted)',old:true};
+  return{t:'Not invoiced',c:'var(--amber)'};
+}
+const INV_OLD_NOTE=n=>'<div class="notice" style="font-size:12px;margin:8px 0">'+n+' of these records are dated before '+tmLongDate(INV_TRACK_START)+'. Those were invoiced outside Lotus, so Lotus cannot tell whether they were billed. They are marked <b>Older record</b>, they are not locked, and they can still be edited.</div>';
 function isArchivedRec(r){return r?.archived===true}
 // ── PAYROLL LOCK HELPERS ─────────────────────────────────────────────────────
 // A locked payroll period (payrollRuns/payrollLocks doc, keyed "<from>_<to>") freezes the time
@@ -2480,8 +2502,9 @@ function renderMyLog(){
     const isOwn=r.userId===currentUser.uid;
     const canEdit=isAdmin()||isBookkeeper()||(isOwn&&withinWindow);
     const payrollLocked=isPayrollLocked(r);
-    const canDel=isAdmin()&&!payrollLocked;
-    const editBtn=`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${((!canEdit&&!isPriv())||payrollLocked)?'disabled style="opacity:0.4;cursor:not-allowed" title="Payroll for this period is locked"':''}>Edit</button>`;
+    const invLocked=isInvLocked(r);
+    const canDel=isAdmin()&&!payrollLocked&&!invLocked;
+    const editBtn=`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${((!canEdit&&!isPriv())||payrollLocked||invLocked)?`disabled style="opacity:0.4;cursor:not-allowed" title="${invLocked?'On a finalized client invoice (locked)':'Payroll for this period is locked'}"`:''}>Edit</button>`;
     const overlapsWith=overlapMap[r.id];
     const overlapTitle=overlapsWith?('Overlaps with: '+overlapsWith.map(o=>fmtDate(o.clockIn)+' '+fmtTime(o.clockIn)+'\u2013'+(o.clockOut?fmtTime(o.clockOut):'(open)')+' '+(o.costCode||o.scope||'')).join('; ')):'';
     const dayKey=new Date(entryMs).toDateString();
@@ -2490,7 +2513,7 @@ function renderMyLog(){
     const actionsBg=overlapsWith?'#f5dada':(_dayShadeOn?'var(--cream)':'var(--surface)');
     const rowStyle=[rowBg].filter(Boolean).join(';');
     return`<tr id="tl-row-${r.id}" style="${rowStyle}" ${overlapsWith?`title="${esc(overlapTitle)}"`:''}>
-    <td>${fmtDate(r.clockIn)}${payrollLocked?'<br>'+payrollLockBadge():''}${overlapsWith?'<br>'+overlapBadge():''}</td>
+    <td>${fmtDate(r.clockIn)}${payrollLocked?'<br>'+payrollLockBadge():''}${invLocked?'<br>'+invLockBadge(r):''}${overlapsWith?'<br>'+overlapBadge():''}</td>
     ${_logViewAll?`<td style="font-size:12px;font-weight:500">${r.userName||'--'}</td>`:''}
     <td>${r.projectName||'--'}</td>
     <td class="cc-cell" style="font-size:11px" title="${esc(r.costCode||r.scope||'')}"><span class="tag">${r.costCode||r.scope||''}</span></td>
@@ -2627,6 +2650,7 @@ function renderReceipts(){
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
       const invClientHtml=isPriv()?(r.invoicedClientDate?`<span class="entry-date">Invoiced Client ✓ ${r.invoicedClientDate}${r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':''}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','invclient')">Invoiced Client: mark invoiced</span>`):'';
       const canEditRec=isAdmin()||isBookkeeper();
+      const invLockedR=isInvLocked(r);
       return`<div class="receipt-item" id="receipt-row-${r.id}">
         ${r.imageUrl?(/\.pdf($|\?)/i.test(r.imageUrl)?`<div class="receipt-thumb" style="cursor:pointer" onclick="window.open('${r.imageUrl}','_blank')">&#128196;</div>`:`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`):`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
         <div style="flex:1">
@@ -2643,8 +2667,9 @@ function renderReceipts(){
           ${isPriv()?`<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${qbHtml}${dbHtml}${paidHtml}${invClientHtml}${!isBill&&r.reimbursementNeeded===true?'<span class="entry-pending" style="background:#fff3cd;border-color:#f0d58c;cursor:default">\u{1F4B0} Reimbursement Needed</span>':''}</div>`:''}
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${canEditRec?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}
-            ${isPriv()&&r.status==='submitted'&&r.userId!==currentUser?.uid?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}
-            ${isAdmin()?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
+            ${isPriv()&&r.status==='submitted'&&r.userId!==currentUser?.uid&&!invLockedR?`<button class="btn btn-green btn-sm" onclick="window._apr('${r.id}','approved')">Approve</button><button class="btn btn-red btn-sm" onclick="window._apr('${r.id}','rejected')">Reject</button>`:''}
+            ${invLockedR?invLockBadge(r):''}
+            ${isAdmin()&&!invLockedR?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
             ${!isPriv()&&r.status==='submitted'&&r.userId===currentUser?.uid?`<button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Delete</button>`:''}
           </div>
         </div>
@@ -2855,7 +2880,7 @@ function renderReceiptsTable(baseList){
 $('rcpt-view-cards-btn').onclick=()=>{_rcptTableView=false;$('rcpt-view-cards-btn').classList.add('on');$('rcpt-view-table-btn').classList.remove('on');closeColFilterPopover();renderReceipts()};
 $('rcpt-view-table-btn').onclick=()=>{_rcptTableView=true;$('rcpt-view-table-btn').classList.add('on');$('rcpt-view-cards-btn').classList.remove('on');renderReceipts()};
 
-window._apr=async(id,action)=>updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()});
+window._apr=async(id,action)=>{const _r=(window._allReceipts||[]).find(x=>x.id===id);if(_r&&isInvLocked(_r)){alert(invLockMsg(_r,'receipt'));return}return updateDoc(doc(db,'receipts',id),{status:action,reviewedBy:userProfile?.name||'',reviewedAt:serverTimestamp()})};
 window._lb=url=>{$('lightbox-img').src=url;show('lightbox')};
 $('lightbox').onclick=()=>hide('lightbox');
 
@@ -2984,7 +3009,7 @@ document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();$('global-search-btn').click();}
   if(e.key==='Escape'&&!$('search-modal').classList.contains('hidden'))hide('search-modal');
 });
-window._dr=async(id)=>{if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
+window._dr=async(id)=>{const _r=(window._allReceipts||[]).find(x=>x.id===id)||(window._rptData||[]).find(x=>x.id===id);if(_r&&isInvLocked(_r)){alert(invLockMsg(_r,'receipt'));return}if(!confirm('Delete this receipt? This cannot be undone.'))return;try{await deleteDoc(doc(db,'receipts',id))}catch(e){alert('Delete failed: '+e.message)}};
 window._markEntry=async(id,type)=>{
   const today=new Date().toISOString().slice(0,10);
   if(type==='invclient'){
@@ -3581,19 +3606,20 @@ window._er=id=>{
   $('er-paid-wrap').style.display='';
   $('er-paiddate').value=r.paidDate||'';
   // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
-  $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
+  $('er-paiddate').disabled=(!isAdmin()&&!!r.paidDate)||(limited&&!invL);
   // A paid record is locked for the bookkeeper EXCEPT the tracking fields: QB entry, DB entry and invoiced-to-client. Everything else is read-only.
-  const limited=isLockedBill(r)&&!isAdmin();
+  const invL=isInvLocked(r);
+  const limited=invL||(isLockedBill(r)&&!isAdmin());
   ['er-project','er-amount','er-vendor-sel','er-vendor-new','er-notes','er-status','er-invoicedate','er-room','er-code-pick'].forEach(i=>{const e=$(i);if(e)e.disabled=limited});
   $('er-codes-chips').style.pointerEvents=limited?'none':'';$('er-codes-chips').style.opacity=limited?'.6':'';
   $('er-qbdate').disabled=false;$('er-dbdate').disabled=false;
-  $('er-lock-notice').innerHTML=limited?'&#128274; This record has been paid, so its amount, vendor, project, codes and paid date are locked. You can still add or change the QB entry date, DB entry date and the invoiced-to-client number and date.':'&#128274; This record has been paid and is locked. Only an admin can change the paid date or edit it.';
-  if(isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
+  $('er-lock-notice').innerHTML=invL?'&#128274; This record is on client invoice '+esc(String(r.invoiceNumber||r.invoicedClientNumber||''))+' and is locked. Only the QB entry date, DB entry date and paid date can still be changed. An admin can release it by voiding or reopening that invoice. Later corrections go on a credit invoice.':limited?'&#128274; This record has been paid, so its amount, vendor, project, codes and paid date are locked. You can still add or change the QB entry date, DB entry date and the invoiced-to-client number and date.':'&#128274; This record has been paid and is locked. Only an admin can change the paid date or edit it.';
+  if(invL||isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
   $('er-invclientnum').value=r.invoicedClientNumber||'';
   $('er-invclientdate').value=r.invoicedClientDate||'';
   // Bookkeeper can mark a record invoiced to the client (which locks it) but cannot clear it. Admin can do both.
-  $('er-invclientnum').disabled=!isAdmin()&&!!r.invoicedClientDate;
-  $('er-invclientdate').disabled=!isAdmin()&&!!r.invoicedClientDate;
+  $('er-invclientnum').disabled=invL||(!isAdmin()&&!!r.invoicedClientDate);
+  $('er-invclientdate').disabled=invL||(!isAdmin()&&!!r.invoicedClientDate);
   if(!isAdmin()&&!!r.invoicedClientDate)show('er-invclient-lock-notice');else hide('er-invclient-lock-notice');
   const ep=$('er-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
   activeProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;ep.appendChild(o)});
@@ -3623,6 +3649,21 @@ $('er-project').onchange=()=>fillRoomDropdown('er-room',allProjects.find(p=>p.id
 $('er-cancel').onclick=()=>hide('edit-receipt-modal');
 $('er-save').onclick=async()=>{
   const orig=[...(window._allReceipts||[]),...(window._rptData||[])].find(x=>x.id===editingReceiptId)||{};
+  if(isInvLocked(orig)){
+    // Record is on a finalized client invoice: only QB entry, DB entry and the paid date can change.
+    const np=$('er-paiddate').value||null,pl={qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,updatedAt:serverTimestamp()};
+    if((np||null)!==(orig.paidDate||null)){
+      if(orig.paidDate&&!isAdmin()){$('er-err').textContent='Only an admin can change or clear a paid date.';return}
+      if(np&&!orig.paidDate&&!confirm('Setting a paid date locks the paid date. Only an admin can change it afterward. Continue?'))return;
+      pl.paidDate=np;
+      if(np&&!orig.paidDate){pl.paidBy=userProfile?.name||'';pl.paidAt=serverTimestamp()}
+      else if(!np&&orig.paidDate){pl.paidBy=null;pl.paidAt=null;pl.unlockedBy=userProfile?.name||'';pl.unlockedAt=serverTimestamp()}
+    }
+    $('er-save').disabled=true;$('er-save').textContent='Saving...';
+    try{await updateDoc(doc(db,'receipts',editingReceiptId),pl);hide('edit-receipt-modal')}catch(e){$('er-err').textContent='Save failed: '+e.message}
+    $('er-save').disabled=false;$('er-save').textContent='Save Changes';
+    return;
+  }
   if(isLockedBill(orig)&&!isAdmin()){
     // Limited save on a paid record: only QB entry, DB entry and invoiced-to-client fields are written.
     const nd=$('er-invclientdate').value||null,nn=$('er-invclientnum').value.trim()||null;
@@ -3663,6 +3704,7 @@ $('er-save').onclick=async()=>{
 fillCatDropdown('et-cat','labor');
 window._dt=async(id)=>{
   const r=[...(window._allTimeLogs||[]),...(window._rptData||[])].find(x=>x.id===id);
+  if(r&&isInvLocked(r)){alert(invLockMsg(r,'time entry'));return}
   if(r&&isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before deleting.");return}
   if(!confirm('Delete this time entry? This cannot be undone.'))return;
   try{
@@ -3674,6 +3716,7 @@ let editingTimeId=null,editingTimeUserId=null,editingTimeOrigMs=null;
 window._et=id=>{
   const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
+  if(isInvLocked(r)){alert(invLockMsg(r,'time entry'));return}
   if(isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before editing.");return}
   editingTimeId=id;editingTimeUserId=r.userId||currentUser.uid;editingTimeOrigMs=tlTsMs(r.clockIn);
   const ep=$('et-project');ep.innerHTML=`<option value="">${t('selectProject')}</option>`;
@@ -3926,7 +3969,7 @@ function renderReport(data){
     <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="window._csv()">Export CSV</button>${it?'<button class="btn btn-gold btn-sm" style="white-space:nowrap" onclick="window._xlsx()">Export Excel</button>':''}</div>
   </div><div style="overflow-x:auto"><table class="tbl tbl-actions-sticky"><thead><tr>`;
   if(it){
-    h+='<th>Date</th><th>Employee</th><th>Project</th><th class="col-hide-sm">Cost Category</th><th>Cost Code</th><th class="col-hide-sm">Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th class="col-hide-sm">Location</th><th>Notes</th><th>Billable</th><th></th>';
+    h+='<th>Date</th><th>Employee</th><th>Project</th><th class="col-hide-sm">Cost Category</th><th>Cost Code</th><th class="col-hide-sm">Room</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th class="col-hide-sm">Location</th><th>Notes</th><th>Billable</th><th>Invoice</th><th></th>';
   }else{
     h+='<th>Date</th><th>Bill #</th><th>Type</th><th>By</th><th>Project</th><th>Cost Codes</th><th>Room</th><th>Amount</th><th>Vendor</th><th>Invoice Date</th><th>Status</th><th>QB</th><th>DB</th><th>Paid</th><th>Invoiced Client</th><th></th>';
   }
@@ -3947,7 +3990,8 @@ function renderReport(data){
         <td class="col-hide-sm"><span class="geo-tag ${r.clockInGeoStatus||'unknown'}" style="font-size:10px">${r.clockInGeoStatus==='onsite'?t('onSite'):r.clockInGeoStatus==='offsite'?t('offSite'):'--'}</span></td>
         <td class="notes-cell" style="font-size:11px;max-width:220px;white-space:normal" title="${esc(r.notes||'')}">${r.notes||'--'}</td>
         <td style="text-align:center">${billableBadge(effectiveBillable(r))}</td>
-        <td style="white-space:nowrap">${payrollLocked?payrollLockBadge():''}${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${payrollLocked?'disabled style="opacity:0.4;cursor:not-allowed" title="Payroll for this period is locked"':''}>Edit</button>`:''}${isAdmin()&&!payrollLocked?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
+        <td style="font-size:11px;white-space:nowrap">${(()=>{const q=tlInvoiceLabel(r);return`<span style="color:${q.c};${q.lock?'font-weight:600':''}">${q.lock?'&#128274; ':''}${esc(q.t)}</span>`})()}</td>
+        <td style="white-space:nowrap">${payrollLocked?payrollLockBadge():''}${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._et('${r.id}')" ${(payrollLocked||isInvLocked(r))?`disabled style="opacity:0.4;cursor:not-allowed" title="${isInvLocked(r)?'On a finalized client invoice (locked)':'Payroll for this period is locked'}"`:''}>Edit</button>`:''}${isAdmin()&&!payrollLocked&&!isInvLocked(r)?` <button class="btn btn-red btn-sm" onclick="window._dt('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }else{
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
@@ -3966,12 +4010,14 @@ function renderReport(data){
         <td style="font-size:11px">${r.qbEntryDate?'<span style="color:var(--green)">✓ '+r.qbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px;white-space:nowrap">${r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'}</td>
-        <td style="font-size:11px;white-space:nowrap">${r.invoicedClientDate?'<span style="color:var(--green)">&#128274; '+r.invoicedClientDate+(r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':'')+'</span>':'<span style="color:var(--amber)">Not Invoiced</span>'}</td>
-        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.invoicedClientDate?'<span style="color:var(--green)">&#128274; '+r.invoicedClientDate+(r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':'')+'</span>':(invOlderMs(receiptTsMs(r.submittedAt||r.createdAt))?'<span style="color:var(--muted)">Older record</span>':'<span style="color:var(--amber)">Not Invoiced</span>')}</td>
+        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()&&!isInvLocked(r)?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }
   });
   h+='</tbody></table></div>';
+  {const oldN=data.filter(r=>it?(effectiveBillable(r)&&!r.invoiceNumber&&invOlderMs(tlTsMs(r.clockIn))):(!r.invoicedClientDate&&invOlderMs(receiptTsMs(r.submittedAt||r.createdAt)))).length;
+   if(oldN)h=INV_OLD_NOTE(oldN)+h}
   $('rpt-results').innerHTML=h;
   window._rptData=data;
 }
@@ -3979,14 +4025,14 @@ function renderReport(data){
 window._csv=()=>{
   const data=window._rptData||[];const it=_rptType==='time';
   const headers=it
-    ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes']
+    ?['Date','Employee','Project','Bill To','Billable','Cost Category','Cost Code','Room','Clock In','Clock Out','Duration (min)','In Status','In Lat','In Lng','Out Status','Out Lat','Out Lng','Notes','Invoice']
     :['Date','Bill #','Type','Submitted By','Project','Cost Codes','Room','Amount','Vendor','Invoice Date','Status','QB Entry Date','DB Entry Date','Paid Date','Paid By','Invoiced Client Date','Invoiced Client #','Invoiced Client By','Notes','Receipt URL'];
   const rows=data.map(r=>{
     if(it){
       const billable=effectiveBillable(r);
       const proj=allProjects.find(p=>p.id===r.projectId);
       const billTo=billable?(proj?.name||r.projectName||''):'';
-      return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||''];
+      return[r.clockIn?.toDate?.()?.toLocaleDateString()||'',r.userName,r.projectName,billTo,billable?'Y':'N',r.costCodeCategory||r.scope||'',r.costCode||r.scope||'',r.room||'',r.clockIn?.toDate?.()?.toLocaleTimeString()||'',r.clockOut?.toDate?.()?.toLocaleTimeString()||'Active',r.durationMs?Math.round(r.durationMs/60000):'',r.clockInGeoStatus||'',r.clockInGeo?.lat||'',r.clockInGeo?.lng||'',r.clockOutGeoStatus||'',r.clockOutGeo?.lat||'',r.clockOutGeo?.lng||'',r.notes||'',tlInvoiceLabel(r).t];
     }
     return[(r.submittedAt||r.createdAt)?.toDate?.()?.toLocaleDateString()||'',r.billNumber||'',r.billType||'receipt',r.submittedByName||'',r.projectName||'',(r.costCodes||[r.scope]).filter(Boolean).join('; '),r.room||'',r.amount||'',r.vendor||'',r.invoiceDate||'',r.status||'',r.qbEntryDate||'',r.dbEntryDate||'',r.paidDate||'',r.paidBy||'',r.invoicedClientDate||'',r.invoicedClientNumber||'',r.invoicedClientBy||'',r.notes||'',r.imageUrl||''];
   });
@@ -4249,7 +4295,7 @@ $('tm-run-btn').onclick=async()=>{
     ]);
     const proj=allProjects.find(p=>p.id===pid)||{};
     const rates=tmRatesFor(pid),atCost=rates.laborMode==='cost';
-    const ex={noWage:new Set(),nonBillTime:0,nonBillHrs:0,openTime:0,invoicedRcpt:0,invoicedAmt:0,rejectedRcpt:0};
+    const ex={noWage:new Set(),nonBillTime:0,nonBillHrs:0,openTime:0,invoicedRcpt:0,invoicedAmt:0,rejectedRcpt:0,invoicedTime:0,invoicedHrs:0,invNums:new Set(),olderTime:0,olderRcpt:0};
     const weeks={};
     const wk=d=>{const s=tmSunday(d),k=s.getTime();return weeks[k]||(weeks[k]={sun:s,sat:new Date(s.getFullYear(),s.getMonth(),s.getDate()+6),labor:{},mats:[],subs:[]})};
     const entries=[]; // time entries, for the detail views
@@ -4258,14 +4304,18 @@ $('tm-run-btn').onclick=async()=>{
       if(m<lo||m>=hi||isArchivedRec(r))return;
       if(!r.clockOut){ex.openTime++;return}
       if(!effectiveBillable(r)){ex.nonBillTime++;ex.nonBillHrs+=(r.durationMs||0)/3600000;return}
+      // Already on a finalized client invoice: not billed again. It is listed (with its invoice number) in the notes under the totals.
+      if(r.invoiceLockId){ex.invoicedTime++;ex.invoicedHrs+=(r.durationMs||0)/3600000;if(r.invoiceNumber)ex.invNums.add(String(r.invoiceNumber));return}
+      if(invOlderMs(m))ex.olderTime++;
       const d=new Date(m),code=r.costCode||r.scope||'',cls=tmRateClass(code),hrs=tmR2((r.durationMs||0)/3600000);
       const w=wk(d),room=String(r.room||'').trim(),key=(code||'(none)')+'|'+room;
-      const L=w.labor[key]||(w.labor[key]={code,room,task:tmCodeTask(code),label:tmCodeLabel(code),cls:atCost?'at cost':cls,rate:atCost?0:rates[cls],hrs:0,amt:0});
+      const L=w.labor[key]||(w.labor[key]={code,room,task:tmCodeTask(code),label:tmCodeLabel(code),cls:atCost?'at cost':cls,rate:atCost?0:rates[cls],hrs:0,amt:0,ents:[]});
       L.hrs=tmR2(L.hrs+hrs);
       // At cost: this employee's wage plus the client's burden %. A missing wage prices the hours at $0 and is reported.
       const wage=wageByName[String(r.userName||'').trim()]||0,eRate=atCost?wage*(1+rates.burdenPct/100):rates[cls],eAmt=tmR2(hrs*eRate);
       if(atCost){L.amt=L.amt+eAmt;if(!wage)ex.noWage.add(r.userName||'Unknown')}
-      entries.push({date:d,name:r.userName||'Unknown',room:r.room||'',code,cls:atCost?'at cost':cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:tmR2(eRate),amt:eAmt,notes:r.notes||''});
+      const ent={id:r.id,date:d,name:r.userName||'Unknown',room:r.room||'',code,cls:atCost?'at cost':cls,tin:r.clockIn,tout:r.clockOut,hrs,rate:tmR2(eRate),amt:eAmt,notes:r.notes||'',wage,dms:r.durationMs||0};
+      entries.push(ent);L.ents.push(ent);
     });
     Object.values(weeks).forEach(w=>Object.values(w.labor).forEach(L=>{if(atCost){L.amt=tmR2(L.amt);L.rate=L.hrs>0?L.amt/L.hrs:0}else L.amt=tmR2(L.hrs*L.rate)}));
     rSnap.docs.map(d=>({id:d.id,...d.data()})).forEach(r=>{
@@ -4275,7 +4325,8 @@ $('tm-run-btn').onclick=async()=>{
       const codes=(r.costCodes||[r.scope]).filter(Boolean);
       if(codes.length&&!codes.some(isCodeBillable))return;
       const cost=tmR2(parseFloat(r.amount)||0);
-      if(r.invoicedClientDate){ex.invoicedRcpt++;ex.invoicedAmt+=cost;return}
+      if(r.invoicedClientDate){ex.invoicedRcpt++;ex.invoicedAmt+=cost;if(r.invoicedClientNumber)ex.invNums.add(String(r.invoicedClientNumber));return}
+      if(invOlderMs(m))ex.olderRcpt++;
       const isSub=codes.some(c=>tmCodeType(c)==='labor');
       const div=isSub?subDiv:matDiv;
       const d=new Date(m);
@@ -4307,9 +4358,11 @@ function tmReviewHtml(){
   if(!onL)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`;
   else h+=D.atCost?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor priced <b>at cost</b>: each employee's hourly wage plus ${rates.burdenPct}% burden (the rate shown on each line is the blended rate for that line). Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`:`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
   if(onL&&D.atCost&&ex.noWage.size)h+=`<div class="err" style="margin-bottom:8px">No hourly wage on file for ${esc([...ex.noWage].join(', '))}, so their hours are priced at $0.00 here. Add a base rate for them (Payroll, pay rates) and run this again.</div>`;
+  if((onL&&ex.olderTime)||(onM&&ex.olderRcpt))h+=INV_OLD_NOTE((onL?ex.olderTime:0)+(onM?ex.olderRcpt:0));
   const notes=[];
   if(onL&&ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');
-  if(onM&&ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')');
+  if(onM&&ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')'+(ex.invNums.size?' on '+esc([...ex.invNums].join(', ')):''));
+  if(onL&&ex.invoicedTime)notes.push(ex.invoicedTime+' time entr'+(ex.invoicedTime===1?'y':'ies')+' ('+ex.invoicedHrs.toFixed(2)+' hrs) already invoiced to the client, not included again'+(ex.invNums.size?' (on '+esc([...ex.invNums].join(', '))+')':''));
   if(onL&&ex.openTime)notes.push(ex.openTime+' time entr'+(ex.openTime===1?'y':'ies')+' still clocked in (not counted)');
   if(onM&&ex.rejectedRcpt)notes.push(ex.rejectedRcpt+' rejected receipt'+(ex.rejectedRcpt===1?'':'s'));
   if(notes.length)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Left out: ${notes.join('; ')}.</div>`;
@@ -4436,6 +4489,7 @@ window._tmXlsx=async()=>{
     if(onM)sum.push(['Our cost: materials',T.matCost],['Our cost: subcontractors',T.subCost],[]);
     if(onL)sum.push(['Left out: non-billable time entries',ex.nonBillTime]);
     if(onM)sum.push(['Left out: receipts already invoiced to client',ex.invoicedRcpt]);
+    if(onL)sum.push(['Left out: time entries already invoiced to client',ex.invoicedTime]);
     if(onL)sum.push(['Left out: entries still clocked in',ex.openTime]);
     XLSX.utils.book_append_sheet(wb,sheet(sum,[44,30]),'Summary');
     if(onL){
@@ -4469,12 +4523,16 @@ function invMatCmp(a,b){return (a.wk-b.wk)||String(a.m.codes||'').localeCompare(
 function invCalc(inv){let t=0;(inv.sections||[]).forEach(s=>{let st=0;(s.lines||[]).forEach(l=>{l.amount=invR2((+l.qty||0)*(+l.rate||0));st=invR2(st+l.amount)});s.subtotal=st;t=invR2(t+st)});inv.total=t;return inv}
 function invBuildFromReport(D){
   const nm=D.proj.name||'Job',prefix=projPrefix(D.proj),out=[];
-  const base=k=>({kind:k,projectId:D.proj.id,projectName:nm,prefix,status:'draft',number:null,periodFrom:D.fr,periodTo:D.to,notes:'',sections:[]});
+  const pr=D.rates||{};
+  const pricing={atCost:!!D.atCost,burdenPct:+pr.burdenPct||0,construction:+pr.construction||0,design:+pr.design||0,procurement:+pr.procurement||0,matDiv:+D.matDiv||0,subDiv:+D.subDiv||0};
+  const base=k=>({kind:k,projectId:D.proj.id,projectName:nm,prefix,status:'draft',number:null,periodFrom:D.fr,periodTo:D.to,notes:'',sections:[],internal:{},pricing,internalAt:Date.now()});
   const lw=D.weekList.filter(w=>w.laborLines.length);
   if(lw.length){
     const b=base('labor');
     lw.forEach(w=>{const rg=tmMDY(w.sun)+' - '+tmMDY(w.sat);
-      b.sections.push({id:invId(),heading:nm+' Labor Hours '+rg,lines:w.laborLines.map(L=>({id:invId(),desc:tmLaborDesc(L)+' '+rg,note:'',qty:L.hrs,rate:L.rate,amount:L.amt}))})});
+      b.sections.push({id:invId(),heading:nm+' Labor Hours '+rg,lines:w.laborLines.map(L=>{const lid=invId();
+        b.internal[lid]={s:'L',code:String(L.code||''),room:String(L.room||''),cls:String(L.cls||''),ents:(L.ents||[]).map(e=>({id:e.id,d:e.date.getTime(),n:String(e.name||''),r:String(e.room||''),c:String(e.code||''),h:+e.hrs||0,w:+e.wage||0,rt:+e.rate||0,a:+e.amt||0,dm:+e.dms||0,nt:String(e.notes||'')}))};
+        return{id:lid,desc:tmLaborDesc(L)+' '+rg,note:'',qty:L.hrs,rate:L.rate,amount:L.amt}})})});
     out.push(invCalc(b));
   }
   const items=[];
@@ -4484,7 +4542,9 @@ function invBuildFromReport(D){
     const b=base('materials');
     [['con','Construction materials'],['des','Design materials'],['sub','Labor / installation by outside subcontractors']].forEach(([k,h])=>{
       const arr=items.filter(x=>x.sec===k);
-      if(arr.length)b.sections.push({id:invId(),heading:h,lines:arr.map(({m})=>({id:invId(),desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||''}))});
+      if(arr.length)b.sections.push({id:invId(),heading:h,lines:arr.map(({m})=>{const lid=invId();
+        b.internal[lid]={s:'R',rid:String(m.rid||''),d:m.date.getTime(),v:String(m.vendor||''),n:String(m.num||''),rm:String(m.room||''),c:String(m.codes||''),ds:String(m.desc||''),by:String(m.by||''),cost:+m.cost||0,price:+m.price||0};
+        return{id:lid,desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||''}})});
     });
     out.push(invCalc(b));
   }
@@ -4501,6 +4561,7 @@ window._tmSaveDrafts=async()=>{
     const dup=drafts.filter(d=>invAll.some(x=>x.projectId===d.projectId&&x.kind===d.kind&&x.periodFrom===d.periodFrom&&x.periodTo===d.periodTo&&x.status!=='void'));
     if(dup.length&&!confirm('An invoice for this job and period already exists ('+dup.map(d=>invKindName(d.kind)).join(' and ')+'). Save another draft anyway?'))return;
     for(const d of drafts){
+      if(JSON.stringify(d).length>900000)throw new Error('This '+invKindName(d.kind).toLowerCase()+' invoice has too much detail to store in one record. Run the report for a shorter period.');
       await addDoc(collection(db,'invoices'),{...d,createdBy:invWho(),createdByUid:currentUser.uid,createdAt:serverTimestamp(),updatedBy:invWho(),updatedAt:serverTimestamp()});
     }
     msg.innerHTML='<div class="notice" style="margin:8px 0">Saved '+drafts.map(d=>invKindName(d.kind)).join(' and ')+' draft'+(drafts.length>1?'s':'')+'. Open the <b>Invoices</b> tab to edit and finalize.</div>';
@@ -4544,6 +4605,7 @@ function invRenderEditor(){
   if(ed)h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invDelete()">Delete draft</button><button class="btn btn-outline btn-sm" style="width:auto" id="inv-save" onclick="window._invSave()">Save draft</button><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invFinalize()">Finalize and make PDF</button>`;
   else{
     h+=`<button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${v.id}')">Download PDF</button>`;
+    if(v.internal&&Object.keys(v.internal).length)h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invDetail()">Internal detail</button>`;
     if(v.status==='ready')h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invMarkSent()">Mark as sent</button>`;
     if(isAdmin()&&(v.status==='ready'||v.status==='sent'))h+=`<button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invReopen()">Reopen for editing</button><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invVoid()">Void</button>`;
   }
@@ -4569,6 +4631,7 @@ function invRenderEditor(){
   if(ed)h+=`<div class="inv-comm-ed"><div class="inv-lbl">Comments (printed below the total; leave blank and nothing prints)</div><textarea class="ie-in ie-notes" rows="3" placeholder="Optional comments for the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea></div>`;
   else if(hasCom)h+=`<div class="inv-terms"><b>Comments:</b> <span style="white-space:pre-wrap">${esc(v.notes)}</span></div>`;
   h+=`<div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div></div>`;
+  h+='<div id="inv-detail"></div>';
   $('inv-root').innerHTML=h;
   document.querySelectorAll('#inv-root .ie-desc').forEach(window._invGrow);
 }
@@ -4601,18 +4664,43 @@ window._invDelete=async()=>{
 // ── finalize: number + PDF + Ready to send ──
 const invToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 // Mark / release the receipts on an invoice using the existing "Invoiced Client" fields on receipts.
-async function invMarkReceipts(rids,number){
+async function invMarkReceipts(rids,number,invId2){
   const fails=[];
-  for(const rid of rids){try{await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:invToday(),invoicedClientNumber:number,invoicedClientBy:invWho(),invoicedClientAt:serverTimestamp()})}catch(e){fails.push(rid)}}
+  for(const rid of rids){try{await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:invToday(),invoicedClientNumber:number,invoicedClientBy:invWho(),invoicedClientAt:serverTimestamp(),invoiceLockId:invId2})}catch(e){fails.push(rid)}}
   return fails;
+}
+// Time entries on a finalized invoice are locked with the invoice's id and number (cleared only by voiding or reopening the invoice).
+async function invMarkTime(tids,number,invId2){
+  const fails=[];
+  for(const tid of tids){try{await updateDoc(doc(db,'timeLogs',tid),{invoiceLockId:invId2,invoiceNumber:number,invoicedAt:serverTimestamp(),invoicedBy:invWho()})}catch(e){fails.push(tid)}}
+  return fails;
+}
+// Before finalizing: every source record must still exist, be unchanged since the draft was saved, and not be on another invoice.
+async function invVerifySources(v,tmap,rmap){
+  const bad=[];
+  const chk=async(col,id,fn)=>{try{const sn=await getDoc(doc(db,col,id));if(!sn.exists()){bad.push('A source '+(col==='timeLogs'?'time entry':'receipt')+' no longer exists.');return}const d=sn.data();
+    if(d.invoiceLockId&&d.invoiceLockId!==v.id){bad.push('A source '+(col==='timeLogs'?'time entry':'receipt')+' is already on invoice '+(d.invoiceNumber||d.invoicedClientNumber||'another invoice')+'.');return}
+    if(col==='receipts'&&d.invoicedClientDate&&!d.invoiceLockId){bad.push('A receipt was already marked invoiced to the client ('+(d.invoicedClientNumber||'no number')+').');return}
+    const m=fn(d);if(m)bad.push(m)}catch(e){bad.push('Could not read a source record: '+e.message)}};
+  const jobs=[];
+  Object.entries(tmap).forEach(([id,dm])=>jobs.push(()=>chk('timeLogs',id,d=>(d.durationMs||0)!==dm||isArchivedRec(d)?'A time entry changed after this draft was saved.':'')));
+  Object.entries(rmap).forEach(([id,cost])=>jobs.push(()=>chk('receipts',id,d=>tmR2(parseFloat(d.amount)||0)!==cost||isArchivedRec(d)?'A receipt changed after this draft was saved.':'')));
+  for(let i=0;i<jobs.length;i+=15)await Promise.all(jobs.slice(i,i+15).map(f=>f()));
+  return [...new Set(bad)];
 }
 async function invReleaseReceipts(inv){
   const fails=[];let n=0;
   for(const rid of (inv.receiptIds||[])){
     try{
       const s=await getDoc(doc(db,'receipts',rid));
-      if(s.exists()&&s.data().invoicedClientNumber===inv.number){await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:null,invoicedClientNumber:null,invoicedClientBy:null,invoicedClientAt:null,invoicedClientUnlockedBy:invWho(),invoicedClientUnlockedAt:serverTimestamp()});n++}
+      if(s.exists()&&s.data().invoicedClientNumber===inv.number){await updateDoc(doc(db,'receipts',rid),{invoicedClientDate:null,invoicedClientNumber:null,invoicedClientBy:null,invoicedClientAt:null,invoiceLockId:null,invoicedClientUnlockedBy:invWho(),invoicedClientUnlockedAt:serverTimestamp()});n++}
     }catch(e){fails.push(rid)}
+  }
+  for(const tid of (inv.timeIds||[])){
+    try{
+      const s=await getDoc(doc(db,'timeLogs',tid));
+      if(s.exists()&&s.data().invoiceLockId===inv.id){await updateDoc(doc(db,'timeLogs',tid),{invoiceLockId:null,invoiceNumber:null,invoicedAt:null,invoicedBy:null,releasedBy:invWho(),releasedAt:serverTimestamp()});n++}
+    }catch(e){fails.push(tid)}
   }
   return{n,fails};
 }
@@ -4624,9 +4712,20 @@ window._invFinalize=async()=>{
   invCalc(v);
   const key=v.prefix+'-'+invLetter(v.kind),reuse=!!v.number;
   const rids=[...new Set(v.sections.flatMap(s=>s.lines||[]).map(l=>l.rid).filter(Boolean))];
-  if(!confirm('Finalize this '+invKindName(v.kind).toLowerCase()+' invoice for '+v.projectName+' ('+tmMoney(v.total)+')?\n\n'+(reuse?'It keeps its number '+v.number+'.':'It gets the next number ('+key+'-###).')+' A PDF is made, it can no longer be edited (an admin can reopen it), and '+(rids.length?rids.length+' receipt'+(rids.length>1?'s are':' is')+' marked as invoiced to the client':'no receipts are marked')+'. Nothing is sent to the client.'))return;
-  const btns=[...document.querySelectorAll('.invm-actions button')];btns.forEach(b=>b.disabled=true);invFlash('Making the PDF...');
+  // The internal record (cost codes, source time entries and receipts) was captured when the draft was saved from the report.
+  if(!v.internal||!Object.keys(v.internal).length){invFlash('This draft was saved before internal detail was being recorded. Delete it and save it again from the report, so the cost codes and source records are kept with the invoice.','err');return}
+  const lidSet=new Set(v.sections.flatMap(s=>s.lines||[]).map(l=>l.id));
+  const tmap={},rmap={},keepInt={};
+  Object.entries(v.internal).forEach(([lid,x])=>{if(!lidSet.has(lid))return;keepInt[lid]=x;
+    if(x.s==='L')(x.ents||[]).forEach(e=>{tmap[e.id]=e.dm});
+    if(x.s==='R'&&x.rid)rmap[x.rid]=x.cost});
+  const tids=Object.keys(tmap);
+  if(!confirm('Finalize this '+invKindName(v.kind).toLowerCase()+' invoice for '+v.projectName+' ('+tmMoney(v.total)+')?\n\n'+(reuse?'It keeps its number '+v.number+'.':'It gets the next number ('+key+'-###).')+' A PDF is made, it can no longer be edited (an admin can reopen it), and the records behind it are locked: '+(tids.length?tids.length+' time entr'+(tids.length>1?'ies':'y'):'')+(tids.length&&rids.length?' and ':'')+(rids.length?rids.length+' receipt'+(rids.length>1?'s':''):'')+(!tids.length&&!rids.length?'no records':'')+'. Only voiding or reopening this invoice unlocks them. Nothing is sent to the client.'))return;
+  const btns=[...document.querySelectorAll('.invm-actions button')];btns.forEach(b=>b.disabled=true);invFlash('Checking the source records...');
   try{
+    const problems=await invVerifySources(v,tmap,rmap);
+    if(problems.length)throw new Error(problems.slice(0,4).join(' ')+' Delete this draft and save a new one from the report.');
+    invFlash('Making the PDF...');
     const cRef=doc(db,'settings','invoiceCounters'),iRef=doc(db,'invoices',v.id),fRef=doc(db,'invoiceFiles',v.id);
     const p=invPayload();let done=null;
     for(let tries=0;tries<4&&!done;tries++){
@@ -4644,16 +4743,17 @@ window._invFinalize=async()=>{
             if(((c.exists()?c.data()[key]:0)||0)!==cur)throw new Error('COUNTER_MOVED');
             tx.set(cRef,{[key]:next},{merge:true});
           }
-          tx.update(iRef,{...p,number,status:'ready',receiptIds:rids,finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
+          tx.update(iRef,{...p,number,status:'ready',receiptIds:rids,timeIds:tids,internal:keepInt,finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
           tx.set(fRef,{pdf,number,projectId:v.projectId,createdAt:serverTimestamp()});
         });
         done=number;
       }catch(e){if(e.message!=='COUNTER_MOVED')throw e}
     }
     if(!done)throw new Error('Another invoice was being numbered at the same moment. Try again.');
-    const fails=await invMarkReceipts(rids,done);
+    const fails=await invMarkReceipts(rids,done,v.id);
+    const tfails=await invMarkTime(tids,done,v.id);
     await invLoad();invDirty=false;invCur=null;invTab='ready';invRenderList();
-    $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(done)}</b> is final and in the Ready to send list. Download the PDF and deliver it yourself; Lotus does not email clients.${rids.length?' '+(rids.length-fails.length)+' receipt'+(rids.length-fails.length===1?'':'s')+' marked as invoiced to the client.':''}</div>${fails.length?`<div class="err" style="margin:8px 0">${fails.length} receipt${fails.length>1?'s':''} could not be marked as invoiced (for example a paid receipt a bookkeeper cannot change). Mark ${fails.length>1?'them':'it'} on the Receipts tab, or an admin can.</div>`:''}`);
+    $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(done)}</b> is final and in the Ready to send list. Download the PDF and deliver it yourself; Lotus does not email clients.${rids.length?' '+(rids.length-fails.length)+' receipt'+(rids.length-fails.length===1?'':'s')+' marked as invoiced to the client.':''}</div>${fails.length?`<div class="err" style="margin:8px 0">${fails.length} receipt${fails.length>1?'s':''} could not be marked as invoiced (for example a paid receipt a bookkeeper cannot change). Mark ${fails.length>1?'them':'it'} on the Receipts tab, or an admin can.</div>`:''}${tids.length?`<div class="notice" style="margin:8px 0">${tids.length-tfails.length} time entr${tids.length-tfails.length===1?'y is':'ies are'} now locked to this invoice.</div>`:''}${tfails.length?`<div class="err" style="margin:8px 0">${tfails.length} time entr${tfails.length>1?'ies':'y'} could not be locked to this invoice. Tell the administrator before billing from it again.</div>`:''}`);
   }catch(e){invFlash('Could not finalize: '+esc(e.message),'err');btns.forEach(b=>b.disabled=false)}
 };
 window._invMarkSent=()=>{
@@ -4669,7 +4769,7 @@ window._invSentConfirm=async()=>{
 };
 window._invVoid=async()=>{
   const v=invCur;if(!v||!isAdmin()||!['ready','sent'].includes(v.status))return;
-  const why=prompt('Void '+v.number+'? Its number is not reused, and its receipts are released so they can be billed again. Reason:','');if(why===null)return;
+  const why=prompt('Void '+v.number+'? Its number is not reused, and its receipts and time entries are released so they can be billed again. Reason:','');if(why===null)return;
   try{
     await updateDoc(doc(db,'invoices',v.id),{status:'void',voidedAt:serverTimestamp(),voidedBy:invWho(),voidReason:why.trim()});
     const r=await invReleaseReceipts(v);
@@ -4679,13 +4779,68 @@ window._invVoid=async()=>{
 };
 window._invReopen=async()=>{
   const v=invCur;if(!v||!isAdmin()||!['ready','sent'].includes(v.status))return;
-  const why=prompt('Reopen '+v.number+' as a draft so it can be edited?'+(v.status==='sent'?'\n\nThis invoice was already delivered to the client; they have the earlier version.':'')+'\n\nIt keeps its number, its PDF is replaced when you finalize again, and its receipts are released until then. Reason:','');if(why===null)return;
+  const why=prompt('Reopen '+v.number+' as a draft so it can be edited?'+(v.status==='sent'?'\n\nThis invoice was already delivered to the client; they have the earlier version.':'')+'\n\nIt keeps its number, its PDF is replaced when you finalize again, and its receipts and time entries are released until then. Reason:','');if(why===null)return;
   try{
     await updateDoc(doc(db,'invoices',v.id),{status:'draft',reopenedAt:serverTimestamp(),reopenedBy:invWho(),reopenReason:why.trim(),sentAt:null,sentBy:null,sentNote:null,sentDate:null});
     const r=await invReleaseReceipts(v);
     await invLoad();invTab='draft';invRenderList();
     $('inv-root').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin:8px 0"><b>${esc(v.number)}</b> is a draft again. Edit it, then Finalize; it keeps the same number.${r.fails.length?' '+r.fails.length+' receipt(s) could not be released; clear their invoiced-client date on the Receipts tab.':''}</div>`);
   }catch(e){invFlash('Could not reopen: '+esc(e.message),'err')}
+};
+// ── internal detail: the cost codes and source records behind each line, kept with the invoice (never shown to the client) ──
+function invDetailRows(v){
+  const I=v.internal||{},rows=[];
+  v.sections.forEach(sec=>(sec.lines||[]).forEach(l=>{
+    const x=I[l.id];
+    if(!x){rows.push({line:l,src:'(added by hand)',kind:'H'});return}
+    if(x.s==='L')(x.ents||[]).forEach(e=>rows.push({line:l,kind:'L',x,e}));
+    else rows.push({line:l,kind:'R',x});
+  }));
+  return rows;
+}
+const invD=ms=>ms?new Date(ms).toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'}):'';
+window._invDetail=()=>{
+  const v=invCur;if(!v)return;const box=$('inv-detail');if(!box)return;
+  if(box.innerHTML){box.innerHTML='';return}
+  const I=v.internal||{},pr=v.pricing||{};
+  const td='style="text-align:right;white-space:nowrap"';
+  let h='<div class="inv-det"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div style="font-weight:700;font-size:15px">Internal detail'+(v.number?' for '+esc(v.number):'')+'</div><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDetailXlsx()">Download Excel</button></div>';
+  h+='<div class="notice" style="font-size:12px;margin:8px 0">Not shown to the client. This is the internal record captured when the draft was saved from the report: the cost codes and the time entries and receipts behind each line. It does not change after the invoice is finalized.'+(pr.atCost?' Labor was priced at cost: each employee\'s wage plus '+pr.burdenPct+'% burden.':pr.construction?' Labor rates: Construction '+tmMoney(pr.construction)+', Design '+tmMoney(pr.design)+', Procurement '+tmMoney(pr.procurement)+'.':'')+(pr.matDiv?' Materials &divide; '+pr.matDiv+', subcontractors &divide; '+pr.subDiv+'.':'')+'</div>';
+  v.sections.forEach(sec=>{
+    (sec.lines||[]).forEach(l=>{
+      const x=I[l.id];
+      h+='<div class="inv-det-line"><div style="display:flex;justify-content:space-between;gap:10px"><b>'+esc(l.desc||'')+'</b><span style="white-space:nowrap">'+(v.kind==='materials'?'':invQty(v.kind,l.qty)+' &times; '+tmMoney(l.rate)+' = ')+tmMoney(l.amount)+'</span></div>';
+      if(!x)h+='<div style="font-size:12px;color:var(--muted)">Added by hand; no source records.</div>';
+      else if(x.s==='L'){
+        h+='<div style="font-size:12px;color:var(--muted);margin:2px 0 4px">Cost code: '+esc(x.code||'(none)')+(x.room?' &middot; Room: '+esc(x.room):'')+' &middot; Rate class: '+esc(x.cls||'')+'</div>';
+        h+='<table class="inv-det-tbl"><thead><tr><th>Date</th><th>Employee</th><th>Room</th><th>Code</th><th class="r">Hours</th><th class="r">Wage</th><th class="r">Billed rate</th><th class="r">Amount</th></tr></thead><tbody>'+(x.ents||[]).map(e=>'<tr><td>'+invD(e.d)+'</td><td>'+esc(e.n)+'</td><td>'+esc(e.r)+'</td><td>'+esc(e.c)+'</td><td '+td+'>'+(+e.h).toFixed(2)+'</td><td '+td+'>'+(e.w?tmMoney(e.w):'--')+'</td><td '+td+'>'+tmMoney(e.rt)+'</td><td '+td+'>'+tmMoney(e.a)+'</td></tr>'+(e.nt?'<tr><td></td><td colspan="7" style="font-size:11px;color:var(--muted)">Crew note: '+esc(e.nt)+'</td></tr>':'')).join('')+'</tbody></table>';
+      }else{
+        h+='<table class="inv-det-tbl"><thead><tr><th>Date</th><th>Vendor</th><th>Bill #</th><th>Cost codes</th><th>Room</th><th>Submitted by</th><th class="r">Our cost</th><th class="r">Billed</th></tr></thead><tbody><tr><td>'+invD(x.d)+'</td><td>'+esc(x.v)+'</td><td>'+esc(x.n)+'</td><td>'+esc(x.c)+'</td><td>'+esc(x.rm)+'</td><td>'+esc(x.by)+'</td><td '+td+'>'+tmMoney(x.cost)+'</td><td '+td+'>'+tmMoney(x.price)+'</td></tr>'+(x.ds?'<tr><td></td><td colspan="7" style="font-size:11px;color:var(--muted)">Notes: '+esc(x.ds)+'</td></tr>':'')+'</tbody></table>';
+      }
+      h+='</div>';
+    });
+  });
+  box.innerHTML=h+'</div>';
+};
+window._invDetailXlsx=async()=>{
+  const v=invCur;if(!v)return;
+  try{
+    await loadXlsxLib();
+    const rows=invDetailRows(v),I=v.internal||{};
+    const wb=XLSX.utils.book_new();
+    const sh=(r,c)=>{const ws=XLSX.utils.aoa_to_sheet(r);ws['!cols']=c.map(w=>({wch:w}));return ws};
+    const lines=[['Invoice','Section','Description','Quantity','Rate','Amount']];
+    v.sections.forEach(sec=>(sec.lines||[]).forEach(l=>lines.push([v.number||'(draft)',sec.heading||'',l.desc||'',+l.qty||0,+l.rate||0,+l.amount||0])));
+    XLSX.utils.book_append_sheet(wb,sh(lines,[14,34,60,10,10,12]),'Invoice lines');
+    const det=[['Invoice','Billed line','Source','Date','Employee or vendor','Bill #','Room','Cost code(s)','Hours','Wage per hr','Rate billed','Our cost','Billed amount','Notes']];
+    rows.forEach(({line,kind,x,e})=>{
+      if(kind==='L')det.push([v.number||'(draft)',line.desc||'','Time entry',invD(e.d),e.n,'',e.r,e.c,+e.h,+e.w||0,+e.rt,+e.a,+e.a,e.nt]);
+      else if(kind==='R')det.push([v.number||'(draft)',line.desc||'','Receipt / bill',invD(x.d),x.v,x.n,x.rm,x.c,'','','',+x.cost,+x.price,x.ds]);
+      else det.push([v.number||'(draft)',line.desc||'','Added by hand','','','','','','','','','',+line.amount||0,'']);
+    });
+    XLSX.utils.book_append_sheet(wb,sh(det,[14,50,14,12,24,12,14,34,8,10,10,12,12,40]),'Internal detail');
+    XLSX.writeFile(wb,((v.number||'Draft')+' - '+(v.projectName||'job')+' - Internal detail.xlsx').replace(/[\\/:*?"<>|]+/g,'-'));
+  }catch(e){alert('Could not make the Excel file: '+e.message)}
 };
 window._invDownload=async id=>{
   try{
@@ -4907,6 +5062,7 @@ window._setBillable = async (id, val) => {
   if (!isAdmin()) { alert('Only an Admin can change billable status on a time entry.'); return; }
   try {
     const r = [...(window._allTimeLogs||[]), ...(window._rptData||[])].find(x => x.id === id);
+    if (r && isInvLocked(r)) { alert(invLockMsg(r,'time entry')); return; }
     await updateDoc(doc(db, 'timeLogs', id), {
       billable: val,
       billableSetBy: userProfile?.name || currentUser?.email || '',

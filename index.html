@@ -250,6 +250,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="nav-tab priv-only hidden" data-tab="triage">&#128231; Email Triage <span id="triage-badge" class="hidden" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></div>
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
     <div class="nav-tab priv-only hidden" data-tab="dashboard">&#128200; Dashboard</div>
+    <div class="nav-tab priv-only hidden" data-tab="account">&#128209; Account Summary</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
   </div>
   <div class="main">
@@ -562,6 +563,22 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
       </div>
       <div id="db-results"></div>
+    </div>
+
+    <div id="tab-account" class="hidden">
+      <h2>Account Summary</h2>
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">What each job has been billed, credited and still has waiting to be billed. Lotus does not record client payments, so this shows billing, not collections. Draft invoices are counted but never added to totals. Unbilled work is priced at each job's current rates, as of today.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+          <div class="field" style="margin-bottom:0"><label>Job</label><select id="as-project" style="min-width:200px"><option value="">All jobs</option></select></div>
+          <div class="field" style="margin-bottom:0"><label>Invoices finalized from</label><input type="date" id="as-from"></div>
+          <div class="field" style="margin-bottom:0"><label>to</label><input type="date" id="as-to"></div>
+          <button type="button" class="btn btn-gold" id="as-run" style="width:auto;padding:10px 18px">Run</button>
+          <button type="button" class="btn btn-outline" id="as-xlsx" style="width:auto;padding:10px 18px">Excel</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">Leave the dates blank for all time. The dates apply to invoices only; unbilled work is always as of today.</div>
+      </div>
+      <div id="as-results"></div>
     </div>
 
     <div id="tab-admin" class="hidden">
@@ -6204,14 +6221,142 @@ $('db-xlsx').onclick=dbXlsx;
 document.querySelectorAll('.db-quick').forEach(b=>b.onclick=()=>{dbRange(b.dataset.r);dbRun()});
 // ── END DASHBOARD (hours) ────────────────────────────────────────────────────
 
+// ── ACCOUNT SUMMARY ──────────────────────────────────────────────────────────
+// Admin and bookkeeper. One row per job from the invoices collection plus billable work not yet invoiced.
+// Reads only what Lotus holds; client payments are not recorded in Lotus. The unbilled pricing below
+// follows the client report's rules (rates per job, at-cost mode, material and sub divisors); keep them in step.
+let asData=null;
+function asBuild(invs,times,rcpts,wageByName,ratesFor,projName,range){
+  const P=new Map();
+  const get=(id,name)=>{if(!P.has(id))P.set(id,{id,name:name||projName(id)||id,labor:0,mat:0,credits:0,notSent:0,drafts:0,draftAmt:0,unbLabor:0,unbMat:0,unbItems:[],oldHrs:0,oldTime:0,oldRcpt:0,oldAmt:0,docs:[],noWage:new Set()});return P.get(id)};
+  const docs=[];
+  invs.forEach(x=>{
+    if(!x.projectId||x.status==='void')return;
+    const p=get(x.projectId,x.projectName);
+    if(x.status==='draft'){p.drafts++;p.draftAmt+=+x.total||0;return}
+    if(x.status!=='ready'&&x.status!=='sent')return;
+    const fm=x.finalizedAt?.toMillis?x.finalizedAt.toMillis():0;
+    if(range.lo&&fm<range.lo)return;if(range.hi&&fm>=range.hi)return;
+    const amt=tmR2(+x.total||0),isCr=x.kind==='credit';
+    if(isCr)p.credits=tmR2(p.credits+amt);else if(x.kind==='materials')p.mat=tmR2(p.mat+amt);else p.labor=tmR2(p.labor+amt);
+    if(x.status==='ready')p.notSent=tmR2(p.notSent+(isCr?-amt:amt));
+    const d={projectId:x.projectId,job:p.name,number:x.number||'',kind:x.kind||'labor',from:x.periodFrom||'',to:x.periodTo||'',status:x.status,finalMs:fm,sentDate:x.sentDate||'',amt:isCr?-amt:amt};
+    p.docs.push(d);docs.push(d);
+  });
+  times.forEach(r=>{
+    if(!r.projectId||isArchivedRec(r)||!r.clockOut||!effectiveBillable(r)||r.invoiceLockId)return;
+    const p=get(r.projectId,r.projectName),m=r.clockIn?.toMillis?r.clockIn.toMillis():0,hrs=tmR2((r.durationMs||0)/3600000);
+    if(invOlderMs(m)){p.oldTime++;p.oldHrs=tmR2(p.oldHrs+hrs);return}
+    const rates=ratesFor(r.projectId),atCost=rates.laborMode==='cost',code=r.costCode||r.scope||'',cls=tmRateClass(code);
+    const wage=wageByName[String(r.userName||'').trim()]||0;
+    const rate=atCost?wage*(1+rates.burdenPct/100):rates[cls];
+    if(atCost&&!wage)p.noWage.add(r.userName||'Unknown');
+    const amt=tmR2(hrs*rate);p.unbLabor=tmR2(p.unbLabor+amt);
+    p.unbItems.push({ms:m,kind:'Labor',who:r.userName||'Unknown',code,room:r.room||'',hrs,amt});
+  });
+  rcpts.forEach(r=>{
+    if(!r.projectId||isArchivedRec(r)||r.status==='rejected'||r.invoicedClientDate||r.invoiceLockId)return;
+    const codes=(r.costCodes||[r.scope]).filter(Boolean);
+    if(codes.length&&!codes.some(isCodeBillable))return;
+    const p=get(r.projectId,r.projectName),m=receiptTsMs(r.submittedAt||r.createdAt),cost=tmR2(parseFloat(r.amount)||0);
+    if(invOlderMs(m)){p.oldRcpt++;p.oldAmt=tmR2(p.oldAmt+cost);return}
+    const rates=ratesFor(r.projectId),isSub=codes.some(c=>tmCodeType(c)==='labor'),price=tmR2(cost/(isSub?rates.subDiv:rates.matDiv));
+    p.unbMat=tmR2(p.unbMat+price);
+    p.unbItems.push({ms:m,kind:isSub?'Subcontractor':'Material',who:r.vendor||r.submittedByName||'',code:codes.join('; '),room:r.room||'',hrs:null,amt:price,cost});
+  });
+  const list=[...P.values()].filter(p=>p.labor||p.mat||p.credits||p.drafts||p.unbLabor||p.unbMat||p.unbItems.length||p.oldTime||p.oldRcpt||p.docs.length).sort((a,b)=>a.name.localeCompare(b.name));
+  return{jobs:list,docs};
+}
+function asRender(D){
+  const th='style="text-align:right"',td='style="text-align:right;white-space:nowrap"';
+  if(!D.jobs.length)return'<div class="card"><div class="empty">Nothing to show for this selection.</div></div>';
+  const T={labor:0,mat:0,credits:0,notSent:0,drafts:0,ul:0,um:0};
+  let h=`<div class="card"><div style="font-weight:600;margin-bottom:6px">Billing by job</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Job</th><th ${th}>Labor billed</th><th ${th}>Materials billed</th><th ${th}>Credits</th><th ${th}>Net billed</th><th ${th}>Not yet marked sent</th><th ${th}>Drafts</th><th ${th}>Unbilled labor</th><th ${th}>Unbilled materials</th><th ${th}>Unbilled total</th><th ${th}>Older records</th></tr></thead><tbody>`;
+  D.jobs.forEach(p=>{
+    const net=tmR2(p.labor+p.mat-p.credits),ub=tmR2(p.unbLabor+p.unbMat);
+    T.labor+=p.labor;T.mat+=p.mat;T.credits+=p.credits;T.notSent+=p.notSent;T.drafts+=p.drafts;T.ul+=p.unbLabor;T.um+=p.unbMat;
+    const old=(p.oldTime||p.oldRcpt)?`${p.oldHrs?p.oldHrs.toFixed(1)+' h':''}${p.oldHrs&&p.oldRcpt?' + ':''}${p.oldRcpt?p.oldRcpt+' receipt'+(p.oldRcpt>1?'s':''):''}`:'-';
+    h+=`<tr><td><a href="#" onclick="window._asOpenJob('${p.id}');return false" style="color:inherit;font-weight:600">${esc(p.name)}</a></td><td ${td}>${tmMoney(p.labor)}</td><td ${td}>${tmMoney(p.mat)}</td><td ${td}>${p.credits?'('+tmMoney(p.credits)+')':'-'}</td><td ${td} style="text-align:right;white-space:nowrap;font-weight:600">${tmMoney(net)}</td><td ${td}>${p.notSent?tmMoney(p.notSent):'-'}</td><td ${td}>${p.drafts||'-'}</td><td ${td}>${p.unbLabor?tmMoney(p.unbLabor):'-'}</td><td ${td}>${p.unbMat?tmMoney(p.unbMat):'-'}</td><td ${td}>${ub?tmMoney(ub):'-'}</td><td ${td}>${old}</td></tr>`;
+  });
+  const tn=tmR2(T.labor+T.mat-T.credits);
+  h+=`<tr style="font-weight:600"><td>All jobs shown</td><td ${td}>${tmMoney(T.labor)}</td><td ${td}>${tmMoney(T.mat)}</td><td ${td}>${T.credits?'('+tmMoney(T.credits)+')':'-'}</td><td ${td}>${tmMoney(tn)}</td><td ${td}>${T.notSent?tmMoney(T.notSent):'-'}</td><td ${td}>${T.drafts||'-'}</td><td ${td}>${tmMoney(T.ul)}</td><td ${td}>${tmMoney(T.um)}</td><td ${td}>${tmMoney(T.ul+T.um)}</td><td></td></tr></tbody></table></div>`;
+  h+=`<div style="font-size:11px;color:var(--muted);margin-top:8px">Billed = finalized invoices (ready to send or sent), not void. Net billed = labor + materials - credits. Credits and supplemental invoices appear here once those features exist. Drafts are not in any total. Unbilled = billable, completed time and approved or submitted receipts not on any invoice, dated Nov 9, 2026 or later, priced at each job's current rates. <b>Older records</b> (dated before Nov 9, 2026) cannot be tracked as billed or not, so they are shown separately and left out of the unbilled totals. Click a job for its documents and unbilled items.</div></div><div id="as-job"></div>`;
+  const nw=D.jobs.filter(p=>p.noWage.size);
+  if(nw.length)h+=`<div class="notice" style="margin-top:8px">At-cost job(s) have employees with no wage on file, so their hours are priced at $0 here: ${nw.map(p=>esc(p.name)+' ('+[...p.noWage].map(esc).join(', ')+')').join('; ')}.</div>`;
+  return h;
+}
+window._asOpenJob=id=>{
+  const D=asData;if(!D)return;const p=D.jobs.find(x=>x.id===id);const box=$('as-job');if(!p||!box)return;
+  const docs=p.docs.slice().sort((a,b)=>(a.finalMs||0)-(b.finalMs||0)||String(a.number).localeCompare(String(b.number)));
+  let run=0;
+  let h=`<div class="card"><div style="font-weight:600;margin-bottom:6px">${esc(p.name)}: documents</div>`;
+  if(!docs.length)h+='<div class="empty">No finalized invoices in this selection.</div>';
+  else{
+    h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Finalized</th><th>Number</th><th>Type</th><th>Period</th><th>Status</th><th style="text-align:right">Amount</th><th style="text-align:right">Running net</th></tr></thead><tbody>';
+    docs.forEach(d=>{run=tmR2(run+d.amt);
+      h+=`<tr><td style="white-space:nowrap">${d.finalMs?esc(new Date(d.finalMs).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})):''}</td><td style="font-weight:600">${esc(d.number)}</td><td>${d.kind==='credit'?'Credit':invKindName(d.kind)}</td><td style="white-space:nowrap">${d.from?esc(tmLongDate(d.from))+' to '+esc(tmLongDate(d.to)):''}</td><td>${d.status==='sent'?'Sent'+(d.sentDate?' '+esc(tmLongDate(d.sentDate)):''):'Ready to send'}</td><td style="text-align:right;white-space:nowrap">${d.amt<0?'('+tmMoney(-d.amt)+')':tmMoney(d.amt)}</td><td style="text-align:right;white-space:nowrap">${tmMoney(run)}</td></tr>`});
+    h+='</tbody></table></div>';
+  }
+  h+=`<div style="font-weight:600;margin:14px 0 6px">Unbilled items (${p.unbItems.length})</div>`;
+  if(!p.unbItems.length)h+='<div class="empty">Nothing billable is waiting to be invoiced.</div>';
+  else{
+    const it=p.unbItems.slice().sort((a,b)=>a.ms-b.ms);
+    h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Who / vendor</th><th>Cost code</th><th>Room</th><th style="text-align:right">Hours</th><th style="text-align:right">Client price</th></tr></thead><tbody>';
+    it.slice(0,300).forEach(x=>{h+=`<tr><td style="white-space:nowrap">${esc(new Date(x.ms).toLocaleDateString('en-US',{month:'short',day:'numeric'}))}</td><td>${x.kind}</td><td>${esc(x.who)}</td><td>${esc(x.code)}</td><td>${esc(x.room)}</td><td style="text-align:right">${x.hrs==null?'':x.hrs.toFixed(2)}</td><td style="text-align:right;white-space:nowrap">${tmMoney(x.amt)}</td></tr>`});
+    h+='</tbody></table></div>'+(it.length>300?`<div style="font-size:11px;color:var(--muted);margin-top:6px">Showing the first 300 of ${it.length}; the Excel export lists them all.</div>`:'');
+  }
+  box.innerHTML=h+'</div>';box.scrollIntoView({behavior:'smooth',block:'start'});
+};
+async function asRun(){
+  if(!isPriv())return;
+  const out=$('as-results'),from=$('as-from').value,to=$('as-to').value;
+  const range={lo:from?new Date(from+'T00:00:00').getTime():0,hi:0};
+  if(to){const e=new Date(to+'T00:00:00');e.setDate(e.getDate()+1);range.hi=e.getTime()}
+  if(range.lo&&range.hi&&range.hi<=range.lo){out.innerHTML='<div class="err">The end date must be on or after the start date.</div>';return}
+  const pid=$('as-project').value;
+  out.innerHTML='<div class="card"><div class="empty">Loading all jobs, invoices, time and receipts. This can take a few seconds...</div></div>';
+  try{
+    await tmLoadRates();
+    const [iS,tS,rS,uS]=await Promise.all([getDocs(collection(db,'invoices')),getDocs(collection(db,'timeLogs')),getDocs(collection(db,'receipts')),getDocs(collection(db,'users'))]);
+    const wage={};uS.docs.forEach(d=>{const u=d.data();wage[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
+    const cache={};const ratesFor=id=>cache[id]||(cache[id]=tmRatesFor(id));
+    const f=a=>a.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!pid||x.projectId===pid);
+    const D=asBuild(f(iS),f(tS),f(rS),wage,ratesFor,id=>(allProjects.find(p=>p.id===id)||{}).name,range);
+    D.from=from;D.to=to;asData=D;
+    out.innerHTML=asRender(D);
+  }catch(err){out.innerHTML='<div class="err">Could not load the account summary: '+esc(err.message||String(err))+'</div>'}
+}
+async function asXlsx(){
+  const D=asData;if(!D||!D.jobs.length){alert('Run the Account Summary first.');return}
+  try{
+    await loadXlsxLib();
+    const r2=n=>Math.round(n*100)/100;
+    const a1=[['Job','Labor billed','Materials billed','Credits','Net billed','Not yet marked sent','Draft invoices (count)','Unbilled labor','Unbilled materials','Unbilled total','Older records: hours','Older records: receipts','Older records: receipt cost'],...D.jobs.map(p=>[p.name,p.labor,p.mat,p.credits,r2(p.labor+p.mat-p.credits),p.notSent,p.drafts,p.unbLabor,p.unbMat,r2(p.unbLabor+p.unbMat),p.oldHrs,p.oldRcpt,p.oldAmt])];
+    const a2=[['Job','Number','Type','Period from','Period to','Status','Finalized','Sent date','Amount (credits negative)'],...D.jobs.flatMap(p=>p.docs.slice().sort((a,b)=>(a.finalMs||0)-(b.finalMs||0)).map(d=>[p.name,d.number,d.kind==='credit'?'Credit':invKindName(d.kind),d.from,d.to,d.status==='sent'?'Sent':'Ready to send',d.finalMs?dbYmd(new Date(d.finalMs)):'',d.sentDate||'',d.amt]))];
+    const a3=[['Job','Date','Type','Who / vendor','Cost code','Room','Hours','Client price','Our cost (materials)'],...D.jobs.flatMap(p=>p.unbItems.slice().sort((a,b)=>a.ms-b.ms).map(x=>[p.name,dbYmd(new Date(x.ms)),x.kind,x.who,x.code,x.room,x.hrs==null?'':x.hrs,x.amt,x.cost==null?'':x.cost]))];
+    const wb=XLSX.utils.book_new();
+    [['By job',a1,[28,13,15,10,13,18,12,13,16,13,14,14,16]],['Documents',a2,[28,14,11,12,12,14,12,12,16]],['Unbilled items',a3,[28,11,13,24,34,16,8,12,14]]].forEach(([n,aoa,w])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,n)});
+    XLSX.writeFile(wb,'MOTIF_Account_Summary_'+dbYmd(new Date())+'.xlsx');
+  }catch(err){alert('Excel export failed: '+err.message)}
+}
+function asOpen(){
+  const sel=$('as-project');
+  if(sel&&sel.options.length<=1){(allProjects||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name||p.id;sel.appendChild(o)})}
+  if(!asData)asRun();
+}
+$('as-run').onclick=asRun;
+$('as-xlsx').onclick=asXlsx;
+// ── END ACCOUNT SUMMARY ──────────────────────────────────────────────────────
+
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','photos','triage','reports','dashboard','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','photos','triage','reports','dashboard','account','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
     if(t==='dashboard'){dbOpen();}
+    if(t==='account'){asOpen();}
     if(t==='photos'){populatePhotoFilterProjects();}
     if(t==='receipts'){populateReceiptFilterProjects();}
   }

@@ -6175,9 +6175,9 @@ function dbRender(D){
   const th='style="text-align:right"';
   let h=`<div class="card"><div style="font-weight:600;margin-bottom:6px">Billable vs not billable, by employee</div>`;
   if(!D.rows.length){return h+'<div class="empty">No completed time entries in this range.</div></div>'}
-  h+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Employee</th><th ${th}>Billable hrs</th><th ${th}>Not billable hrs</th><th ${th}>Total hrs</th><th ${th}>% billable</th></tr></thead><tbody>`;
-  D.emps.forEach(e=>{h+=`<tr><td>${esc(e.name)}</td><td ${th}>${dbH(e.bill)}</td><td ${th}>${dbH(e.non)}</td><td ${th}>${dbH(e.bill+e.non)}</td><td ${th}>${pct(e.bill,e.non)}</td></tr>`});
-  h+=`<tr style="font-weight:600"><td>All employees</td><td ${th}>${dbH(T.bill)}</td><td ${th}>${dbH(T.non)}</td><td ${th}>${dbH(tot)}</td><td ${th}>${pct(T.bill,T.non)}</td></tr></tbody></table></div></div>`;
+  h+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Employee</th><th ${th}>% billable</th><th ${th}>Total hrs</th><th ${th}>Billable hrs</th><th ${th}>Not billable hrs</th></tr></thead><tbody>`;
+  D.emps.forEach(e=>{h+=`<tr><td>${esc(e.name)}</td><td ${th}>${pct(e.bill,e.non)}</td><td ${th}>${dbH(e.bill+e.non)}</td><td ${th}>${dbH(e.bill)}</td><td ${th}>${dbH(e.non)}</td></tr>`});
+  h+=`<tr style="font-weight:600"><td>All employees</td><td ${th}>${pct(T.bill,T.non)}</td><td ${th}>${dbH(tot)}</td><td ${th}>${dbH(T.bill)}</td><td ${th}>${dbH(T.non)}</td></tr></tbody></table></div></div>`;
   h+=`<div class="card"><div style="font-weight:600;margin-bottom:6px">Hours by project, by employee</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Project</th>`;
   D.emps.forEach(e=>{h+=`<th ${th}>${esc(e.name)}</th>`});
   h+=`<th ${th}>Total</th><th ${th}>Billable</th><th ${th}>Not billable</th></tr></thead><tbody>`;
@@ -6212,7 +6212,7 @@ async function dbXlsx(){
     await loadXlsxLib();
     const T=D.emps.reduce((a,e)=>({bill:a.bill+e.bill,non:a.non+e.non}),{bill:0,non:0});
     const r2=n=>Math.round(n*100)/100;
-    const a1=[['Employee','Billable hrs','Not billable hrs','Total hrs','% billable'],...D.emps.map(e=>[e.name,r2(e.bill),r2(e.non),r2(e.bill+e.non),(e.bill+e.non)?r2(e.bill/(e.bill+e.non)):0]),['All employees',r2(T.bill),r2(T.non),r2(T.bill+T.non),(T.bill+T.non)?r2(T.bill/(T.bill+T.non)):0]];
+    const a1=[['Employee','% billable','Total hrs','Billable hrs','Not billable hrs'],...D.emps.map(e=>[e.name,(e.bill+e.non)?r2(e.bill/(e.bill+e.non)):0,r2(e.bill+e.non),r2(e.bill),r2(e.non)]),['All employees',(T.bill+T.non)?r2(T.bill/(T.bill+T.non)):0,r2(T.bill+T.non),r2(T.bill),r2(T.non)]];
     const a2=[['Project',...D.emps.map(e=>e.name),'Total','Billable','Not billable'],...D.projs.map(p=>[p.name,...D.emps.map(e=>r2(p.by.get(e.key)||0)),r2(p.bill+p.non),r2(p.bill),r2(p.non)])];
     const a3=[['Date','Employee','Project','Room','Cost code','Hours','Billable'],...D.rows.slice().sort((x,y)=>(x.r.clockIn?.toMillis?.()||0)-(y.r.clockIn?.toMillis?.()||0)).map(x=>[x.r.clockIn?.toDate?dbYmd(x.r.clockIn.toDate()):'',x.name,x.pn,x.r.room||'',x.r.costCode||'',r2(x.hrs),x.bill?'Y':'N'])];
     const wb=XLSX.utils.book_new();

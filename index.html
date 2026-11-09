@@ -4580,16 +4580,17 @@ function invTags(m){return[String(m.codes||'').split('; ').filter(Boolean).map(t
 // Materials order (Guapo): week, then task code number, then room, then receipt number.
 function invMatCmp(a,b){return (a.wk-b.wk)||String(a.m.codes||'').localeCompare(String(b.m.codes||''))||String(a.m.room||'').localeCompare(String(b.m.room||''))||String(a.m.num||'').localeCompare(String(b.m.num||''),undefined,{numeric:true})}
 function invCalc(inv){let t=0;(inv.sections||[]).forEach(s=>{let st=0;(s.lines||[]).forEach(l=>{l.amount=invR2((+l.qty||0)*(+l.rate||0));st=invR2(st+l.amount)});s.subtotal=st;t=invR2(t+st)});inv.total=t;return inv}
-// Colorado retail delivery fee: a state-mandated fee that must appear as its own line on every invoice that bills materials.
-// The state resets it every six months (January 1 and July 1). Each entry is the fee that took effect on its date; an invoice
-// uses the entry in force on the day the draft is created. Add a new entry when the state announces the next rate.
-// The fee is not taxed.
-const CO_RDF_TABLE=[{from:'2026-07-01',fee:0.32}];
+// Colorado retail delivery fee: a state-mandated fee that must appear as its own line on every invoice and estimate that bills materials.
+// The Department of Revenue sets a new rate each July 1 (rates page: tax.colorado.gov/retail-delivery-fee-rates). Each entry is the
+// total fee that took effect on its date. A new invoice or estimate uses the entry in force on the day it is created.
+// When the state announces the next rate (due by April 15), add one row here. The fee is not subject to state sales tax.
+const CO_RDF_TABLE=[
+  {from:'2023-07-01',fee:0.28},{from:'2024-07-01',fee:0.29},{from:'2025-07-01',fee:0.28},{from:'2026-07-01',fee:0.31}];
 function coRdfFor(ymd){
-  const d=String(ymd||'').slice(0,10),half=d.slice(0,4)+(+d.slice(5,7)>=7?'-07-01':'-01-01');
+  const d=String(ymd||'').slice(0,10),yr=+d.slice(0,4)-(+d.slice(5,7)<7?1:0),fy=yr+'-07-01';
   const hit=CO_RDF_TABLE.filter(r=>r.from<=d).sort((x,y)=>y.from.localeCompare(x.from))[0];
   if(!hit)return{fee:0,from:'',stale:true,missing:true};
-  return{fee:hit.fee,from:hit.from,stale:hit.from<half,missing:false};
+  return{fee:hit.fee,from:hit.from,stale:hit.from<fy,missing:false}; // stale: no rate on file for the July-to-June year this date falls in
 }
 function invBuildFromReport(D){
   const nm=D.proj.name||'Job',prefix=projPrefix(D.proj),out=[];
@@ -4617,7 +4618,7 @@ function invBuildFromReport(D){
         return{id:lid,desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||''}})});
     });
     const rdf=coRdfFor(dbYmd(new Date()));b.rdfStale=rdf.stale;
-    b.sections.push({id:invId(),heading:'Colorado retail delivery fee',lines:[{id:invId(),desc:'Colorado retail delivery fee',note:'State-mandated fee, shown as its own line as required.'+(rdf.stale?' CHECK THE RATE: the state may have changed it on Jan 1 or Jul 1.':''),qty:1,rate:rdf.fee,amount:rdf.fee,fee:'rdf',feeFrom:rdf.from}]});
+    b.sections.push({id:invId(),heading:'Colorado retail delivery fee',lines:[{id:invId(),desc:'Colorado retail delivery fee',note:'State-mandated fee, shown as its own line as required.'+(rdf.stale?' CHECK THE RATE: the state may have changed it on July 1.':''),qty:1,rate:rdf.fee,amount:rdf.fee,fee:'rdf',feeFrom:rdf.from}]});
     out.push(invCalc(b));
   }
   return out;
@@ -4636,7 +4637,7 @@ window._tmSaveDrafts=async()=>{
       if(JSON.stringify(d).length>900000)throw new Error('This '+invKindName(d.kind).toLowerCase()+' invoice has too much detail to store in one record. Run the report for a shorter period.');
       await addDoc(collection(db,'invoices'),{...d,createdBy:invWho(),createdByUid:currentUser.uid,createdAt:serverTimestamp(),updatedBy:invWho(),updatedAt:serverTimestamp()});
     }
-    msg.innerHTML='<div class="notice" style="margin:8px 0">Saved '+drafts.map(d=>invKindName(d.kind)).join(' and ')+' draft'+(drafts.length>1?'s':'')+'. Open the <b>Invoices</b> tab to edit and finalize.</div>'+(drafts.some(d=>d.rdfStale)?'<div class="err" style="margin:8px 0">The Colorado retail delivery fee on the materials draft may be out of date. The state changes it every January 1 and July 1, and Lotus has no newer rate on file. Check the rate and correct that line before you finalize.</div>':'');
+    msg.innerHTML='<div class="notice" style="margin:8px 0">Saved '+drafts.map(d=>invKindName(d.kind)).join(' and ')+' draft'+(drafts.length>1?'s':'')+'. Open the <b>Invoices</b> tab to edit and finalize.</div>'+(drafts.some(d=>d.rdfStale)?'<div class="err" style="margin:8px 0">The Colorado retail delivery fee on the materials draft may be out of date. The state sets a new rate every July 1, and Lotus has no rate on file for this year. Check the rate and correct that line before you finalize.</div>':'');
   }catch(e){msg.innerHTML='<div class="err">Could not save the drafts: '+esc(e.message)+'</div>'}
 };
 // ── list ──

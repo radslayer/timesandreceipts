@@ -6577,7 +6577,15 @@ function estCalc(lines,t){
 let estLines=[],estTerms={},estEditable=false,estDirty=false,estNotes='';
 function estDefaultTerms(projectId){
   const r=(typeof tmRatesFor==='function'&&window._clientRates)?tmRatesFor(projectId):{construction:85,design:145,matDiv:0.65,subDiv:0.75};
-  return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,taxRate:0};
+  return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,taxRate:((allProjects||[]).find(p=>p.id===projectId)||{}).salesTaxRate||0};
+}
+const EST_TAX_URL='https://colorado.ttr.services';
+function estTaxNote(e){
+  const p=(allProjects||[]).find(x=>x.id===e.projectId)||{};
+  const link=`<a href="${EST_TAX_URL}" target="_blank" rel="noopener" style="color:var(--gold-dark,#8a6d3b);font-weight:600">Look up the rate at colorado.ttr.services</a>`;
+  const addr=p.address?`Job site address: <b>${esc(p.address)}</b>. `:'This project has no address saved, so use the job site address. ';
+  if(p.salesTaxRate)return `Saved for this job: <b>${esc(String(p.salesTaxRate))}%</b>${p.salesTaxRateSetAt?' (recorded '+esc(String(p.salesTaxRateSetAt))+')':''}. It is used on every estimate for this job and applies to materials only, never labor. If the rate changes, ${link.replace('Look up the rate','look it up again')} and enter the new rate.`;
+  return `${addr}${link}, enter the job site address, and type the combined rate above. The first time you save, Lotus records it for this job and uses it from then on. It applies to materials only, never labor.`;
 }
 function estNewLine(type,room){
   const labor=estIsLabor(type);
@@ -6612,7 +6620,8 @@ function estEditorHtml(e){
   <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
     <div style="min-width:260px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Job terms for this revision</div>
       <div style="display:grid;grid-template-columns:auto 90px;gap:6px 10px;align-items:center;font-size:12px">
-        <span>Tax rate % (look up for the job site)</span><input data-t="taxRate" type="number" step="any" value="${estS(estTerms.taxRate)}" ${dis} ${inp}>
+        <span>Sales tax rate % (materials only)</span><input data-t="taxRate" type="number" step="any" value="${estS(estTerms.taxRate)}" ${dis} ${inp}>
+        <div id="est-taxnote" style="grid-column:1/-1;font-size:11px;color:var(--muted);line-height:1.5">${estTaxNote(e)}</div>
         <span>Contingency on labor %</span><input data-t="contLabor" type="number" step="any" value="${estS(estTerms.contLabor)}" ${dis} ${inp}>
         <span>Contingency on materials %</span><input data-t="contMat" type="number" step="any" value="${estS(estTerms.contMat)}" ${dis} ${inp}>
         <span>Construction labor $/hr</span><input data-t="rateC" type="number" step="any" value="${estS(estTerms.rateC)}" ${dis} ${inp}>
@@ -6661,8 +6670,14 @@ window._estSave=async()=>{
   const lineAmts=lines.map(l=>({...l,client:estLineAmt(l,terms)}));
   try{
     await updateDoc(doc(db,'estimates',e.id,'revisions',String(e.rev||1)),{lines:lineAmts,terms,clientNotes:estNotes||'',totals:estCalc(lines,terms),updatedAt:serverTimestamp(),updatedBy:invWho()});
+    let taxMsg='';
+    const pj=(allProjects||[]).find(x=>x.id===e.projectId);
+    if(pj&&terms.taxRate>0&&terms.taxRate!==pj.salesTaxRate){
+      try{const ymd=estTodayYmd();await updateDoc(doc(db,'projects',pj.id),{salesTaxRate:terms.taxRate,salesTaxRateSetAt:ymd,salesTaxRateBy:invWho()});pj.salesTaxRate=terms.taxRate;pj.salesTaxRateSetAt=ymd;{const tn=$('est-taxnote');if(tn)tn.innerHTML=estTaxNote(e)}taxMsg=' Recorded the '+terms.taxRate+'% sales tax rate for this job.';}
+      catch(er){taxMsg=' (Could not record the tax rate on the project: '+(er.message||er)+')'}
+    }
     estLines=lineAmts.map(l=>({...l}));estTerms=terms;estDirty=false;estRev={...estRev,lines:lineAmts,terms,clientNotes:estNotes||''};
-    const sb=$('est-save');if(sb)sb.textContent='Save lines';estFlash('Saved '+lines.length+' line'+(lines.length===1?'':'s')+' on '+esc(e.number)+(e.rev>1?' revision '+e.rev:'')+'.');
+    const sb=$('est-save');if(sb)sb.textContent='Save lines';estFlash('Saved '+lines.length+' line'+(lines.length===1?'':'s')+' on '+esc(e.number)+(e.rev>1?' revision '+e.rev:'')+'.'+esc(taxMsg));
   }catch(err){alert('Could not save: '+(err.message||err))}
 };
 // ── END ESTIMATING (slice 2) ───────────────────────────────────────────────────

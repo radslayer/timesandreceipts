@@ -440,7 +440,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <!-- PAYROLL PANEL -->
       <div id="rpt-tm-panel" class="hidden">
         <div class="card">
-          <div class="notice" style="font-size:12px;margin-bottom:12px">Billable labor and receipts for one job and one period, laid out like a QuickBooks invoice, to check before invoicing. Only billable time entries and receipts are included; receipts already marked as invoiced to the client are left out. This report is for internal review (it shows our cost next to the client price).</div>
+          <h3 id="tm-panel-title" style="margin:0 0 8px;font-size:17px;display:none"></h3>
+          <div class="notice" id="tm-notice" style="font-size:12px;margin-bottom:12px">Billable labor and receipts for one job and one period, laid out like a QuickBooks invoice, to check before invoicing. Only billable time entries and receipts are included; receipts already marked as invoiced to the client are left out. This report is for internal review (it shows our cost next to the client price).</div>
           <details id="tm-rates-wrap" style="margin-bottom:14px"><summary style="cursor:pointer;font-weight:700;font-size:13px">Client billing rates</summary><div id="tm-rates"></div></details>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px">
             <div class="field" style="margin-bottom:0"><label>Job *</label><select id="tm-project" style="width:100%"><option value="">Select a job</option></select></div>
@@ -3787,8 +3788,8 @@ $('at-save').onclick=async()=>{
 // populate report category filter
 COST_CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;$('rpt-cat').appendChild(o)});
 
-$('rpt-time-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
-$('rpt-rcpt-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='none';$('rpt-billable').value='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''};
+$('rpt-time-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');currentRptType='time';$('rpt-time-btn').classList.add('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent='';tmPanelOpen('labor')};
+$('rpt-rcpt-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');currentRptType='receipts';$('rpt-rcpt-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');show('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');$('rpt-cat-wrap').style.display='';$('rpt-billable-wrap').style.display='none';$('rpt-billable').value='';$('rpt-results').innerHTML='';$('rpt-active-filters').textContent='';tmPanelOpen('materials')};
 $('rpt-payroll-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');$('rpt-payroll-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-logtime-btn')?.classList.remove('on');hide('rpt-standard-panel');show('rpt-payroll-panel');hide('rpt-logtime-panel');buildPayrollPresets()};
 $('rpt-logtime-btn').onclick=()=>{hide('rpt-tm-panel');$('rpt-tm-btn')?.classList.remove('on');$('rpt-logtime-btn').classList.add('on');$('rpt-time-btn').classList.remove('on');$('rpt-rcpt-btn').classList.remove('on');$('rpt-payroll-btn').classList.remove('on');hide('rpt-standard-panel');hide('rpt-payroll-panel');show('rpt-logtime-panel');initLogTimeForm()};
 
@@ -4131,14 +4132,33 @@ window._saveTmRates=async pid=>{
     await tmLoadRates();renderTmRatesTable();
   }catch(e){alert('Save failed: '+e.message)}
 };
-$('rpt-tm-btn').onclick=async()=>{
-  ['rpt-time-btn','rpt-rcpt-btn','rpt-payroll-btn','rpt-logtime-btn'].forEach(id=>$(id)?.classList.remove('on'));
-  $('rpt-tm-btn').classList.add('on');
-  hide('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');show('rpt-tm-panel');
+// The client report (job + period -> review, client invoice, print, save as invoice draft) lives in one panel. It is shown
+// on the Time Log tab (labor only), the Receipts tab (materials and subcontractors only) and the Time + Receipts tab (both),
+// so every tab runs it the same way.
+window._tmScope='both';
+function tmRunLabel(){const sc=window._tmScope||'both';return sc==='labor'?'Run client time report':sc==='materials'?'Run client materials report':'Run Time + Receipts'}
+async function tmPanelOpen(scope){
+  if(!$('tm-notice').dataset.full)$('tm-notice').dataset.full=$('tm-notice').textContent;
+  const changed=window._tmShownScope!==scope;
+  window._tmScope=scope;window._tmShownScope=scope;
+  show('rpt-tm-panel');
+  if(changed){window._tmData=null;window._tmView='review';$('tm-results').innerHTML=''}
+  const title=$('tm-panel-title');
+  title.textContent=scope==='labor'?'Client time report and invoice':scope==='materials'?'Client materials report and invoice':'';
+  title.style.display=scope==='both'?'none':'';
+  $('tm-notice').textContent=scope==='labor'?'Billable labor for one job and one period, laid out like a QuickBooks labor invoice, to check before invoicing. Only billable time entries are included. This report is for internal review (it shows costs next to the client price). To see materials too, use the Time + Receipts tab.':scope==='materials'?'Billable materials and subcontractor receipts for one job and one period, laid out like a QuickBooks materials invoice, to check before invoicing. Receipts already marked as invoiced to the client are left out. This report is for internal review (it shows our cost next to the client price). To see labor too, use the Time + Receipts tab.':$('tm-notice').dataset.full;
+  [$('tm-mat-div'),$('tm-sub-div')].forEach(i=>{const f=i.closest('.field');if(f)f.style.display=scope==='labor'?'none':''});
+  $('tm-run-btn').textContent=tmRunLabel();
   const sel=$('tm-project'),v=sel.value;sel.innerHTML='<option value="">Select a job</option>';
   [...allProjects].filter(tmListable).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
   sel.value=v;
   await tmLoadRates();renderTmRatesTable();sel.onchange=tmApplyClientDivisors;tmApplyClientDivisors();
+}
+$('rpt-tm-btn').onclick=async()=>{
+  ['rpt-time-btn','rpt-rcpt-btn','rpt-payroll-btn','rpt-logtime-btn'].forEach(id=>$(id)?.classList.remove('on'));
+  $('rpt-tm-btn').classList.add('on');
+  hide('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');
+  await tmPanelOpen('both');
 };
 $('tm-run-btn').onclick=async()=>{
   const pid=$('tm-project').value,fr=$('tm-from').value,to=$('tm-to').value;
@@ -4206,40 +4226,43 @@ $('tm-run-btn').onclick=async()=>{
     window._tmData={proj,fr,to,matDiv,subDiv,rates,atCost,weekList,entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
     renderTM();
   }catch(e){out.innerHTML='<div class="err">Report failed: '+esc(e.message)+'</div>'}
-  $('tm-run-btn').disabled=false;$('tm-run-btn').textContent='Run Time + Receipts';
+  $('tm-run-btn').disabled=false;$('tm-run-btn').textContent=tmRunLabel();
 };
 function tmReviewHtml(){
   const D=window._tmData;if(!D)return'';const {proj,fr,to,weekList,entries,empList,T,ex,rates}=D;
+  const sc=window._tmScope||'both',onL=sc!=='materials',onM=sc!=='labor';
   const td='style="text-align:right;white-space:nowrap"';
   const rng=(a,b)=>tmMDY(a)+' - '+tmMDY(b);
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px"><div><div style="font-size:16px;font-weight:700">${esc(proj.name||'Job')}</div><div style="font-size:13px;color:var(--muted)">${fr} to ${to} &middot; billing weeks run Sun to Sat</div></div><button class="btn btn-gold btn-sm" style="white-space:nowrap;width:auto" onclick="window._tmXlsx()">Export Excel</button></div>`;
-  h+=D.atCost?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor priced <b>at cost</b>: each employee's hourly wage plus ${rates.burdenPct}% burden (the rate shown on each line is the blended rate for that line). Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`:`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
-  if(D.atCost&&ex.noWage.size)h+=`<div class="err" style="margin-bottom:8px">No hourly wage on file for ${esc([...ex.noWage].join(', '))}, so their hours are priced at $0.00 here. Add a base rate for them (Payroll, pay rates) and run this again.</div>`;
+  if(!onL)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`;
+  else h+=D.atCost?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor priced <b>at cost</b>: each employee's hourly wage plus ${rates.burdenPct}% burden (the rate shown on each line is the blended rate for that line). Materials &divide; ${D.matDiv}, subcontractors &divide; ${D.subDiv}.</div>`:`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Labor rates for this client: ${TM_CLASSES.map(c=>c.label+' '+tmMoney(rates[c.key])).join(' &middot; ')}${rates._saved?'':' <b style="color:var(--amber)">(default rates; none saved for this client yet)</b>'}</div>`;
+  if(onL&&D.atCost&&ex.noWage.size)h+=`<div class="err" style="margin-bottom:8px">No hourly wage on file for ${esc([...ex.noWage].join(', '))}, so their hours are priced at $0.00 here. Add a base rate for them (Payroll, pay rates) and run this again.</div>`;
   const notes=[];
-  if(ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');
-  if(ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')');
-  if(ex.openTime)notes.push(ex.openTime+' time entr'+(ex.openTime===1?'y':'ies')+' still clocked in (not counted)');
-  if(ex.rejectedRcpt)notes.push(ex.rejectedRcpt+' rejected receipt'+(ex.rejectedRcpt===1?'':'s'));
+  if(onL&&ex.nonBillTime)notes.push(ex.nonBillTime+' non-billable time entr'+(ex.nonBillTime===1?'y':'ies')+' ('+ex.nonBillHrs.toFixed(2)+' hrs)');
+  if(onM&&ex.invoicedRcpt)notes.push(ex.invoicedRcpt+' receipt'+(ex.invoicedRcpt===1?'':'s')+' already invoiced to the client ('+tmMoney(ex.invoicedAmt)+')');
+  if(onL&&ex.openTime)notes.push(ex.openTime+' time entr'+(ex.openTime===1?'y':'ies')+' still clocked in (not counted)');
+  if(onM&&ex.rejectedRcpt)notes.push(ex.rejectedRcpt+' rejected receipt'+(ex.rejectedRcpt===1?'':'s'));
   if(notes.length)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Left out: ${notes.join('; ')}.</div>`;
-  if(!weekList.length)h+='<div class="empty">No billable time or receipts in this period.</div>';
-  weekList.forEach(w=>{
-    h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} Labor Hours ${rng(w.sun,w.sat)}</div>`;
-    h+=`<table class="tbl"><thead><tr><th>Description</th><th ${td}>Hours</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`;
-    if(!w.laborLines.length)h+='<tr><td colspan="4" style="color:var(--muted)">No billable labor this week.</td></tr>';
-    w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L,true))} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
-    if(w.mats.length||w.subs.length){
+  const wl=sc==='both'?weekList:weekList.filter(w=>(onL&&w.laborLines.length)||(onM&&(w.mats.length||w.subs.length)));
+  if(!wl.length)h+='<div class="empty">'+(sc==='labor'?'No billable time in this period.':sc==='materials'?'No billable receipts in this period.':'No billable time or receipts in this period.')+'</div>';
+  wl.forEach(w=>{
+    h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} ${onL?'Labor Hours':'Materials'} ${rng(w.sun,w.sat)}</div>`;
+    h+=`<table class="tbl"><thead><tr><th>Description</th><th ${td}>${onL?'Hours':''}</th><th ${td}>${onL?'Rate':''}</th><th ${td}>Amount</th></tr></thead><tbody>`;
+    if(onL&&!w.laborLines.length)h+='<tr><td colspan="4" style="color:var(--muted)">No billable labor this week.</td></tr>';
+    if(onL)w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L,true))} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
+    if(onM&&(w.mats.length||w.subs.length)){
       h+=`<tr><td colspan="4" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:12px">Materials and subcontractors (our cost shown for review)</td></tr>`;
       [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr,div])=>arr.forEach(m=>{h+=`<tr><td>${esc(m.vendor||lab)}${m.desc?' &mdash; '+esc(m.desc):''} <span style="font-size:10px;color:var(--muted)">${lab}${m.num?' &middot; '+esc(m.num):''} &middot; cost ${tmMoney(m.cost)} &divide; ${div}</span></td><td ${td}></td><td ${td}></td><td ${td}>${tmMoney(m.price)}</td></tr>`}));
     }
-    h+=`<tr style="font-weight:700"><td>Subtotal</td><td ${td}>${w.T.hrs.toFixed(2)}</td><td></td><td ${td}>${tmMoney(w.T.total)}</td></tr></tbody></table></div>`;
+    h+=`<tr style="font-weight:700"><td>Subtotal</td><td ${td}>${onL?w.T.hrs.toFixed(2):''}</td><td></td><td ${td}>${tmMoney(sc==='both'?w.T.total:sc==='labor'?w.T.labor:tmR2(w.T.mat+w.T.sub))}</td></tr></tbody></table></div>`;
   });
   h+=`<table class="tbl" style="max-width:420px;margin-top:8px"><tbody>
-    <tr><td>Labor (${T.hrs.toFixed(2)} hrs)</td><td ${td}>${tmMoney(T.labor)}</td></tr>
-    <tr><td>Materials</td><td ${td}>${tmMoney(T.mat)}</td></tr>
-    <tr><td>Subcontractors</td><td ${td}>${tmMoney(T.sub)}</td></tr>
-    <tr style="font-weight:700;font-size:15px"><td>Total to bill</td><td ${td}>${tmMoney(T.grand)}</td></tr></tbody></table>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">Each receipt is marked up on its full amount, exactly as paid. ${D.atCost?'Labor is each employee&rsquo;s wage plus the burden %, straight time (overtime premiums are not included).':'Labor is hours times the client&rsquo;s rate for that type of work (overtime is not marked up).'}</div>`;
-  if(entries.length){
+    ${onL?`<tr><td>Labor (${T.hrs.toFixed(2)} hrs)</td><td ${td}>${tmMoney(T.labor)}</td></tr>`:''}
+    ${onM?`<tr><td>Materials</td><td ${td}>${tmMoney(T.mat)}</td></tr>
+    <tr><td>Subcontractors</td><td ${td}>${tmMoney(T.sub)}</td></tr>`:''}
+    <tr style="font-weight:700;font-size:15px"><td>${sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors'}</td><td ${td}>${tmMoney(sc==='both'?T.grand:sc==='labor'?T.labor:tmR2(T.mat+T.sub))}</td></tr></tbody></table>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">${onM?'Each receipt is marked up on its full amount, exactly as paid. ':''}${!onL?'':D.atCost?'Labor is each employee&rsquo;s wage plus the burden %, straight time (overtime premiums are not included).':'Labor is hours times the client&rsquo;s rate for that type of work (overtime is not marked up).'}</div>`;
+  if(onL&&entries.length){
     h+=`<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Hours by employee and each time entry (for reference, not for the client)</summary><div style="overflow-x:auto"><table class="tbl" style="max-width:420px;margin:8px 0"><thead><tr><th>Employee</th><th ${td}>Entries</th><th ${td}>Hours</th></tr></thead><tbody>${empList.map(e=>`<tr><td>${esc(e.name)}</td><td ${td}>${e.n}</td><td ${td}>${e.hrs.toFixed(2)}</td></tr>`).join('')}</tbody></table>
     <table class="tbl"><thead><tr><th>Date</th><th>Employee</th><th>Cost code</th><th>Room</th><th>In</th><th>Out</th><th ${td}>Hours</th><th>Notes</th></tr></thead><tbody>`;
     entries.forEach(l=>{h+=`<tr><td style="white-space:nowrap">${l.date.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})}</td><td>${esc(l.name)}</td><td style="font-size:11px">${esc(l.code)}</td><td>${esc(l.room)}</td><td style="white-space:nowrap">${xlTime(l.tin)}</td><td style="white-space:nowrap">${xlTime(l.tout)}</td><td ${td}>${l.hrs.toFixed(2)}</td><td style="font-size:11px;max-width:260px;white-space:normal">${esc(l.notes)}</td></tr>`});
@@ -4302,11 +4325,11 @@ window._tmPrint=which=>{
 };
 function renderTM(){
   const D=window._tmData;if(!D)return;
-  const v=window._tmView||'review';
+  const v=window._tmView||'review',sc=window._tmScope||'both';
   let h=`<div class="tm-viewbar"><button type="button" class="${v==='review'?'on':''}" onclick="window._tmSetView('review')">Review (with our costs)</button><button type="button" class="${v==='invoice'?'on':''}" onclick="window._tmSetView('invoice')">Client invoice</button></div>`;
   if(v==='invoice'){
-    h+=`<div class="tm-invbar"><div style="font-size:12px;color:var(--muted)">This is what the client sees: no costs, no markup, no employee names. Labor and materials are two separate invoices, as in QuickBooks.</div><div class="tm-invbtns"><button class="btn btn-gold btn-sm" type="button" onclick="window._tmSaveDrafts()">Save as invoice drafts</button><button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint('labor')">Print / PDF: Labor</button><button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint('materials')">Print / PDF: Materials</button></div></div><div id="tm-draft-msg"></div>
-    <div id="tm-inv-labor" class="inv-wrap">${tmLaborInvoiceHtml(D)}</div><div id="tm-inv-materials" class="inv-wrap">${tmMaterialsInvoiceHtml(D)}</div>`;
+    h+=`<div class="tm-invbar"><div style="font-size:12px;color:var(--muted)">This is what the client sees: no costs, no markup, no employee names. ${sc==='both'?'Labor and materials are two separate invoices, as in QuickBooks.':sc==='labor'?'This is the labor invoice.':'This is the materials invoice.'}</div><div class="tm-invbtns"><button class="btn btn-gold btn-sm" type="button" onclick="window._tmSaveDrafts()">${sc==='both'?'Save as invoice drafts':'Save as invoice draft'}</button>${sc!=='materials'?'<button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint(\'labor\')">Print / PDF: Labor</button>':''}${sc!=='labor'?'<button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint(\'materials\')">Print / PDF: Materials</button>':''}</div></div><div id="tm-draft-msg"></div>
+    ${sc!=='materials'?`<div id="tm-inv-labor" class="inv-wrap">${tmLaborInvoiceHtml(D)}</div>`:''}${sc!=='labor'?`<div id="tm-inv-materials" class="inv-wrap">${tmMaterialsInvoiceHtml(D)}</div>`:''}`;
   }else h+=tmReviewHtml();
   $('tm-results').innerHTML=h;
 }
@@ -4386,7 +4409,8 @@ function invBuildFromReport(D){
 async function invLoad(){const s=await getDocs(collection(db,'invoices'));invAll=s.docs.map(d=>({id:d.id,...d.data()}))}
 window._tmSaveDrafts=async()=>{
   const D=window._tmData,msg=$('tm-draft-msg');if(!D||!msg)return;
-  const drafts=invBuildFromReport(D);
+  const sc=window._tmScope||'both';
+  const drafts=invBuildFromReport(D).filter(d=>sc==='both'||(sc==='labor'?d.kind==='labor':d.kind==='materials'));
   if(!drafts.length){msg.innerHTML='<div class="err">There is nothing billable in this period, so there is nothing to save.</div>';return}
   try{
     await invLoad();

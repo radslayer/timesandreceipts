@@ -577,15 +577,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div id="tab-account" class="hidden">
       <h2>Account Summary</h2>
       <div class="card">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">What each job has been billed, credited and still has waiting to be billed. Lotus does not record client payments, so this shows billing, not collections. Draft invoices are counted but never added to totals. Unbilled work is priced at each job's current rates, as of today.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">What each job has been billed, credited and still has waiting to be billed, from finalized invoices (draft invoices are counted but never added to totals). The dates filter invoices by the day they were finalized. Unbilled work is always as of today, priced at each job's current rates. Lotus does not record client payments, so this shows billing, not collections.</div>
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
-          <div class="field" style="margin-bottom:0"><label>Job</label><select id="as-project" style="min-width:200px"><option value="">All jobs</option></select></div>
-          <div class="field" style="margin-bottom:0"><label>Invoices finalized from</label><input type="date" id="as-from"></div>
-          <div class="field" style="margin-bottom:0"><label>to</label><input type="date" id="as-to"></div>
+          <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="as-from"></div>
+          <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="as-to"></div>
+          <div class="field" style="margin-bottom:0"><label>Project</label><select id="as-project" style="min-width:200px"><option value="">All projects</option></select></div>
           <button type="button" class="btn btn-gold" id="as-run" style="width:auto;padding:10px 18px">Run</button>
           <button type="button" class="btn btn-outline" id="as-xlsx" style="width:auto;padding:10px 18px">Excel</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">Leave the dates blank for all time. The dates apply to invoices only; unbilled work is always as of today.</div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-sm as-quick" data-r="week" style="width:auto">This week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="lastweek" style="width:auto">Last week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="month" style="width:auto">This month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="last" style="width:auto">Last month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="30" style="width:auto">Last 30 days</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="ytd" style="width:auto">Year to date</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="all" style="width:auto">All time</button>
+        </div>
       </div>
       <div id="as-results"></div>
     </div>
@@ -6141,7 +6143,7 @@ $('lt-save').onclick=async()=>{
 // Admin and bookkeeper. Reads completed, non-archived time entries for a date range and shows hours
 // billable vs not billable by employee, and hours by project by employee. No new data is stored.
 function dbYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-function dbRange(kind){
+function dbRange(kind,pre){pre=pre||'db';
   const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate());let f=new Date(t),e=new Date(t);
   if(kind==='week'){f.setDate(t.getDate()-((t.getDay()+6)%7))}
   else if(kind==='lastweek'){f.setDate(t.getDate()-((t.getDay()+6)%7)-7);e=new Date(f);e.setDate(f.getDate()+6)}
@@ -6149,7 +6151,7 @@ function dbRange(kind){
   else if(kind==='last'){f=new Date(t.getFullYear(),t.getMonth()-1,1);e=new Date(t.getFullYear(),t.getMonth(),0)}
   else if(kind==='30'){f.setDate(t.getDate()-29)}
   else if(kind==='ytd'){f=new Date(t.getFullYear(),0,1)}
-  $('db-from').value=dbYmd(f);$('db-to').value=dbYmd(e);
+  if(kind==='all'){$(pre+'-from').value='';$(pre+'-to').value=''}else{$(pre+'-from').value=dbYmd(f);$(pre+'-to').value=dbYmd(e)}
 }
 function dbH(n){return (Math.round(n*100)/100).toFixed(2)}
 function dbAggregate(entries,projId){
@@ -6351,10 +6353,11 @@ async function asXlsx(){
 function asOpen(){
   const sel=$('as-project');
   if(sel&&sel.options.length<=1){(allProjects||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name||p.id;sel.appendChild(o)})}
-  if(!asData)asRun();
+  if(!asData){dbRange('ytd','as');asRun()}
 }
 $('as-run').onclick=asRun;
 $('as-xlsx').onclick=asXlsx;
+document.querySelectorAll('.as-quick').forEach(b=>b.onclick=()=>{dbRange(b.dataset.r,'as');asRun()});
 // ── END ACCOUNT SUMMARY ──────────────────────────────────────────────────────
 
 document.querySelectorAll('.nav-tab').forEach(tab=>{

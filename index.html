@@ -6500,6 +6500,7 @@ async function estShowDetail(id){
   box.innerHTML=h;
   estEditable=!accepted&&!sent;estDirty=false;
   estTerms={...estDefaultTerms(e.projectId),...(estRev.terms||{})};
+  if(estRev.terms&&estRev.terms.rdfFee===undefined&&(sent||accepted))estTerms.rdfFee=0; // frozen revisions made before this fee existed keep their numbers
   estLines=(estRev.lines||[]).map(l=>({...l}));estNotes=estRev.clientNotes||'';
   $('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);
 }
@@ -6584,13 +6585,14 @@ function estCalc(lines,t){
   o.contMat=estR2(o.materials*(parseFloat(t.contMat)||0)/100);
   o.taxBase=estR2(o.materials+o.taxableFees+o.contMat);
   o.tax=estR2(o.taxBase*(parseFloat(t.taxRate)||0)/100);
-  o.total=estR2(o.subtotal+o.contLabor+o.contMat+o.tax);
+  o.rdf=o.materials>0?estR2(parseFloat(t.rdfFee)||0):0; // Colorado retail delivery fee: its own line, not taxed
+  o.total=estR2(o.subtotal+o.contLabor+o.contMat+o.tax+o.rdf);
   return o;
 }
 let estLines=[],estTerms={},estEditable=false,estDirty=false,estNotes='';
 function estDefaultTerms(projectId){
   const r=(typeof tmRatesFor==='function'&&window._clientRates)?tmRatesFor(projectId):{construction:85,design:145,matDiv:0.65,subDiv:0.75};
-  return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,taxRate:((allProjects||[]).find(p=>p.id===projectId)||{}).salesTaxRate||0};
+  return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,rdfFee:coRdfFor(dbYmd(new Date())).fee,taxRate:((allProjects||[]).find(p=>p.id===projectId)||{}).salesTaxRate||0};
 }
 const EST_TAX_URL='https://colorado.ttr.services';
 function estTaxNote(e){
@@ -6641,6 +6643,7 @@ function estEditorHtml(e){
         <span>Design labor $/hr</span><input data-t="rateD" type="number" step="any" value="${estS(estTerms.rateD)}" ${dis} ${inp}>
         <span>Materials divisor</span><input data-t="matDiv" type="number" step="any" value="${estS(estTerms.matDiv)}" ${dis} ${inp}>
         <span>Subcontractor divisor</span><input data-t="subDiv" type="number" step="any" value="${estS(estTerms.subDiv)}" ${dis} ${inp}>
+        <span>Retail delivery fee $ (Colorado)</span><input data-t="rdfFee" type="number" step="any" value="${estS(estTerms.rdfFee)}" ${dis} ${inp}>
         <span>Valid through (optional)</span><input data-t="validThrough" type="date" value="${esc(estTerms.validThrough||'')}" ${dis} ${inp}></div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Starts from this job's billing rates and is saved with the revision.</div></div>
     <div id="est-totals" style="flex:1;min-width:280px"></div></div>
@@ -6649,7 +6652,7 @@ function estEditorHtml(e){
 }
 function estTotalsHtml(){
   const c=estCalc(estLines,estTerms),row=(a,b,bold)=>`<tr${bold?' style="font-weight:700;border-top:2px solid var(--ink,#1a1714)"':''}><td style="padding:4px 8px">${a}</td><td style="padding:4px 8px;text-align:right">${b}</td></tr>`;
-  return `<table style="width:100%;max-width:380px;margin-left:auto;font-size:13px;border-collapse:collapse">${row('MOTIF and design labor',tmMoney(c.labor))}${row('Subcontractors',tmMoney(c.sub))}${row('Design materials',tmMoney(c.design))}${row('Construction materials',tmMoney(c.constr))}${row('Fees, permits and delivery',tmMoney(c.fee))}${row('Subtotal',tmMoney(c.subtotal),true)}${row('Contingency on labor ('+(parseFloat(estTerms.contLabor)||0)+'%)',tmMoney(c.contLabor))}${row('Contingency on materials ('+(parseFloat(estTerms.contMat)||0)+'%)',tmMoney(c.contMat))}${row('Sales tax ('+(parseFloat(estTerms.taxRate)||0)+'% on '+tmMoney(c.taxBase)+')',tmMoney(c.tax))}${row('Estimate total',tmMoney(c.total),true)}${c.allowances?row('<span style="font-weight:400;color:var(--muted)">Of which allowances (before contingency and tax)</span>',tmMoney(c.allowances)):''}</table>${!(parseFloat(estTerms.taxRate)>0)?'<div style="font-size:11px;color:var(--red);text-align:right;margin-top:4px">Enter the tax rate for the job site.</div>':''}`;
+  return `<table style="width:100%;max-width:380px;margin-left:auto;font-size:13px;border-collapse:collapse">${row('MOTIF and design labor',tmMoney(c.labor))}${row('Subcontractors',tmMoney(c.sub))}${row('Design materials',tmMoney(c.design))}${row('Construction materials',tmMoney(c.constr))}${row('Fees, permits and delivery',tmMoney(c.fee))}${row('Subtotal',tmMoney(c.subtotal),true)}${row('Contingency on labor ('+(parseFloat(estTerms.contLabor)||0)+'%)',tmMoney(c.contLabor))}${row('Contingency on materials ('+(parseFloat(estTerms.contMat)||0)+'%)',tmMoney(c.contMat))}${row('Sales tax ('+(parseFloat(estTerms.taxRate)||0)+'% on '+tmMoney(c.taxBase)+')',tmMoney(c.tax))}${c.rdf?row('Colorado retail delivery fee',tmMoney(c.rdf)):''}${row('Estimate total',tmMoney(c.total),true)}${c.allowances?row('<span style="font-weight:400;color:var(--muted)">Of which allowances (before contingency and tax)</span>',tmMoney(c.allowances)):''}</table>${!(parseFloat(estTerms.taxRate)>0)?'<div style="font-size:11px;color:var(--red);text-align:right;margin-top:4px">Enter the tax rate for the job site.</div>':''}`;
 }
 function estWireEditor(e){
   const body=$('est-lines');if(!body)return;
@@ -6679,7 +6682,7 @@ window._estSave=async()=>{
   if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);if(!e)return;
   const lines=estLines.map(l=>({id:l.id,room:l.room||'',trade:(l.trade||'').trim(),type:l.type,desc:(l.desc||'').trim(),qty:parseFloat(l.qty)||0,unit:(l.unit||'').trim(),price:parseFloat(l.price)||0,allowance:!!l.allowance,taxable:false}));
   const bad=lines.findIndex(l=>!l.desc);if(bad>=0){alert('Line '+(bad+1)+' needs a description.');return}
-  const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,validThrough:estTerms.validThrough||''};
+  const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,rdfFee:parseFloat(estTerms.rdfFee)||0,validThrough:estTerms.validThrough||''};
   const lineAmts=lines.map(l=>({...l,client:estLineAmt(l,terms)}));
   try{
     await updateDoc(doc(db,'estimates',e.id,'revisions',String(e.rev||1)),{lines:lineAmts,terms,clientNotes:estNotes||'',totals:estCalc(lines,terms),updatedAt:serverTimestamp(),updatedBy:invWho()});
@@ -6700,7 +6703,7 @@ window._estSave=async()=>{
 // and 5% at punch list, each of total labor and subcontractors. Design labor is counted with labor (to be confirmed).
 function estSchedule(c){
   const lab=estR2(c.labor+c.contLabor+c.sub),mat=estR2(c.materials+c.contMat);
-  const p1=estR2(mat+c.tax+c.fee+lab*0.5),p2=estR2(lab*0.25),p3=estR2(lab*0.2),p4=estR2(c.total-p1-p2-p3);
+  const p1=estR2(mat+c.tax+c.fee+c.rdf+lab*0.5),p2=estR2(lab*0.25),p3=estR2(lab*0.2),p4=estR2(c.total-p1-p2-p3);
   const rows=[['To begin work',lab>0?'100% of materials and tax, plus 50% of labor and subcontractors':'Materials, fees and tax',lab>0?p1:c.total]];
   if(lab>0){rows.push(['At drywall completion','25% of labor and subcontractors',p2],['At countertop installation','20% of labor and subcontractors',p3],['At punch list','5% of labor and subcontractors',p4])}
   return rows;
@@ -6749,6 +6752,7 @@ async function estBuildPdf(e,rev,lines,terms,notes){
   if(c.contLabor)sumRow('Contingency on labor ('+(parseFloat(terms.contLabor)||0)+'%)',c.contLabor);
   if(c.contMat)sumRow('Contingency on materials ('+(parseFloat(terms.contMat)||0)+'%)',c.contMat);
   if(c.tax)sumRow('Sales tax ('+(parseFloat(terms.taxRate)||0)+'%)',c.tax);
+  if(c.rdf)sumRow('Colorado retail delivery fee',c.rdf);
   y+=4;pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(1.2);pdf.line(M,y-8,R,y-8);
   pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text('Estimate total',M+6,y+12);pdf.setFontSize(13);pdf.text(tmMoney(c.total),cA,y+12,{align:'right'});y+=44;
   if(c.allowances){
@@ -6770,7 +6774,7 @@ async function estBuildPdf(e,rev,lines,terms,notes){
 window._estPdf=async id=>{
   const e=estList.find(x=>x.id===id);if(!e)return;
   try{
-    const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,validThrough:estTerms.validThrough||''};
+    const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,rdfFee:parseFloat(estTerms.rdfFee)||0,validThrough:estTerms.validThrough||''};
     const lines=estLines.filter(l=>(l.desc||'').trim());
     if(!lines.length){alert('Add at least one line with a description first.');return}
     const pdf=await estBuildPdf(e,e.rev||1,lines,terms,estNotes);

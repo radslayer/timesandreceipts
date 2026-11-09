@@ -27,6 +27,15 @@ h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:22px;margin-bo
 .field label{display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .field input,.field select,.field textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--ink);background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;pointer-events:auto;touch-action:manipulation;-webkit-user-select:text;user-select:text}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold);background:#fff}
+/* Checkboxes and radio buttons inside .field: the rule above strips their native look (appearance:none), so draw them
+   explicitly. Unchecked = empty white box with a dark border; checked = filled green with a white check (or dot). */
+.field input[type=checkbox],.field input[type=radio]{width:22px!important;height:22px;min-width:22px;flex:none;padding:0!important;margin:0;border:2px solid #7a6f63;background:#fff;position:relative;cursor:pointer;display:inline-block;vertical-align:middle;box-shadow:none}
+.field input[type=checkbox]{border-radius:5px}
+.field input[type=radio]{border-radius:50%}
+.field input[type=checkbox]:checked,.field input[type=radio]:checked{background:var(--green);border-color:var(--green)}
+.field input[type=checkbox]:checked::after{content:'';position:absolute;left:6px;top:1px;width:6px;height:12px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.field input[type=radio]:checked::after{content:'';position:absolute;left:4px;top:4px;width:10px;height:10px;border-radius:50%;background:#fff}
+.field input[type=checkbox]:focus-visible,.field input[type=radio]:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .field textarea{resize:vertical}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -134,7 +143,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .notice{background:#fef9ed;border:1px solid #f0d070;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px}
 .bill-num{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px}
 .entry-date{font-size:11px;color:var(--green);font-weight:600}
-.radio-label-selected{border-color:var(--gold)!important;background:#faf6f0}
+.radio-label-selected{border-color:var(--green)!important;background:#eaf3ec;font-weight:600!important;color:var(--green)}
 .rpt-period{border:1px solid var(--border);border-radius:10px;padding:14px;background:#faf8f4}
 .rpt-period-title{font-size:13px;font-weight:700;margin-bottom:10px}
 .rpt-period-title span{font-weight:400;color:var(--muted)}

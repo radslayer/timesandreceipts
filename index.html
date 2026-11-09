@@ -6569,21 +6569,25 @@ function estEditorHtml(e){
   let h=`<datalist id="est-trades">${EST_TRADES.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>`;
   h+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div style="font-weight:600">Lines</div>${ed?`<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estAddLine()">+ Add line</button><button class="btn btn-gold btn-sm" style="width:auto" id="est-save" onclick="window._estSave()">Save lines</button></div>`:''}</div>`;
   if(!ed)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">This revision is frozen. Use Start revision to change it.</div>`;
-  h+=`<div style="overflow-x:auto"><table class="tbl" style="min-width:980px"><thead><tr><th style="width:110px">Room</th><th style="width:120px">Trade</th><th style="width:150px">Type</th><th>Description</th><th style="width:60px">Qty</th><th style="width:50px">Unit</th><th style="width:90px" id="est-ph">Rate / our cost</th><th style="width:44px">Allow.</th><th style="width:90px;text-align:right">Client price</th><th style="width:30px"></th></tr></thead><tbody id="est-lines">`;
+  h+=`<div id="est-lines">`;
+  const lab=t=>`<div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:2px">${t}</div>`;
   estLines.forEach((l,i)=>{
-    h+=`<tr data-i="${i}"><td><select data-f="room" ${dis} ${inp}><option value=""></option>${rooms.map(r=>`<option ${l.room===r?'selected':''}>${esc(r)}</option>`).join('')}</select></td>
-    <td><input data-f="trade" list="est-trades" value="${esc(l.trade)}" ${dis} ${inp}></td>
-    <td><select data-f="type" ${dis} ${inp}>${EST_TYPES.map(([k,n])=>`<option value="${k}" ${l.type===k?'selected':''}>${n}</option>`).join('')}</select></td>
-    <td><input data-f="desc" value="${esc(l.desc)}" ${dis} ${inp}></td>
-    <td><input data-f="qty" type="number" step="any" value="${estS(l.qty)}" ${dis} ${inp}></td>
-    <td><input data-f="unit" value="${esc(l.unit)}" ${dis} ${inp}></td>
-    <td><input data-f="price" type="number" step="any" value="${estS(l.price)}" ${dis} ${inp}><div style="font-size:10px;color:var(--muted)">${estIsLabor(l.type)?'client $/hr':l.type==='fee'?'at cost':'our cost each'}</div></td>
-    <td style="text-align:center"><input data-f="allowance" type="checkbox" ${l.allowance?'checked':''} ${dis} style="width:18px;height:18px"></td>
-    <td data-amt style="text-align:right;font-weight:600">${tmMoney(estLineAmt(l,estTerms))}${l.type==='fee'?`<div style="font-size:10px;font-weight:400"><label><input data-f="taxable" type="checkbox" ${l.taxable?'checked':''} ${dis}> tax</label></div>`:''}</td>
-    <td>${ed?`<button class="btn btn-outline btn-sm" style="width:auto;padding:2px 8px" onclick="window._estDelLine(${i})" title="Remove line">&times;</button>`:''}</td></tr>`;
+    h+=`<div data-i="${i}" style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--cream,#f7f3ee)">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1.2fr auto;gap:8px;align-items:end;margin-bottom:8px">
+      <div>${lab('Room')}<select data-f="room" ${dis} ${inp}><option value=""></option>${rooms.map(r=>`<option ${l.room===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
+      <div>${lab('Trade')}<input data-f="trade" list="est-trades" value="${esc(l.trade)}" ${dis} ${inp}></div>
+      <div>${lab('Type')}<select data-f="type" ${dis} ${inp}>${EST_TYPES.map(([k,n])=>`<option value="${k}" ${l.type===k?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div>${ed?`<button class="btn btn-outline btn-sm" style="width:auto;padding:4px 10px" onclick="window._estDelLine(${i})" title="Remove line">&times;</button>`:''}</div></div>
+    <div style="display:grid;grid-template-columns:3fr .8fr .7fr 1fr auto 1fr;gap:8px;align-items:end">
+      <div>${lab('Description')}<input data-f="desc" value="${esc(l.desc)}" ${dis} ${inp}></div>
+      <div>${lab('Qty')}<input data-f="qty" type="number" step="any" value="${estS(l.qty)}" ${dis} ${inp}></div>
+      <div>${lab('Unit')}<input data-f="unit" value="${esc(l.unit)}" ${dis} ${inp}></div>
+      <div>${lab(estIsLabor(l.type)?'Client $/hr':l.type==='fee'?'Amount (at cost)':'Our cost each')}<input data-f="price" type="number" step="any" value="${estS(l.price)}" ${dis} ${inp}></div>
+      <div style="text-align:center">${lab('Allow.')}<input data-f="allowance" type="checkbox" ${l.allowance?'checked':''} ${dis} style="width:18px;height:18px"></div>
+      <div data-amt style="text-align:right;font-weight:600">${lab('Client price')}<span data-amtv>${tmMoney(estLineAmt(l,estTerms))}</span>${l.type==='fee'?`<div style="font-size:10px;font-weight:400"><label><input data-f="taxable" type="checkbox" ${l.taxable?'checked':''} ${dis}> taxable</label></div>`:''}</div></div></div>`;
   });
-  if(!estLines.length)h+=`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">No lines yet.${ed?' Press + Add line.':''}</td></tr>`;
-  h+=`</tbody></table></div>
+  if(!estLines.length)h+=`<div style="text-align:center;color:var(--muted);padding:18px">No lines yet.${ed?' Press + Add line.':''}</div>`;
+  h+=`
   <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
     <div style="min-width:260px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Job terms for this revision</div>
       <div style="display:grid;grid-template-columns:auto 90px;gap:6px 10px;align-items:center;font-size:12px">
@@ -6606,7 +6610,7 @@ function estWireEditor(e){
   const body=$('est-lines');if(!body)return;
   const refresh=()=>{$('est-totals').innerHTML=estTotalsHtml();estDirty=true;const sb=$('est-save');if(sb)sb.textContent='Save lines *'};
   body.oninput=body.onchange=ev=>{
-    const el=ev.target,tr=el.closest('tr'),f=el.dataset.f;if(!tr||!f||!estEditable)return;
+    const el=ev.target,tr=el.closest('[data-i]'),f=el.dataset.f;if(!tr||!f||!estEditable)return;
     const l=estLines[+tr.dataset.i];if(!l)return;
     if(el.type==='checkbox')l[f]=el.checked;else l[f]=el.value;
     if(f==='type'&&ev.type==='change'){
@@ -6615,12 +6619,12 @@ function estWireEditor(e){
       if(l.type!=='fee')l.taxable=false;
       const rows=estEditorHtml(e);$('est-editor').innerHTML=rows;estWireEditor(e);$('est-totals').innerHTML=estTotalsHtml();estDirty=true;return;
     }
-    const a=tr.querySelector('[data-amt]');if(a){const lab=a.querySelector('div');a.firstChild.textContent=tmMoney(estLineAmt(l,estTerms))}
+    const a=tr.querySelector('[data-amtv]');if(a)a.textContent=tmMoney(estLineAmt(l,estTerms));
     refresh();
   };
   const ed=$('est-editor');
   ed.querySelectorAll('[data-t]').forEach(i=>{i.oninput=()=>{estTerms[i.dataset.t]=i.value;
-    body.querySelectorAll('tr[data-i]').forEach(tr=>{const l=estLines[+tr.dataset.i];const a=tr.querySelector('[data-amt]');if(a&&l)a.firstChild.textContent=tmMoney(estLineAmt(l,estTerms))});refresh()}});
+    body.querySelectorAll('[data-i]').forEach(tr=>{const l=estLines[+tr.dataset.i];const a=tr.querySelector('[data-amtv]');if(a&&l)a.textContent=tmMoney(estLineAmt(l,estTerms))});refresh()}});
   $('est-totals').innerHTML=estTotalsHtml();
 }
 window._estAddLine=()=>{if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);const last=estLines[estLines.length-1];estLines.push(estNewLine(last?.type||'labor-c',last?.room||''));$('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);estDirty=true};

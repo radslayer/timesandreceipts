@@ -4153,8 +4153,24 @@ async function tmPanelOpen(scope){
   const sel=$('tm-project'),v=sel.value;sel.innerHTML='<option value="">Select a job</option>';
   [...allProjects].filter(tmListable).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
   sel.value=v;
-  await tmLoadRates();renderTmRatesTable();sel.onchange=tmApplyClientDivisors;tmApplyClientDivisors();
+  // On the Time Log and Receipts tabs the report panel follows the Project filter above it (and the reverse).
+  const lp=scope!=='both'?$('rpt-project')?.value:'';
+  if(lp)sel.value=[...sel.options].some(o=>o.value===lp)?lp:'';
+  await tmLoadRates();renderTmRatesTable();
+  sel.onchange=()=>{tmApplyClientDivisors();tmSyncLogProject()};
+  tmApplyClientDivisors();
 }
+function tmSyncLogProject(){
+  if((window._tmScope||'both')==='both')return;
+  const rp=$('rpt-project'),v=$('tm-project').value;
+  if(rp&&[...rp.options].some(o=>o.value===v))rp.value=v;
+}
+$('rpt-project').addEventListener('change',()=>{
+  if((window._tmScope||'both')==='both'||$('rpt-tm-panel').classList.contains('hidden'))return;
+  const lp=$('rpt-project').value;if(!lp)return;
+  const sel=$('tm-project');sel.value=[...sel.options].some(o=>o.value===lp)?lp:'';
+  tmApplyClientDivisors();
+});
 $('rpt-tm-btn').onclick=async()=>{
   ['rpt-time-btn','rpt-rcpt-btn','rpt-payroll-btn','rpt-logtime-btn'].forEach(id=>$(id)?.classList.remove('on'));
   $('rpt-tm-btn').classList.add('on');
@@ -4339,32 +4355,46 @@ window._tmXlsx=async()=>{
   try{
     await loadXlsxLib();
     const {proj,fr,to,weekList,entries,empList,T,ex,rates}=D;
+    // The export follows the tab it was run from: Time Log = labor only, Receipts = materials and subcontractors only.
+    const sc=window._tmScope||'both',onL=sc!=='materials',onM=sc!=='labor';
     const d0=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
     const wb=XLSX.utils.book_new();
     const sheet=(rows,cols)=>{const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:true});ws['!cols']=cols.map(w=>({wch:w}));Object.keys(ws).forEach(k=>{if(k[0]!=='!'&&ws[k].t==='d')ws[k].z='m/d/yyyy'});return ws};
     const rng=(a,b)=>tmMDY(a)+' - '+tmMDY(b);
+    const matT=tmR2(T.mat+T.sub),tot=sc==='both'?T.grand:sc==='labor'?T.labor:matT;
     // invoice-style lines, one block per week with a subtotal, as on the QuickBooks invoice
     const inv=[['Description','Quantity','Rate','Amount']];
     weekList.forEach(w=>{
-      inv.push([(proj.name||'Job')+' Labor Hours '+rng(w.sun,w.sat)]);
-      w.laborLines.forEach(L=>inv.push([tmLaborDesc(L)+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
-      [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.num?m.num+': ':'')+(m.vendor||lab)+(m.desc?' - '+m.desc:'')+(m.codes||m.room?' ['+[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeLabel).join(', '),m.room].filter(Boolean).join(' | ')+']':''),1,m.price,m.price])));
-      inv.push(['Subtotal: '+w.T.total.toFixed(2),'','',w.T.total]);
+      if(sc==='labor'&&!w.laborLines.length)return;
+      if(sc==='materials'&&!(w.mats.length||w.subs.length))return;
+      inv.push([(proj.name||'Job')+(onL?' Labor Hours ':' Materials ')+rng(w.sun,w.sat)]);
+      if(onL)w.laborLines.forEach(L=>inv.push([tmLaborDesc(L)+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
+      if(onM)[['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.num?m.num+': ':'')+(m.vendor||lab)+(m.desc?' - '+m.desc:'')+(m.codes||m.room?' ['+[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeLabel).join(', '),m.room].filter(Boolean).join(' | ')+']':''),1,m.price,m.price])));
+      const wt=sc==='both'?w.T.total:sc==='labor'?w.T.labor:tmR2(w.T.mat+w.T.sub);
+      inv.push(['Subtotal: '+wt.toFixed(2),'','',wt]);
     });
-    inv.push([],['Total to bill','','',T.grand]);
+    inv.push([],[sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors','','',tot]);
     XLSX.utils.book_append_sheet(wb,sheet(inv,[70,10,10,12]),'Invoice lines');
-    const sum=[['Time + Receipts',proj.name||''],['Period',fr+' to '+to],[],
-      ['Labor hours',T.hrs],['Labor',T.labor],['Materials (cost / '+D.matDiv+')',T.mat],['Subcontractors (cost / '+D.subDiv+')',T.sub],['Total to bill',T.grand],[],
-      ['Client rate: Construction',rates.construction],['Client rate: Design',rates.design],['Client rate: Procurement',rates.procurement],['Rates saved for this client?',rates._saved?'Yes':'No, defaults used'],[],
-      ['Our cost: materials',T.matCost],['Our cost: subcontractors',T.subCost],[],
-      ['Left out: non-billable time entries',ex.nonBillTime],['Left out: receipts already invoiced to client',ex.invoicedRcpt],['Left out: entries still clocked in',ex.openTime]];
+    const sum=[[sc==='both'?'Time + Receipts':sc==='labor'?'Time':'Receipts',proj.name||''],['Period',fr+' to '+to],[]];
+    if(onL)sum.push(['Labor hours',T.hrs],['Labor',T.labor]);
+    if(onM)sum.push(['Materials (cost / '+D.matDiv+')',T.mat],['Subcontractors (cost / '+D.subDiv+')',T.sub]);
+    sum.push([sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors',tot],[]);
+    if(onL)sum.push(['Client rate: Construction',rates.construction],['Client rate: Design',rates.design],['Client rate: Procurement',rates.procurement],['Rates saved for this client?',rates._saved?'Yes':'No, defaults used'],[]);
+    if(onM)sum.push(['Our cost: materials',T.matCost],['Our cost: subcontractors',T.subCost],[]);
+    if(onL)sum.push(['Left out: non-billable time entries',ex.nonBillTime]);
+    if(onM)sum.push(['Left out: receipts already invoiced to client',ex.invoicedRcpt]);
+    if(onL)sum.push(['Left out: entries still clocked in',ex.openTime]);
     XLSX.utils.book_append_sheet(wb,sheet(sum,[44,30]),'Summary');
-    XLSX.utils.book_append_sheet(wb,sheet([['Date','Employee','Cost Code','Rate class','Room','Time In','Time Out','Hours','Rate','Amount','Notes'],...entries.map(l=>[d0(l.date),l.name,l.code,l.cls,l.room,xlTime(l.tin),xlTime(l.tout),l.hrs,l.rate,l.amt,l.notes])],[11,22,40,13,14,9,9,8,8,11,60]),'Labor detail');
-    XLSX.utils.book_append_sheet(wb,sheet([['Employee','Entries','Hours'],...empList.map(e=>[e.name,e.n,e.hrs])],[26,9,9]),'Hours by employee');
-    const mrow=(arr,div,lab)=>arr.map(m=>[d0(m.date),lab,m.vendor,m.num,m.room,m.codes,m.desc,m.by,m.cost,div,m.price]);
-    const mats=[],subs=[];weekList.forEach(w=>{mats.push(...w.mats);subs.push(...w.subs)});
-    XLSX.utils.book_append_sheet(wb,sheet([['Date','Type','Vendor','Receipt #','Room','Cost Codes','Notes','Submitted by','Our cost','Divisor','Client price'],...mrow(mats,D.matDiv,'Material'),...mrow(subs,D.subDiv,'Subcontractor')],[11,13,24,12,14,40,40,18,11,8,12]),'Materials and subs');
-    XLSX.writeFile(wb,'MOTIF_Time_and_Receipts_'+(proj.name||'job').replace(/[^A-Za-z0-9]+/g,'_')+'_'+fr+'.xlsx');
+    if(onL){
+      XLSX.utils.book_append_sheet(wb,sheet([['Date','Employee','Cost Code','Rate class','Room','Time In','Time Out','Hours','Rate','Amount','Notes'],...entries.map(l=>[d0(l.date),l.name,l.code,l.cls,l.room,xlTime(l.tin),xlTime(l.tout),l.hrs,l.rate,l.amt,l.notes])],[11,22,40,13,14,9,9,8,8,11,60]),'Labor detail');
+      XLSX.utils.book_append_sheet(wb,sheet([['Employee','Entries','Hours'],...empList.map(e=>[e.name,e.n,e.hrs])],[26,9,9]),'Hours by employee');
+    }
+    if(onM){
+      const mrow=(arr,div,lab)=>arr.map(m=>[d0(m.date),lab,m.vendor,m.num,m.room,m.codes,m.desc,m.by,m.cost,div,m.price]);
+      const mats=[],subs=[];weekList.forEach(w=>{mats.push(...w.mats);subs.push(...w.subs)});
+      XLSX.utils.book_append_sheet(wb,sheet([['Date','Type','Vendor','Receipt #','Room','Cost Codes','Notes','Submitted by','Our cost','Divisor','Client price'],...mrow(mats,D.matDiv,'Material'),...mrow(subs,D.subDiv,'Subcontractor')],[11,13,24,12,14,40,40,18,11,8,12]),'Materials and subs');
+    }
+    XLSX.writeFile(wb,(sc==='both'?'MOTIF_Time_and_Receipts_':sc==='labor'?'MOTIF_Time_':'MOTIF_Receipts_')+(proj.name||'job').replace(/[^A-Za-z0-9]+/g,'_')+'_'+fr+'.xlsx');
   }catch(e){alert('Excel export failed: '+e.message)}
 };
 

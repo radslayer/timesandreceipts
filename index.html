@@ -249,6 +249,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="nav-tab" data-tab="photos">&#128247; Photos</div>
     <div class="nav-tab priv-only hidden" data-tab="triage">&#128231; Email Triage <span id="triage-badge" class="hidden" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></div>
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
+    <div class="nav-tab priv-only hidden" data-tab="dashboard">&#128200; Dashboard</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
   </div>
   <div class="main">
@@ -540,6 +541,28 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     </div>
 
     <!-- ADMIN TAB -->
+    <div id="tab-dashboard" class="hidden">
+      <h2>Dashboard</h2>
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Hours worked, from completed time entries (in-progress and archived entries are left out). Billable follows each entry's billable flag.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+          <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="db-from"></div>
+          <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="db-to"></div>
+          <div class="field" style="margin-bottom:0"><label>Project</label><select id="db-project" style="min-width:200px"><option value="">All projects</option></select></div>
+          <button type="button" class="btn btn-gold" id="db-run" style="width:auto;padding:10px 18px">Run</button>
+          <button type="button" class="btn btn-outline" id="db-xlsx" style="width:auto;padding:10px 18px">Excel</button>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-sm db-quick" data-r="week" style="width:auto">This week</button>
+          <button type="button" class="btn btn-outline btn-sm db-quick" data-r="month" style="width:auto">This month</button>
+          <button type="button" class="btn btn-outline btn-sm db-quick" data-r="last" style="width:auto">Last month</button>
+          <button type="button" class="btn btn-outline btn-sm db-quick" data-r="30" style="width:auto">Last 30 days</button>
+          <button type="button" class="btn btn-outline btn-sm db-quick" data-r="ytd" style="width:auto">Year to date</button>
+        </div>
+      </div>
+      <div id="db-results"></div>
+    </div>
+
     <div id="tab-admin" class="hidden">
       <h2>Admin</h2>
       <div id="whos-clocked-in" class="card" style="margin-bottom:16px">
@@ -6087,13 +6110,106 @@ $('lt-save').onclick=async()=>{
   $('lt-save').disabled=false;$('lt-save').textContent=t('saveTimeEntry');
 };
 
+// ── DASHBOARD (hours) ────────────────────────────────────────────────────────
+// Admin and bookkeeper. Reads completed, non-archived time entries for a date range and shows hours
+// billable vs not billable by employee, and hours by project by employee. No new data is stored.
+function dbYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dbRange(kind){
+  const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate());let f=new Date(t),e=new Date(t);
+  if(kind==='week'){f.setDate(t.getDate()-((t.getDay()+6)%7))}
+  else if(kind==='month'){f=new Date(t.getFullYear(),t.getMonth(),1)}
+  else if(kind==='last'){f=new Date(t.getFullYear(),t.getMonth()-1,1);e=new Date(t.getFullYear(),t.getMonth(),0)}
+  else if(kind==='30'){f.setDate(t.getDate()-29)}
+  else if(kind==='ytd'){f=new Date(t.getFullYear(),0,1)}
+  $('db-from').value=dbYmd(f);$('db-to').value=dbYmd(e);
+}
+function dbH(n){return (Math.round(n*100)/100).toFixed(2)}
+function dbAggregate(entries,projId){
+  const emps=new Map(),projs=new Map(),rows=[];let skipActive=0,skipArch=0;
+  entries.forEach(r=>{
+    if(isArchivedRec(r)){skipArch++;return}
+    if(r.status!=='complete'||!r.durationMs){if(r.status==='active')skipActive++;return}
+    if(projId&&r.projectId!==projId)return;
+    const hrs=r.durationMs/3600000,bill=effectiveBillable(r),name=r.userName||'Unknown',key=r.userId||name,pn=r.projectName||r.projectId||'(no project)';
+    rows.push({r,hrs,bill,name,key,pn});
+    if(!emps.has(key))emps.set(key,{name,bill:0,non:0});
+    const e=emps.get(key);if(bill)e.bill+=hrs;else e.non+=hrs;
+    if(!projs.has(pn))projs.set(pn,{name:pn,by:new Map(),bill:0,non:0});
+    const p=projs.get(pn);p.by.set(key,(p.by.get(key)||0)+hrs);if(bill)p.bill+=hrs;else p.non+=hrs;
+  });
+  const empList=[...emps.entries()].map(([key,v])=>({key,...v})).sort((a,b)=>a.name.localeCompare(b.name));
+  const projList=[...projs.values()].sort((a,b)=>(b.bill+b.non)-(a.bill+a.non)||a.name.localeCompare(b.name));
+  return{emps:empList,projs:projList,rows,skipActive,skipArch};
+}
+function dbRender(D){
+  const T=D.emps.reduce((a,e)=>({bill:a.bill+e.bill,non:a.non+e.non}),{bill:0,non:0}),tot=T.bill+T.non;
+  const pct=(b,n)=>(b+n)>0?Math.round(b/(b+n)*100)+'%':'-';
+  const th='style="text-align:right"';
+  let h=`<div class="card"><div style="font-weight:600;margin-bottom:6px">Billable vs not billable, by employee</div>`;
+  if(!D.rows.length){return h+'<div class="empty">No completed time entries in this range.</div></div>'}
+  h+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Employee</th><th ${th}>Billable hrs</th><th ${th}>Not billable hrs</th><th ${th}>Total hrs</th><th ${th}>% billable</th></tr></thead><tbody>`;
+  D.emps.forEach(e=>{h+=`<tr><td>${esc(e.name)}</td><td ${th}>${dbH(e.bill)}</td><td ${th}>${dbH(e.non)}</td><td ${th}>${dbH(e.bill+e.non)}</td><td ${th}>${pct(e.bill,e.non)}</td></tr>`});
+  h+=`<tr style="font-weight:600"><td>All employees</td><td ${th}>${dbH(T.bill)}</td><td ${th}>${dbH(T.non)}</td><td ${th}>${dbH(tot)}</td><td ${th}>${pct(T.bill,T.non)}</td></tr></tbody></table></div></div>`;
+  h+=`<div class="card"><div style="font-weight:600;margin-bottom:6px">Hours by project, by employee</div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Project</th>`;
+  D.emps.forEach(e=>{h+=`<th ${th}>${esc(e.name)}</th>`});
+  h+=`<th ${th}>Total</th><th ${th}>Billable</th><th ${th}>Not billable</th></tr></thead><tbody>`;
+  D.projs.forEach(p=>{
+    h+=`<tr><td>${esc(p.name)}</td>`;
+    D.emps.forEach(e=>{const v=p.by.get(e.key)||0;h+=`<td ${th}>${v?dbH(v):'-'}</td>`});
+    h+=`<td ${th} style="text-align:right;font-weight:600">${dbH(p.bill+p.non)}</td><td ${th}>${dbH(p.bill)}</td><td ${th}>${dbH(p.non)}</td></tr>`;
+  });
+  h+=`<tr style="font-weight:600"><td>All projects</td>`;
+  D.emps.forEach(e=>{h+=`<td ${th}>${dbH(e.bill+e.non)}</td>`});
+  h+=`<td ${th}>${dbH(tot)}</td><td ${th}>${dbH(T.bill)}</td><td ${th}>${dbH(T.non)}</td></tr></tbody></table></div>`;
+  h+=`<div style="font-size:11px;color:var(--muted);margin-top:8px">${D.rows.length} completed entries counted.${D.skipActive?' '+D.skipActive+' in-progress '+(D.skipActive===1?'entry':'entries')+' left out until clock-out.':''}${D.skipArch?' '+D.skipArch+' archived '+(D.skipArch===1?'entry':'entries')+' left out.':''}</div></div>`;
+  return h;
+}
+async function dbRun(){
+  if(!isPriv())return;
+  const out=$('db-results'),from=$('db-from').value,to=$('db-to').value;
+  if(!from||!to){out.innerHTML='<div class="err">Choose a start and end date.</div>';return}
+  const f=new Date(from+'T00:00:00'),e=new Date(to+'T00:00:00');e.setDate(e.getDate()+1);
+  if(e<=f){out.innerHTML='<div class="err">The end date must be on or after the start date.</div>';return}
+  out.innerHTML='<div class="empty">Loading...</div>';
+  try{
+    const snap=await getDocs(query(collection(db,'timeLogs'),where('clockIn','>=',Timestamp.fromDate(f)),where('clockIn','<',Timestamp.fromDate(e))));
+    const D=dbAggregate(snap.docs.map(d=>({id:d.id,...d.data()})),$('db-project').value);
+    D.from=from;D.to=to;window._dbData=D;
+    out.innerHTML=dbRender(D);
+  }catch(err){out.innerHTML='<div class="err">Could not load the dashboard: '+esc(err.message||String(err))+'</div>'}
+}
+async function dbXlsx(){
+  const D=window._dbData;if(!D||!D.rows.length){alert('Run the dashboard first.');return}
+  try{
+    await loadXlsxLib();
+    const T=D.emps.reduce((a,e)=>({bill:a.bill+e.bill,non:a.non+e.non}),{bill:0,non:0});
+    const r2=n=>Math.round(n*100)/100;
+    const a1=[['Employee','Billable hrs','Not billable hrs','Total hrs','% billable'],...D.emps.map(e=>[e.name,r2(e.bill),r2(e.non),r2(e.bill+e.non),(e.bill+e.non)?r2(e.bill/(e.bill+e.non)):0]),['All employees',r2(T.bill),r2(T.non),r2(T.bill+T.non),(T.bill+T.non)?r2(T.bill/(T.bill+T.non)):0]];
+    const a2=[['Project',...D.emps.map(e=>e.name),'Total','Billable','Not billable'],...D.projs.map(p=>[p.name,...D.emps.map(e=>r2(p.by.get(e.key)||0)),r2(p.bill+p.non),r2(p.bill),r2(p.non)])];
+    const a3=[['Date','Employee','Project','Room','Cost code','Hours','Billable'],...D.rows.slice().sort((x,y)=>(x.r.clockIn?.toMillis?.()||0)-(y.r.clockIn?.toMillis?.()||0)).map(x=>[x.r.clockIn?.toDate?dbYmd(x.r.clockIn.toDate()):'',x.name,x.pn,x.r.room||'',x.r.costCode||'',r2(x.hrs),x.bill?'Y':'N'])];
+    const wb=XLSX.utils.book_new();
+    [['By employee',a1,[26,14,16,12,11]],['By project and employee',a2,[34]],['Entries',a3,[11,22,30,18,34,8,9]]].forEach(([n,aoa,w])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,n)});
+    XLSX.writeFile(wb,'MOTIF_Hours_Dashboard_'+D.from+'_to_'+D.to+'.xlsx');
+  }catch(err){alert('Excel export failed: '+err.message)}
+}
+function dbOpen(){
+  const sel=$('db-project');
+  if(sel&&sel.options.length<=1){(allProjects||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name||p.id;sel.appendChild(o)})}
+  if(!$('db-from').value){dbRange('month');dbRun()}
+}
+$('db-run').onclick=dbRun;
+$('db-xlsx').onclick=dbXlsx;
+document.querySelectorAll('.db-quick').forEach(b=>b.onclick=()=>{dbRange(b.dataset.r);dbRun()});
+// ── END DASHBOARD (hours) ────────────────────────────────────────────────────
+
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','photos','triage','reports','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','photos','triage','reports','dashboard','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
+    if(t==='dashboard'){dbOpen();}
     if(t==='photos'){populatePhotoFilterProjects();}
     if(t==='receipts'){populateReceiptFilterProjects();}
   }

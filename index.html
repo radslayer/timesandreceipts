@@ -6462,8 +6462,12 @@ async function estShowDetail(id){
     <div><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Acceptance</div>
       ${accepted?`<div style="margin-top:6px"><b style="color:var(--green)">Accepted ${estD(e.acceptedDate)}</b> (revision ${e.acceptedRev||e.rev}). Baseline budget ${esc(e.budgetNumber||'')} was created and the project is active.</div>`:`<div style="margin-top:6px"><span style="color:var(--muted);font-weight:600">Not accepted</span></div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="date" id="est-acc-date" value="${estTodayYmd()}" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._estAccept('${esc(id)}')">Set accepted date</button></div><div style="font-size:11px;color:var(--muted);margin-top:4px">Setting the date locks this revision, creates budget ${esc(e.budgetNumber||'')} from it, and makes the project active. It cannot be undone from here.</div>`}
     </div></div>
-  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">Lines on this revision: <b>${nLines}</b>. The line editor (rooms, trades, allowances, totals and the client PDF) is the next piece to be built.</div></div>`;
+  <div id="est-editor"></div></div>`;
   box.innerHTML=h;
+  estEditable=!accepted&&!sent;estDirty=false;
+  estTerms={...estDefaultTerms(e.projectId),...(estRev.terms||{})};
+  estLines=(estRev.lines||[]).map(l=>({...l}));
+  $('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);
 }
 window._estClose=()=>{estOpenId=null;const d=$('est-detail');if(d)d.innerHTML=''};
 window._estMarkSent=async id=>{
@@ -6513,6 +6517,127 @@ async function estOpen(){
   try{await estLoad();estRender()}catch(err){if(root)root.innerHTML='<div class="err">Could not load estimates: '+esc(err.message||String(err))+'</div>'}
 }
 // ── END ESTIMATING (slice 1) ───────────────────────────────────────────────────
+// ── ESTIMATING (slice 2: line editor and totals) ───────────────────────────────
+// Line types and how the client price is worked out (company rules, confirmed 2026-10 and 2026-11):
+//   labor (construction or design): hours x client hourly rate
+//   design / construction materials: our cost x qty / materials divisor (0.65)
+//   subcontractor: our cost x qty / subcontractor divisor (0.75)
+//   fee, permit or delivery: at cost (a fee can be marked taxable, for example shipping)
+// Contingency: 10% of labor and, separately, 10% of materials (materials contingency is taxable). Tax applies to
+// materials, taxable fees and the materials contingency. The rates, divisors, contingency and tax rate used are
+// saved with each revision ("terms") so later rate changes never alter an estimate already written.
+const EST_TYPES=[['labor-c','Labor: construction'],['labor-d','Labor: design'],['sub','Subcontractor'],['design','Design materials'],['constr','Construction materials'],['fee','Fee, permit or delivery']];
+const EST_TRADES=['Demo','Framing','Drywall','Trim / carpentry','Paint','Cleaning','Punch list','General conditions','Project management','Shop','Other'];
+const estIsLabor=t=>t==='labor-c'||t==='labor-d';
+const estS=v=>esc(String(v==null?'':v));
+const estR2=n=>Math.round((n+Number.EPSILON)*100)/100;
+function estLineAmt(l,t){
+  const q=parseFloat(l.qty)||0,p=parseFloat(l.price)||0;
+  if(estIsLabor(l.type))return estR2(q*p);
+  if(l.type==='sub')return estR2(q*p/(t.subDiv>0?t.subDiv:0.75));
+  if(l.type==='design'||l.type==='constr')return estR2(q*p/(t.matDiv>0?t.matDiv:0.65));
+  return estR2(q*p);
+}
+function estCalc(lines,t){
+  const o={labor:0,sub:0,design:0,constr:0,fee:0,taxableFees:0,allowances:0};
+  (lines||[]).forEach(l=>{const a=estLineAmt(l,t);
+    if(estIsLabor(l.type))o.labor+=a;else if(l.type==='sub')o.sub+=a;else if(l.type==='design')o.design+=a;else if(l.type==='constr')o.constr+=a;else{o.fee+=a;if(l.taxable)o.taxableFees+=a}
+    if(l.allowance)o.allowances+=a});
+  ['labor','sub','design','constr','fee','taxableFees','allowances'].forEach(k=>o[k]=estR2(o[k]));
+  o.materials=estR2(o.design+o.constr);
+  o.subtotal=estR2(o.labor+o.sub+o.materials+o.fee);
+  o.contLabor=estR2(o.labor*(parseFloat(t.contLabor)||0)/100);
+  o.contMat=estR2(o.materials*(parseFloat(t.contMat)||0)/100);
+  o.taxBase=estR2(o.materials+o.taxableFees+o.contMat);
+  o.tax=estR2(o.taxBase*(parseFloat(t.taxRate)||0)/100);
+  o.total=estR2(o.subtotal+o.contLabor+o.contMat+o.tax);
+  return o;
+}
+let estLines=[],estTerms={},estEditable=false,estDirty=false;
+function estDefaultTerms(projectId){
+  const r=(typeof tmRatesFor==='function'&&window._clientRates)?tmRatesFor(projectId):{construction:85,design:145,matDiv:0.65,subDiv:0.75};
+  return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,taxRate:0};
+}
+function estNewLine(type,room){
+  const labor=estIsLabor(type);
+  return {id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),room:room||'',trade:'',type,desc:'',qty:1,unit:labor?'hr':'ea',price:type==='labor-c'?estTerms.rateC:type==='labor-d'?estTerms.rateD:0,allowance:false,taxable:false};
+}
+function estRoomsFor(e){const p=(allProjects||[]).find(x=>x.id===e.projectId);return (p&&p.rooms&&p.rooms.length?p.rooms:DEF_ROOMS)}
+function estEditorHtml(e){
+  const rooms=estRoomsFor(e),ed=estEditable;
+  const dis=ed?'':'disabled',inp='style="width:100%;padding:6px 7px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:12px;background:#fff"';
+  let h=`<datalist id="est-trades">${EST_TRADES.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>`;
+  h+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div style="font-weight:600">Lines</div>${ed?`<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estAddLine()">+ Add line</button><button class="btn btn-gold btn-sm" style="width:auto" id="est-save" onclick="window._estSave()">Save lines</button></div>`:''}</div>`;
+  if(!ed)h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">This revision is frozen. Use Start revision to change it.</div>`;
+  h+=`<div style="overflow-x:auto"><table class="tbl" style="min-width:980px"><thead><tr><th style="width:110px">Room</th><th style="width:120px">Trade</th><th style="width:150px">Type</th><th>Description</th><th style="width:60px">Qty</th><th style="width:50px">Unit</th><th style="width:90px" id="est-ph">Rate / our cost</th><th style="width:44px">Allow.</th><th style="width:90px;text-align:right">Client price</th><th style="width:30px"></th></tr></thead><tbody id="est-lines">`;
+  estLines.forEach((l,i)=>{
+    h+=`<tr data-i="${i}"><td><select data-f="room" ${dis} ${inp}><option value=""></option>${rooms.map(r=>`<option ${l.room===r?'selected':''}>${esc(r)}</option>`).join('')}</select></td>
+    <td><input data-f="trade" list="est-trades" value="${esc(l.trade)}" ${dis} ${inp}></td>
+    <td><select data-f="type" ${dis} ${inp}>${EST_TYPES.map(([k,n])=>`<option value="${k}" ${l.type===k?'selected':''}>${n}</option>`).join('')}</select></td>
+    <td><input data-f="desc" value="${esc(l.desc)}" ${dis} ${inp}></td>
+    <td><input data-f="qty" type="number" step="any" value="${estS(l.qty)}" ${dis} ${inp}></td>
+    <td><input data-f="unit" value="${esc(l.unit)}" ${dis} ${inp}></td>
+    <td><input data-f="price" type="number" step="any" value="${estS(l.price)}" ${dis} ${inp}><div style="font-size:10px;color:var(--muted)">${estIsLabor(l.type)?'client $/hr':l.type==='fee'?'at cost':'our cost each'}</div></td>
+    <td style="text-align:center"><input data-f="allowance" type="checkbox" ${l.allowance?'checked':''} ${dis} style="width:18px;height:18px"></td>
+    <td data-amt style="text-align:right;font-weight:600">${tmMoney(estLineAmt(l,estTerms))}${l.type==='fee'?`<div style="font-size:10px;font-weight:400"><label><input data-f="taxable" type="checkbox" ${l.taxable?'checked':''} ${dis}> tax</label></div>`:''}</td>
+    <td>${ed?`<button class="btn btn-outline btn-sm" style="width:auto;padding:2px 8px" onclick="window._estDelLine(${i})" title="Remove line">&times;</button>`:''}</td></tr>`;
+  });
+  if(!estLines.length)h+=`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">No lines yet.${ed?' Press + Add line.':''}</td></tr>`;
+  h+=`</tbody></table></div>
+  <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+    <div style="min-width:260px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Job terms for this revision</div>
+      <div style="display:grid;grid-template-columns:auto 90px;gap:6px 10px;align-items:center;font-size:12px">
+        <span>Tax rate % (look up for the job site)</span><input data-t="taxRate" type="number" step="any" value="${estS(estTerms.taxRate)}" ${dis} ${inp}>
+        <span>Contingency on labor %</span><input data-t="contLabor" type="number" step="any" value="${estS(estTerms.contLabor)}" ${dis} ${inp}>
+        <span>Contingency on materials %</span><input data-t="contMat" type="number" step="any" value="${estS(estTerms.contMat)}" ${dis} ${inp}>
+        <span>Construction labor $/hr</span><input data-t="rateC" type="number" step="any" value="${estS(estTerms.rateC)}" ${dis} ${inp}>
+        <span>Design labor $/hr</span><input data-t="rateD" type="number" step="any" value="${estS(estTerms.rateD)}" ${dis} ${inp}>
+        <span>Materials divisor</span><input data-t="matDiv" type="number" step="any" value="${estS(estTerms.matDiv)}" ${dis} ${inp}>
+        <span>Subcontractor divisor</span><input data-t="subDiv" type="number" step="any" value="${estS(estTerms.subDiv)}" ${dis} ${inp}></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Starts from this job's billing rates and is saved with the revision.</div></div>
+    <div id="est-totals" style="flex:1;min-width:280px"></div></div></div>`;
+  return h;
+}
+function estTotalsHtml(){
+  const c=estCalc(estLines,estTerms),row=(a,b,bold)=>`<tr${bold?' style="font-weight:700;border-top:2px solid var(--ink,#1a1714)"':''}><td style="padding:4px 8px">${a}</td><td style="padding:4px 8px;text-align:right">${b}</td></tr>`;
+  return `<table style="width:100%;max-width:380px;margin-left:auto;font-size:13px;border-collapse:collapse">${row('MOTIF and design labor',tmMoney(c.labor))}${row('Subcontractors',tmMoney(c.sub))}${row('Design materials',tmMoney(c.design))}${row('Construction materials',tmMoney(c.constr))}${row('Fees, permits and delivery',tmMoney(c.fee))}${row('Subtotal',tmMoney(c.subtotal),true)}${row('Contingency on labor ('+(parseFloat(estTerms.contLabor)||0)+'%)',tmMoney(c.contLabor))}${row('Contingency on materials ('+(parseFloat(estTerms.contMat)||0)+'%)',tmMoney(c.contMat))}${row('Sales tax ('+(parseFloat(estTerms.taxRate)||0)+'% on '+tmMoney(c.taxBase)+')',tmMoney(c.tax))}${row('Estimate total',tmMoney(c.total),true)}${c.allowances?row('<span style="font-weight:400;color:var(--muted)">Of which allowances (before contingency and tax)</span>',tmMoney(c.allowances)):''}</table>${!(parseFloat(estTerms.taxRate)>0)?'<div style="font-size:11px;color:var(--red);text-align:right;margin-top:4px">Enter the tax rate for the job site.</div>':''}`;
+}
+function estWireEditor(e){
+  const body=$('est-lines');if(!body)return;
+  const refresh=()=>{$('est-totals').innerHTML=estTotalsHtml();estDirty=true;const sb=$('est-save');if(sb)sb.textContent='Save lines *'};
+  body.oninput=body.onchange=ev=>{
+    const el=ev.target,tr=el.closest('tr'),f=el.dataset.f;if(!tr||!f||!estEditable)return;
+    const l=estLines[+tr.dataset.i];if(!l)return;
+    if(el.type==='checkbox')l[f]=el.checked;else l[f]=el.value;
+    if(f==='type'&&ev.type==='change'){
+      const was=l._t||'';l.unit=estIsLabor(l.type)?'hr':'ea';
+      l.price=l.type==='labor-c'?estTerms.rateC:l.type==='labor-d'?estTerms.rateD:0;
+      if(l.type!=='fee')l.taxable=false;
+      const rows=estEditorHtml(e);$('est-editor').innerHTML=rows;estWireEditor(e);$('est-totals').innerHTML=estTotalsHtml();estDirty=true;return;
+    }
+    const a=tr.querySelector('[data-amt]');if(a){const lab=a.querySelector('div');a.firstChild.textContent=tmMoney(estLineAmt(l,estTerms))}
+    refresh();
+  };
+  const ed=$('est-editor');
+  ed.querySelectorAll('[data-t]').forEach(i=>{i.oninput=()=>{estTerms[i.dataset.t]=i.value;
+    body.querySelectorAll('tr[data-i]').forEach(tr=>{const l=estLines[+tr.dataset.i];const a=tr.querySelector('[data-amt]');if(a&&l)a.firstChild.textContent=tmMoney(estLineAmt(l,estTerms))});refresh()}});
+  $('est-totals').innerHTML=estTotalsHtml();
+}
+window._estAddLine=()=>{if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);const last=estLines[estLines.length-1];estLines.push(estNewLine(last?.type||'labor-c',last?.room||''));$('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);estDirty=true};
+window._estDelLine=i=>{if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);estLines.splice(i,1);$('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);estDirty=true};
+window._estSave=async()=>{
+  if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);if(!e)return;
+  const lines=estLines.map(l=>({id:l.id,room:l.room||'',trade:(l.trade||'').trim(),type:l.type,desc:(l.desc||'').trim(),qty:parseFloat(l.qty)||0,unit:(l.unit||'').trim(),price:parseFloat(l.price)||0,allowance:!!l.allowance,taxable:l.type==='fee'?!!l.taxable:false}));
+  const bad=lines.findIndex(l=>!l.desc);if(bad>=0){alert('Line '+(bad+1)+' needs a description.');return}
+  const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75};
+  const lineAmts=lines.map(l=>({...l,client:estLineAmt(l,terms)}));
+  try{
+    await updateDoc(doc(db,'estimates',e.id,'revisions',String(e.rev||1)),{lines:lineAmts,terms,totals:estCalc(lines,terms),updatedAt:serverTimestamp(),updatedBy:invWho()});
+    estLines=lineAmts.map(l=>({...l}));estTerms=terms;estDirty=false;estRev={...estRev,lines:lineAmts,terms};
+    const sb=$('est-save');if(sb)sb.textContent='Save lines';estFlash('Saved '+lines.length+' line'+(lines.length===1?'':'s')+' on '+esc(e.number)+(e.rev>1?' revision '+e.rev:'')+'.');
+  }catch(err){alert('Could not save: '+(err.message||err))}
+};
+// ── END ESTIMATING (slice 2) ───────────────────────────────────────────────────
 
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{

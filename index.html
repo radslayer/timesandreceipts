@@ -774,7 +774,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
       <div class="field"><label>DB Entry Date</label><input type="date" id="bm-dbdate" placeholder="Mark when entered in DB"></div>
       <div class="field"><label>Paid Date</label><input type="date" id="bm-paiddate"></div>
     </div>
-    <div class="notice" style="font-size:12px">Once a paid date is set, the record is locked. Only an admin can change or clear it.</div>
+    <div class="notice" style="font-size:12px">Once a paid date is set, the record is locked. Only an admin can change or clear it, except that the bookkeeper can still add the QB entry, DB entry and invoiced-to-client dates.</div>
     <div id="bm-err" class="err"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="bm-cancel">Cancel</button>
@@ -2626,7 +2626,7 @@ function renderReceipts(){
       const dbHtml=isPriv()?(r.dbEntryDate?`<span class="entry-date">DB ✓ ${r.dbEntryDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','db')">DB: mark entered</span>`):'';
       const paidHtml=isPriv()?(r.paidDate?`<span class="entry-date">Paid ✓ ${r.paidDate}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','paid')">Paid: mark paid</span>`):'';
       const invClientHtml=isPriv()?(r.invoicedClientDate?`<span class="entry-date">Invoiced Client ✓ ${r.invoicedClientDate}${r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':''}</span>`:`<span class="entry-pending" onclick="window._markEntry('${r.id}','invclient')">Invoiced Client: mark invoiced</span>`):'';
-      const canEditRec=isAdmin()||(isBookkeeper()&&!locked);
+      const canEditRec=isAdmin()||isBookkeeper();
       return`<div class="receipt-item" id="receipt-row-${r.id}">
         ${r.imageUrl?(/\.pdf($|\?)/i.test(r.imageUrl)?`<div class="receipt-thumb" style="cursor:pointer" onclick="window.open('${r.imageUrl}','_blank')">&#128196;</div>`:`<img src="${r.imageUrl}" class="receipt-thumb" onclick="window._lb('${r.imageUrl}')" alt="receipt">`):`<div class="receipt-thumb">${isBill?'&#128220;':'&#129534;'}</div>`}
         <div style="flex:1">
@@ -3575,7 +3575,6 @@ let editingReceiptId=null;
 window._er=id=>{
   const receipts=[...(window._allReceipts||[]),...(_rptType==='receipts'?(window._rptData||[]):[])];
   const r=receipts.find(x=>x.id===id);if(!r)return;
-  if(isLockedBill(r)&&!isAdmin()){alert('This record has been paid and is locked. Ask an admin to unlock it.');return}
   editingReceiptId=id;
   erSelectedCodes=[...(r.costCodes||[r.scope].filter(Boolean))];
   const isBill=r.billType==='bill';
@@ -3583,6 +3582,12 @@ window._er=id=>{
   $('er-paiddate').value=r.paidDate||'';
   // Bookkeeper can set a paid date (which locks the bill) but cannot clear one. Admin can do both.
   $('er-paiddate').disabled=!isAdmin()&&!!r.paidDate;
+  // A paid record is locked for the bookkeeper EXCEPT the tracking fields: QB entry, DB entry and invoiced-to-client. Everything else is read-only.
+  const limited=isLockedBill(r)&&!isAdmin();
+  ['er-project','er-amount','er-vendor-sel','er-vendor-new','er-notes','er-status','er-invoicedate','er-room','er-code-pick'].forEach(i=>{const e=$(i);if(e)e.disabled=limited});
+  $('er-codes-chips').style.pointerEvents=limited?'none':'';$('er-codes-chips').style.opacity=limited?'.6':'';
+  $('er-qbdate').disabled=false;$('er-dbdate').disabled=false;
+  $('er-lock-notice').innerHTML=limited?'&#128274; This record has been paid, so its amount, vendor, project, codes and paid date are locked. You can still add or change the QB entry date, DB entry date and the invoiced-to-client number and date.':'&#128274; This record has been paid and is locked. Only an admin can change the paid date or edit it.';
   if(isLockedBill(r))show('er-lock-notice');else hide('er-lock-notice');
   $('er-invclientnum').value=r.invoicedClientNumber||'';
   $('er-invclientdate').value=r.invoicedClientDate||'';
@@ -3617,11 +3622,24 @@ $('er-code-pick').onchange=()=>{
 $('er-project').onchange=()=>fillRoomDropdown('er-room',allProjects.find(p=>p.id===$('er-project').value));
 $('er-cancel').onclick=()=>hide('edit-receipt-modal');
 $('er-save').onclick=async()=>{
+  const orig=[...(window._allReceipts||[]),...(window._rptData||[])].find(x=>x.id===editingReceiptId)||{};
+  if(isLockedBill(orig)&&!isAdmin()){
+    // Limited save on a paid record: only QB entry, DB entry and invoiced-to-client fields are written.
+    const nd=$('er-invclientdate').value||null,nn=$('er-invclientnum').value.trim()||null;
+    if(orig.invoicedClientDate&&!nd){$('er-err').textContent='Only an admin can clear the invoiced-client date.';return}
+    if(nd&&!orig.invoicedClientDate&&!confirm('Setting an invoiced-client date locks the invoice number/date. Only an admin can change it afterward. Continue?'))return;
+    const meta=nd&&!orig.invoicedClientDate?{invoicedClientBy:userProfile?.name||'',invoicedClientAt:serverTimestamp()}:{};
+    $('er-save').disabled=true;$('er-save').textContent='Saving...';
+    try{
+      await updateDoc(doc(db,'receipts',editingReceiptId),{qbEntryDate:$('er-qbdate').value||null,dbEntryDate:$('er-dbdate').value||null,invoicedClientDate:nd,invoicedClientNumber:nn,...meta,updatedAt:serverTimestamp()});
+      hide('edit-receipt-modal');
+    }catch(e){$('er-err').textContent='Save failed: '+e.message}
+    $('er-save').disabled=false;$('er-save').textContent='Save Changes';
+    return;
+  }
   const pid=$('er-project').value,rm=$('er-room').value,amt=$('er-amount').value;
   const vendor=resolveVendor('er-vendor-sel','er-vendor-new');
   if(!pid||!amt){$('er-err').textContent='Project and amount required.';return}
-  const orig=[...(window._allReceipts||[]),...(window._rptData||[])].find(x=>x.id===editingReceiptId)||{};
-  if(isLockedBill(orig)&&!isAdmin()){$('er-err').textContent='This record is paid and locked. Only an admin can edit it.';return}
   const newPaid=$('er-paiddate').value||null;
   if(orig.paidDate&&!newPaid&&!isAdmin()){$('er-err').textContent='Only an admin can clear a paid date.';return}
   if(newPaid&&!orig.paidDate&&!confirm('Setting a paid date locks this record. Only an admin can change it afterward. Continue?'))return;
@@ -3949,7 +3967,7 @@ function renderReport(data){
         <td style="font-size:11px">${r.dbEntryDate?'<span style="color:var(--green)">✓ '+r.dbEntryDate+'</span>':'<span style="color:var(--amber)">Pending</span>'}</td>
         <td style="font-size:11px;white-space:nowrap">${r.paidDate?'<span style="color:var(--green)">&#128274; '+r.paidDate+'</span>':'<span style="color:var(--amber)">Unpaid</span>'}</td>
         <td style="font-size:11px;white-space:nowrap">${r.invoicedClientDate?'<span style="color:var(--green)">&#128274; '+r.invoicedClientDate+(r.invoicedClientNumber?' (#'+r.invoicedClientNumber+')':'')+'</span>':'<span style="color:var(--amber)">Not Invoiced</span>'}</td>
-        <td style="white-space:nowrap">${isPriv()&&(isAdmin()||!isLockedBill(r))?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
+        <td style="white-space:nowrap">${isPriv()?`<button class="btn btn-outline btn-sm" onclick="window._er('${r.id}')">Edit</button>`:''}${isAdmin()?` <button class="btn btn-red btn-sm" onclick="window._dr('${r.id}')">Del</button>`:''}</td>
       </tr>`;
     }
   });

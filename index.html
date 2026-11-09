@@ -4050,7 +4050,8 @@ function tmCodeType(code){const e=COST_CODES.find(x=>x.code===code)||(customCode
 function tmCodeTask(code){if(!code)return'Labor (no cost code)';const p=String(code).split(' - ');return p.length>1?(p[0].trim()+' '+p.slice(1).join(' - ').trim()):String(code).trim()}
 // Client-facing text (client invoice view, Excel export, saved invoice drafts and PDFs) shows the work name only, without the internal cost code number.
 function tmLaborDesc(L,internal){return(internal?L.task:L.label)+(L.room?' - '+L.room:'')}
-function tmCodeLabel(code){if(!code)return'Labor (no cost code)';const p=String(code).split(' - ');return(p.length>1?p.slice(1).join(' - '):code).trim()}
+// Work name without the internal cost code number. Handles "10.10 - Drywall", "00 General/Bookkeeping" (no dash) and "01 Design".
+function tmCodeLabel(code){if(!code)return'Labor (no cost code)';const t=String(code).replace(/^\s*\d+(?:\.\d+)*(?:\s*-\s*|\s+)/,'').trim();return t||String(code).trim()}
 const tmMoney=n=>{const v=+n||0;return(v<0?'-':'')+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})};
 const tmR2=n=>Math.round((+n||0)*100)/100;
 const tmMDY=d=>String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0')+'.'+String(d.getFullYear()).slice(2);

@@ -195,12 +195,17 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 .ie-add{border:1px dashed #cdb48d;background:transparent;color:#8a6d3b;border-radius:6px;padding:6px 12px;font:500 12px 'DM Sans',sans-serif;cursor:pointer}.ie-add:hover{background:#faf5ec}
 .invm-doc .inv-tbl th:nth-child(2),.invm-doc .inv-tbl th:nth-child(3){width:96px}.invm-doc .inv-tbl th:nth-child(4){width:110px}
 @page{margin:14mm}
+#print-root{display:none}
 @media print{
-  body[data-print] *{visibility:hidden!important}
-  body[data-print="labor"] #tm-inv-labor,body[data-print="labor"] #tm-inv-labor *,body[data-print="materials"] #tm-inv-materials,body[data-print="materials"] #tm-inv-materials *{visibility:visible!important}
-  body[data-print="labor"] #tm-inv-labor,body[data-print="materials"] #tm-inv-materials{position:absolute;left:0;top:0;width:100%;margin:0}
-  body[data-print] .inv-doc{box-shadow:none;border:0;padding:0;max-width:none}
-  body[data-print]{background:#fff}
+  /* Print only the invoice. Everything else is removed from the layout (display:none, not just hidden), so the app's
+     own height cannot spill onto extra pages and nothing wide forces the browser to shrink the invoice. */
+  body[data-print]>*:not(#print-root){display:none!important}
+  body[data-print] #print-root{display:block!important;width:100%;margin:0}
+  body[data-print]{background:#fff;margin:0}
+  body[data-print] .inv-doc{box-shadow:none;border:0;padding:0;max-width:none;width:100%;margin:0;font-size:15px}
+  body[data-print] .inv-meta{font-size:13px}body[data-print] .inv-tag,body[data-print] .inv-addr,body[data-print] .inv-terms{font-size:13px}
+  body[data-print] .inv-tbl th{font-size:11px}body[data-print] .inv-total{font-size:18px}
+  body[data-print] .inv-tbl tr{break-inside:avoid}
   .inv-wk td,.inv-mark *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
@@ -4287,7 +4292,14 @@ function tmMaterialsInvoiceHtml(D){
 }
 window._tmView='review';
 window._tmSetView=v=>{window._tmView=v;renderTM()};
-window._tmPrint=which=>{document.body.setAttribute('data-print',which);window.print();setTimeout(()=>document.body.removeAttribute('data-print'),500)};
+window._tmPrint=which=>{
+  const src=document.getElementById(which==='labor'?'tm-inv-labor':'tm-inv-materials');if(!src)return;
+  let pr=document.getElementById('print-root');if(!pr){pr=document.createElement('div');pr.id='print-root';document.body.appendChild(pr)}
+  pr.innerHTML=src.innerHTML; // a copy of just the invoice; the page itself is hidden while printing
+  document.body.setAttribute('data-print',which);
+  window.print();
+  setTimeout(()=>{document.body.removeAttribute('data-print');pr.innerHTML=''},500);
+};
 function renderTM(){
   const D=window._tmData;if(!D)return;
   const v=window._tmView||'review';

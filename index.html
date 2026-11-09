@@ -4159,12 +4159,28 @@ async function tmPanelOpen(scope){
   await tmLoadRates();renderTmRatesTable();
   sel.onchange=()=>{tmApplyClientDivisors();tmSyncLogProject()};
   tmApplyClientDivisors();
+  if(scope!=='both')tmCopyPeriodFromLog();
 }
 function tmSyncLogProject(){
   if((window._tmScope||'both')==='both')return;
   const rp=$('rpt-project'),v=$('tm-project').value;
   if(rp&&[...rp.options].some(o=>o.value===v))rp.value=v;
 }
+// The report period follows the log's week / date range above it (one way). The report's own period boxes can be changed
+// freely afterwards; the next change to the log's period replaces them again.
+function tmCopyPeriodFromLog(){
+  const rw=$('rpt-week'),rf=$('rpt-from'),rt=$('rpt-to'),tw=$('tm-week'),tf=$('tm-from'),tt=$('tm-to');
+  if(!rw||!tw||(!rw.value&&!rf.value&&!rt.value))return;
+  const before=[tw.value,tf.value,tt.value].join('|');
+  if(rw.value){tw.value=rw.value;tf.value=rw.value;tt.value=rw.selectedOptions[0]?.dataset.to||''}else{tw.value='';tf.value=rf.value;tt.value=rt.value}
+  const has=!!tw.value;tf.disabled=has;tt.disabled=has;
+  $('tm-opt-dates').classList.toggle('off',has);$('tm-opt-week').classList.toggle('off',!has&&!!(tf.value||tt.value));
+  if([tw.value,tf.value,tt.value].join('|')!==before){$('tm-results').innerHTML='';window._tmData=null}
+}
+['rpt-week','rpt-from','rpt-to'].forEach(id=>$(id).addEventListener(id==='rpt-week'?'change':'input',()=>{
+  if((window._tmScope||'both')==='both'||$('rpt-tm-panel').classList.contains('hidden'))return;
+  tmCopyPeriodFromLog();
+}));
 $('rpt-project').addEventListener('change',()=>{
   if((window._tmScope||'both')==='both'||$('rpt-tm-panel').classList.contains('hidden'))return;
   const lp=$('rpt-project').value;if(!lp)return;

@@ -260,6 +260,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
     <div class="nav-tab priv-only hidden" data-tab="reports">&#128202; Reports</div>
     <div class="nav-tab priv-only hidden" data-tab="dashboard">&#128200; Dashboard</div>
     <div class="nav-tab priv-only hidden" data-tab="account">&#128209; Account Summary</div>
+    <div class="nav-tab priv-only hidden" data-tab="estimating">&#128208; Estimating</div>
     <div class="nav-tab admin-only hidden" data-tab="admin">&#9881; Admin</div>
   </div>
   <div class="main">
@@ -590,6 +591,12 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
         </div>
       </div>
       <div id="as-results"></div>
+    </div>
+
+    <div id="tab-estimating" class="hidden">
+      <h2>Estimating</h2>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Estimates are numbered by job (for example SYC-E-001). When one is accepted it becomes the baseline budget (SYC-B-001) and the project goes active. Lotus makes the client copy; you send it and keep QuickBooks in step using the same number.</div>
+      <div id="est-root"></div>
     </div>
 
     <div id="tab-admin" class="hidden">
@@ -6360,15 +6367,163 @@ $('as-xlsx').onclick=asXlsx;
 document.querySelectorAll('.as-quick').forEach(b=>b.onclick=()=>{dbRange(b.dataset.r,'as');asRun()});
 // ── END ACCOUNT SUMMARY ──────────────────────────────────────────────────────
 
+// ── ESTIMATING (slice 1: estimates list, numbering, sent date, acceptance) ──────
+// Numbers: SYC-E-001 (estimate), SYC-B-001 (baseline budget, same sequence number; its document id is the
+// estimate's id, e.g. SYC-001). The counter per job key lives in settings/estimateCounters. Admin and bookkeeper only.
+let estList=[],estOpenId=null,estRev=null;
+const estPad=n=>String(n).padStart(3,'0');
+const estD=s=>{if(!s)return'';const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);return m?m[2]+'/'+m[3]+'/'+m[1]:s};
+const estTodayYmd=()=>dbYmd(new Date());
+function estFlash(html,cls){const m=$('est-msg');if(m)m.innerHTML=html?`<div class="${cls||'notice'}" style="margin:8px 0">${html}</div>`:''}
+async function estLoad(){
+  const s=await getDocs(collection(db,'estimates'));
+  estList=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdMs||0)-(a.createdMs||0));
+}
+function estProjOptions(){
+  return (allProjects||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(p=>`<option value="${esc(p.id)}">${esc(p.name||p.id)}${p.stage==='estimating'?' (prospect)':''}${p.active===false&&p.stage!=='estimating'?' (archived)':''}</option>`).join('');
+}
+function estRender(){
+  const root=$('est-root');if(!root)return;
+  let h='';
+  h+=`<div class="card"><div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div class="field" style="margin-bottom:0"><label>Project</label><select id="est-new-proj" style="min-width:220px"><option value="">Choose a project...</option>${estProjOptions()}<option value="__new">+ New prospect (not started yet)</option></select></div>
+    <div class="field" style="margin-bottom:0;flex:1;min-width:180px"><label>Title (optional)</label><input type="text" id="est-new-title" placeholder="for example: Kitchen and laundry"></div>
+    <button type="button" class="btn btn-gold" id="est-new-go" style="width:auto;padding:10px 18px">New estimate</button></div>
+    <div id="est-new-prospect" style="margin-top:12px;display:none;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin-bottom:0"><label>Client or job name</label><input type="text" id="est-np-name" style="min-width:200px"></div>
+      <div class="field" style="margin-bottom:0"><label>Job key (prefix)</label><input type="text" id="est-np-prefix" maxlength="6" style="width:90px;text-transform:uppercase"></div>
+      <div class="field" style="margin-bottom:0;flex:1;min-width:200px"><label>Job site address (optional)</label><input type="text" id="est-np-addr"></div></div>
+    <div id="est-msg"></div></div>`;
+  if(!estList.length){h+=`<div class="card"><div class="empty">No estimates yet. Choose a project above and press New estimate.</div></div>`}
+  else{
+    h+=`<div class="card"><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Number</th><th>Project</th><th>Title</th><th>Rev</th><th>Sent</th><th>Acceptance</th><th></th></tr></thead><tbody>`;
+    estList.forEach(e=>{
+      const acc=e.acceptedDate?`<span style="color:var(--green);font-weight:600">Accepted ${estD(e.acceptedDate)}</span>`:`<span style="color:var(--muted)">Not accepted</span>`;
+      h+=`<tr><td style="font-weight:600">${esc(e.number)}${e.acceptedDate?`<div style="font-size:11px;color:var(--muted);font-weight:400">Budget ${esc(e.budgetNumber||'')}</div>`:''}</td><td>${esc(e.projectName||'')}</td><td>${esc(e.title||'')}</td><td>${e.rev>1?'r'+e.rev:'1'}</td><td>${e.sentDate?estD(e.sentDate):'Draft'}</td><td>${acc}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estOpen('${esc(e.id)}')">Open</button></td></tr>`;
+    });
+    h+=`</tbody></table></div></div>`;
+  }
+  h+=`<div id="est-detail"></div>`;
+  root.innerHTML=h;
+  const sel=$('est-new-proj');
+  sel.onchange=()=>{const n=sel.value==='__new';const bx=$('est-new-prospect');bx.style.display=n?'flex':'none'};
+  $('est-np-name').oninput=()=>{$('est-np-prefix').value=autoPrefix($('est-np-name').value)};
+  $('est-new-go').onclick=estCreate;
+  if(estOpenId)estShowDetail(estOpenId);
+}
+async function estCreate(){
+  if(!isPriv())return;
+  const sel=$('est-new-proj').value,title=$('est-new-title').value.trim();
+  if(!sel){estFlash('Choose a project first, or choose New prospect.','err');return}
+  const btn=$('est-new-go');btn.disabled=true;estFlash('Creating the estimate...');
+  try{
+    let proj,prefix;
+    if(sel==='__new'){
+      const name=$('est-np-name').value.trim();prefix=($('est-np-prefix').value||'').trim().toUpperCase().replace(/[^A-Z]/g,'');
+      if(!name||!prefix)throw new Error('Enter the client or job name and a job key.');
+      const clash=(allProjects||[]).find(p=>(p.billPrefix||autoPrefix(p.name||'')).toUpperCase()===prefix);
+      if(clash)throw new Error('The job key '+prefix+' is already used by '+(clash.name||'another project')+'. Change the job key.');
+      const ref=await addDoc(collection(db,'projects'),{name,address:$('est-np-addr').value.trim(),lat:null,lng:null,rooms:DEF_ROOMS.slice(),billPrefix:prefix,clientProject:true,spiffEligible:true,active:false,stage:'estimating',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      proj={id:ref.id,name};
+    }else{
+      proj=(allProjects||[]).find(p=>p.id===sel);if(!proj)throw new Error('That project was not found.');
+      prefix=projPrefix(proj);
+    }
+    const cRef=doc(db,'settings','estimateCounters');let made=null;
+    await runTransaction(db,async tx=>{
+      const c=await tx.get(cRef);const next=((c.exists()?c.data()[prefix]:0)||0)+1;
+      const id=prefix+'-'+estPad(next),eRef=doc(db,'estimates',id);
+      const ex=await tx.get(eRef);if(ex.exists())throw new Error('Estimate '+id+' already exists. Try again.');
+      tx.set(cRef,{[prefix]:next},{merge:true});
+      tx.set(eRef,{projectId:proj.id,projectName:proj.name||'',prefix,seq:next,number:prefix+'-E-'+estPad(next),budgetNumber:prefix+'-B-'+estPad(next),title,rev:1,sentDate:null,acceptedDate:null,createdMs:Date.now(),createdAt:serverTimestamp(),createdBy:invWho(),updatedAt:serverTimestamp(),updatedBy:invWho()});
+      made=id;
+    });
+    await setDoc(doc(db,'estimates',made,'revisions','1'),{rev:1,lines:[],sentAt:null,sentDate:null,createdAt:serverTimestamp(),createdBy:invWho()});
+    estOpenId=made;await estLoad();estRender();estFlash('Created '+esc(made.replace('-','-E-'))+'.');
+  }catch(e){estFlash('Could not create the estimate: '+esc(e.message||String(e)),'err');btn.disabled=false}
+}
+window._estOpen=id=>{estOpenId=id;estShowDetail(id);const d=$('est-detail');if(d)d.scrollIntoView({behavior:'smooth',block:'start'})};
+async function estShowDetail(id){
+  const box=$('est-detail');if(!box)return;
+  const e=estList.find(x=>x.id===id);if(!e){box.innerHTML='';return}
+  box.innerHTML='<div class="card"><div class="empty" style="padding:16px">Loading...</div></div>';
+  try{
+    const rs=await getDoc(doc(db,'estimates',id,'revisions',String(e.rev||1)));
+    estRev=rs.exists()?rs.data():{rev:e.rev||1,lines:[],sentAt:null};
+    if(!rs.exists())await setDoc(doc(db,'estimates',id,'revisions',String(e.rev||1)),{rev:e.rev||1,lines:[],sentAt:null,sentDate:null,createdAt:serverTimestamp(),createdBy:invWho()});
+  }catch(err){box.innerHTML='<div class="err">Could not load the estimate: '+esc(err.message||String(err))+'</div>';return}
+  const accepted=!!e.acceptedDate,sent=!!estRev.sentAt||!!e.sentDate,nLines=(estRev.lines||[]).length;
+  let h=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div style="font-weight:600;font-size:16px">${esc(e.number)}${e.rev>1?' (revision '+e.rev+')':''}</div><div style="font-size:12px;color:var(--muted)">${esc(e.projectName||'')}${e.title?' · '+esc(e.title):''} · Budget number when accepted: ${esc(e.budgetNumber||'')}</div></div><button class="btn btn-outline btn-sm" style="width:auto;align-self:flex-start" onclick="window._estClose()">Close</button></div>
+  <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+    <div><div class="inv-lbl" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Sent to client</div>
+      ${sent?`<div style="margin-top:6px"><b>${e.sentDate?estD(e.sentDate):'Sent'}</b> (this revision is now frozen)</div>`:`<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="date" id="est-sent-date" value="${estTodayYmd()}" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estMarkSent('${esc(id)}')">Mark sent</button></div><div style="font-size:11px;color:var(--muted);margin-top:4px">Lotus does not email clients. Record the date you send the PDF.</div>`}
+      ${sent&&!accepted?`<div style="margin-top:8px"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estNewRev('${esc(id)}')">Start revision ${(e.rev||1)+1}</button><div style="font-size:11px;color:var(--muted);margin-top:4px">Use this when the client asks for changes. Revision ${e.rev||1} stays on file.</div></div>`:''}
+    </div>
+    <div><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Acceptance</div>
+      ${accepted?`<div style="margin-top:6px"><b style="color:var(--green)">Accepted ${estD(e.acceptedDate)}</b> (revision ${e.acceptedRev||e.rev}). Baseline budget ${esc(e.budgetNumber||'')} was created and the project is active.</div>`:`<div style="margin-top:6px"><span style="color:var(--muted);font-weight:600">Not accepted</span></div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="date" id="est-acc-date" value="${estTodayYmd()}" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._estAccept('${esc(id)}')">Set accepted date</button></div><div style="font-size:11px;color:var(--muted);margin-top:4px">Setting the date locks this revision, creates budget ${esc(e.budgetNumber||'')} from it, and makes the project active. It cannot be undone from here.</div>`}
+    </div></div>
+  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">Lines on this revision: <b>${nLines}</b>. The line editor (rooms, trades, allowances, totals and the client PDF) is the next piece to be built.</div></div>`;
+  box.innerHTML=h;
+}
+window._estClose=()=>{estOpenId=null;const d=$('est-detail');if(d)d.innerHTML=''};
+window._estMarkSent=async id=>{
+  const e=estList.find(x=>x.id===id);if(!e||e.acceptedDate||estRev?.sentAt)return;
+  const d=$('est-sent-date').value;if(!d){alert('Choose the date it was sent.');return}
+  if(d>estTodayYmd()&&!confirm('That date is in the future. Save it anyway?'))return;
+  try{
+    const rn=String(e.rev||1);
+    await updateDoc(doc(db,'estimates',id,'revisions',rn),{sentAt:serverTimestamp(),sentDate:d,sentBy:invWho()});
+    await updateDoc(doc(db,'estimates',id),{sentDate:d,updatedAt:serverTimestamp(),updatedBy:invWho()});
+    await estLoad();estRender();estFlash('Revision '+rn+' of '+esc(e.number)+' is marked sent on '+estD(d)+' and is now frozen.');
+  }catch(err){alert('Could not save: '+(err.message||err))}
+};
+window._estNewRev=async id=>{
+  const e=estList.find(x=>x.id===id);if(!e||e.acceptedDate||!estRev?.sentAt)return;
+  if(!confirm('Start revision '+((e.rev||1)+1)+' of '+e.number+'? It begins as a copy of revision '+(e.rev||1)+', which stays on file unchanged.'))return;
+  try{
+    const n=(e.rev||1)+1;
+    await setDoc(doc(db,'estimates',id,'revisions',String(n)),{rev:n,lines:estRev.lines||[],totals:estRev.totals||null,sentAt:null,sentDate:null,createdAt:serverTimestamp(),createdBy:invWho(),copiedFromRev:e.rev||1});
+    await updateDoc(doc(db,'estimates',id),{rev:n,sentDate:null,updatedAt:serverTimestamp(),updatedBy:invWho()});
+    await estLoad();estRender();estFlash('Started revision '+n+' of '+esc(e.number)+'.');
+  }catch(err){alert('Could not start the revision: '+(err.message||err))}
+};
+window._estAccept=async id=>{
+  const e=estList.find(x=>x.id===id);if(!e||e.acceptedDate)return;
+  const d=$('est-acc-date').value;if(!d){alert('Choose the date it was accepted.');return}
+  if(!(estRev.lines||[]).length){alert('This revision has no lines yet, so there is nothing to turn into a budget. Add the lines first.');return}
+  if(!confirm('Mark '+e.number+' as accepted on '+estD(d)+'?\n\nThis locks revision '+(e.rev||1)+', creates the baseline budget '+e.budgetNumber+' from it, and makes '+(e.projectName||'the project')+' active so it appears on the time clock. It cannot be undone from here.'))return;
+  try{
+    const rn=String(e.rev||1),eRef=doc(db,'estimates',id),rRef=doc(db,'estimates',id,'revisions',rn),bRef=doc(db,'budgets',id),pRef=doc(db,'projects',e.projectId);
+    await runTransaction(db,async tx=>{
+      const [es,rs,bs]=await Promise.all([tx.get(eRef),tx.get(rRef),tx.get(bRef)]);
+      if(!es.exists()||es.data().acceptedDate)throw new Error('This estimate was already accepted.');
+      if(bs.exists())throw new Error('Budget '+e.budgetNumber+' already exists.');
+      const r=rs.data()||{};
+      tx.update(rRef,{sentAt:r.sentAt||serverTimestamp(),sentDate:r.sentDate||d});
+      tx.set(bRef,{number:e.budgetNumber,estimateId:id,estimateNumber:e.number,projectId:e.projectId,projectName:e.projectName||'',prefix:e.prefix,seq:e.seq,acceptedRev:e.rev||1,acceptedDate:d,baselineLines:r.lines||[],baselineTotals:r.totals||null,coIds:[],coTotal:0,createdAt:serverTimestamp(),createdBy:invWho()});
+      tx.update(eRef,{acceptedDate:d,acceptedRev:e.rev||1,acceptedBy:invWho(),acceptedAt:serverTimestamp(),sentDate:es.data().sentDate||d,updatedAt:serverTimestamp(),updatedBy:invWho()});
+      tx.update(pRef,{active:true,stage:'active',updatedAt:serverTimestamp()});
+    });
+    await estLoad();estRender();estFlash('Accepted. Budget '+esc(e.budgetNumber)+' was created and '+esc(e.projectName||'the project')+' is active.');
+  }catch(err){alert('Could not accept the estimate: '+(err.message||err))}
+};
+async function estOpen(){
+  if(!isPriv())return;
+  const root=$('est-root');if(root&&!estList.length&&!root.innerHTML)root.innerHTML='<div class="card"><div class="empty">Loading estimates...</div></div>';
+  try{await estLoad();estRender()}catch(err){if(root)root.innerHTML='<div class="err">Could not load estimates: '+esc(err.message||String(err))+'</div>'}
+}
+// ── END ESTIMATING (slice 1) ───────────────────────────────────────────────────
+
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{
     const t=tab.dataset.tab;
     document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-    ['clock','receipts','photos','triage','reports','dashboard','account','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
+    ['clock','receipts','photos','triage','reports','dashboard','account','estimating','admin'].forEach(x=>{const el=$('tab-'+x);if(el){t===x?el.classList.remove('hidden'):el.classList.add('hidden')}});
     if(t==='admin'){loadUsers();loadActiveSessions();}
     if(t==='reports'){prefillReportEmployees();}
     if(t==='dashboard'){dbOpen();}
     if(t==='account'){asOpen();}
+    if(t==='estimating'){estOpen();}
     if(t==='photos'){populatePhotoFilterProjects();}
     if(t==='receipts'){populateReceiptFilterProjects();}
   }

@@ -4917,6 +4917,44 @@ function loadPdfLib(){
   return new Promise((res,rej)=>{const s=document.createElement('script');s.src='vendor/jspdf.umd.min.js';s.onload=res;s.onerror=()=>rej(new Error('Could not load the PDF library'));document.head.appendChild(s)});
 }
 const pdfTxt=s=>String(s??'').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-').replace(/•/g,'-').replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/g,'?');
+// ── Shared look for every customer-facing document (estimate, invoice, credit memo, change order) ──
+// One banner: logo and wordmark, then a bold dark band naming the document and what the client is asked to do next.
+const PDFC={gold:[184,154,106],ink:[26,23,20],mute:[138,127,116],cream:[247,243,238],hair:[232,224,214]};
+const PDF_NEXT={estimate:'PLEASE REVIEW AND APPROVE',invoice:'PAYMENT DUE UPON RECEIPT',credit:'THIS CREDIT WILL BE APPLIED TO YOUR ACCOUNT',changeorder:'PLEASE APPROVE TO PROCEED'};
+// spec: {title, next, items:[{label,value}] (3 or 4), sub (optional line under the info row), cont (right-hand text on later pages)}
+function pdfBanner(pdf,spec){
+  const M=48,R=564,{gold,ink,mute,hair}=PDFC;
+  const tc=c=>pdf.setTextColor(c[0],c[1],c[2]);
+  pdf.addImage(INV_LOGO_PNG,'PNG',M,36,46,46);
+  pdf.setFont('helvetica','normal');pdf.setFontSize(27);tc(ink);pdf.text('MOTIF',M+58,68,{charSpace:7});
+  pdf.setFont('helvetica','bold');pdf.setFontSize(7.5);tc(gold);pdf.text('DESIGN SOLUTIONS',M+58,85,{charSpace:3.6});
+  pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text(INV_ADDR,M+58,98);
+  pdf.setFillColor(ink[0],ink[1],ink[2]);pdf.rect(M,114,R-M,46,'F');
+  pdf.setFillColor(gold[0],gold[1],gold[2]);pdf.rect(M,114,5,46,'F');
+  pdf.setFont('helvetica','bold');pdf.setFontSize(21);pdf.setTextColor(255,255,255);pdf.text(spec.title,M+20,144,{charSpace:1.5});
+  pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);tc(gold);pdf.text(spec.next,R-14,142,{align:'right'});
+  const it=spec.items||[],xs=it.length>=4?[M,230,372,R]:[M,330,R];
+  it.forEach((o,i)=>{
+    const last=i===it.length-1,al=last?'right':null,x=last?R:xs[i];
+    pdf.setFont('helvetica','bold');pdf.setFontSize(7);tc(mute);pdf.text(o.label,x,186,al?{align:al}:{charSpace:1.2});
+    pdf.setFont('helvetica',i===0||i===1?'bold':'normal');pdf.setFontSize(i===0?12:i===1?11:10);tc(ink);
+    pdf.text(i===0?pdf.splitTextToSize(String(o.value||''),250)[0]:String(o.value||''),x,204,al?{align:al}:undefined);
+  });
+  pdf.setDrawColor(hair[0],hair[1],hair[2]);pdf.setLineWidth(.6);pdf.line(M,216,R,216);
+  let y=244;
+  if(spec.sub){pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text(spec.sub,M,236);y=268}
+  return y;
+}
+function pdfContHeader(pdf,spec){
+  const M=48,R=564,{gold,ink,mute}=PDFC;
+  pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.setTextColor(ink[0],ink[1],ink[2]);pdf.text('MOTIF',M,46,{charSpace:3});
+  pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(mute[0],mute[1],mute[2]);pdf.text(spec.cont,R,46,{align:'right'});
+  pdf.setDrawColor(gold[0],gold[1],gold[2]);pdf.setLineWidth(1);pdf.line(M,56,R,56);return 90;
+}
+function pdfFooters(pdf){
+  const M=48,R=564,H=792,n=pdf.getNumberOfPages();
+  for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor(138,127,116);pdf.text('MOTIF Design Solutions  |  '+INV_ADDR,M,H-30);pdf.text('Page '+i+' of '+n,R,H-30,{align:'right'})}
+}
 async function invMakePdf(inv){
   await loadPdfLib();const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({unit:'pt',format:'letter',compress:true});
@@ -4931,27 +4969,11 @@ async function invMakePdf(inv){
     lbl('DESCRIPTION',M+6,y);lbl('QTY',cQ,y,'right');lbl('RATE',cR,y,'right');lbl('AMOUNT',cA,y,'right');
     pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(.8);pdf.line(M,y+7,R,y+7);y+=26;
   }
-  function header(first){
-    if(first){
-      pdf.addImage(INV_LOGO_PNG,'PNG',M,36,46,46);
-      pdf.setFont('helvetica','normal');pdf.setFontSize(27);tc(ink);pdf.text('MOTIF',M+58,68,{charSpace:7});
-      pdf.setFont('helvetica','bold');pdf.setFontSize(7.5);tc(gold);pdf.text('DESIGN SOLUTIONS',M+58,85,{charSpace:3.6});
-      pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text(INV_ADDR,M+58,98);
-      pdf.setFont('helvetica','bold');pdf.setFontSize(14);tc(ink);pdf.text(kind.toUpperCase()+' INVOICE',R,58,{align:'right'});
-      pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text(pdfTxt(per),R,76,{align:'right'});
-      pdf.setDrawColor(gold[0],gold[1],gold[2]);pdf.setLineWidth(1.6);pdf.line(M,112,R,112);
-      lbl('BILL TO',M,138);lbl('INVOICE NUMBER',330,138);lbl('INVOICE DATE',R,138,'right');
-      pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text(pdf.splitTextToSize(pdfTxt(inv.projectName),250)[0],M,156);
-      pdf.setFontSize(11);pdf.text(inv.number||'DRAFT',330,156);
-      pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.text(inv.invoiceDate||'',R,156,{align:'right'});
-      pdf.setDrawColor(hair[0],hair[1],hair[2]);pdf.setLineWidth(.6);pdf.line(M,166,R,166);
-      y=200;
-    }else{
-      pdf.setFont('helvetica','normal');pdf.setFontSize(11);tc(ink);pdf.text('MOTIF',M,46,{charSpace:3});
-      pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text((inv.number||'DRAFT')+'  |  '+kind+' invoice  |  '+pdfTxt(inv.projectName),R,46,{align:'right'});
-      pdf.setDrawColor(gold[0],gold[1],gold[2]);pdf.setLineWidth(1);pdf.line(M,56,R,56);y=90;
-    }
-  }
+  const isCredit=inv.kind==='credit';
+  const spec={title:isCredit?'CREDIT MEMO':kind.toUpperCase()+' INVOICE',next:isCredit?PDF_NEXT.credit:PDF_NEXT.invoice,
+    items:[{label:'BILL TO',value:pdfTxt(inv.projectName)},{label:'INVOICE NUMBER',value:inv.number||'DRAFT'},{label:'INVOICE DATE',value:inv.invoiceDate||''}],
+    sub:'Services period: '+pdfTxt(per),cont:(inv.number||'DRAFT')+'  |  '+kind+' invoice  |  '+pdfTxt(inv.projectName)};
+  function header(first){y=first?pdfBanner(pdf,spec):pdfContHeader(pdf,spec)}
   const ensure=(h,th=true)=>{if(y+h>H-64){pdf.addPage();header(false);if(th)tableHead()}};
   header(true);tableHead();
   (inv.sections||[]).forEach(s=>{
@@ -4981,8 +5003,7 @@ async function invMakePdf(inv){
     pdf.splitTextToSize(pdfTxt(inv.notes),R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=13});y+=17;
   }
   ensure(46,false);lbl('TERMS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);pdf.text(INV_TERMS,M,y);y+=30;
-  const n=pdf.getNumberOfPages();
-  for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFont('helvetica','normal');pdf.setFontSize(8);tc(mute);pdf.text('MOTIF Design Solutions  |  '+INV_ADDR,M,H-30);pdf.text('Page '+i+' of '+n,R,H-30,{align:'right'})}
+  pdfFooters(pdf);
   const uri=pdf.output('datauristring');return uri.slice(uri.indexOf('base64,')+7);
 }
 // ── Invoices tab wiring ──
@@ -6453,7 +6474,7 @@ async function estShowDetail(id){
     if(!rs.exists())await setDoc(doc(db,'estimates',id,'revisions',String(e.rev||1)),{rev:e.rev||1,lines:[],sentAt:null,sentDate:null,createdAt:serverTimestamp(),createdBy:invWho()});
   }catch(err){box.innerHTML='<div class="err">Could not load the estimate: '+esc(err.message||String(err))+'</div>';return}
   const accepted=!!e.acceptedDate,sent=!!estRev.sentAt||!!e.sentDate,nLines=(estRev.lines||[]).length;
-  let h=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div style="font-weight:600;font-size:16px">${esc(e.number)}${e.rev>1?' (revision '+e.rev+')':''}</div><div style="font-size:12px;color:var(--muted)">${esc(e.projectName||'')}${e.title?' · '+esc(e.title):''} · Budget number when accepted: ${esc(e.budgetNumber||'')}</div></div><button class="btn btn-outline btn-sm" style="width:auto;align-self:flex-start" onclick="window._estClose()">Close</button></div>
+  let h=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div style="font-weight:600;font-size:16px">${esc(e.number)}${e.rev>1?' (revision '+e.rev+')':''}</div><div style="font-size:12px;color:var(--muted)">${esc(e.projectName||'')}${e.title?' · '+esc(e.title):''} · Budget number when accepted: ${esc(e.budgetNumber||'')}</div></div><div style="display:flex;gap:6px;align-self:flex-start"><button class="btn btn-gold btn-sm" style="width:auto" onclick="window._estPdf('${esc(id)}')">Client PDF</button><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estClose()">Close</button></div></div>
   <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
     <div><div class="inv-lbl" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Sent to client</div>
       ${sent?`<div style="margin-top:6px"><b>${e.sentDate?estD(e.sentDate):'Sent'}</b> (this revision is now frozen)</div>`:`<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="date" id="est-sent-date" value="${estTodayYmd()}" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font:inherit"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._estMarkSent('${esc(id)}')">Mark sent</button></div><div style="font-size:11px;color:var(--muted);margin-top:4px">Lotus does not email clients. Record the date you send the PDF.</div>`}
@@ -6466,7 +6487,7 @@ async function estShowDetail(id){
   box.innerHTML=h;
   estEditable=!accepted&&!sent;estDirty=false;
   estTerms={...estDefaultTerms(e.projectId),...(estRev.terms||{})};
-  estLines=(estRev.lines||[]).map(l=>({...l}));
+  estLines=(estRev.lines||[]).map(l=>({...l}));estNotes=estRev.clientNotes||'';
   $('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);
 }
 window._estClose=()=>{estOpenId=null;const d=$('est-detail');if(d)d.innerHTML=''};
@@ -6553,7 +6574,7 @@ function estCalc(lines,t){
   o.total=estR2(o.subtotal+o.contLabor+o.contMat+o.tax);
   return o;
 }
-let estLines=[],estTerms={},estEditable=false,estDirty=false;
+let estLines=[],estTerms={},estEditable=false,estDirty=false,estNotes='';
 function estDefaultTerms(projectId){
   const r=(typeof tmRatesFor==='function'&&window._clientRates)?tmRatesFor(projectId):{construction:85,design:145,matDiv:0.65,subDiv:0.75};
   return {rateC:r.construction||85,rateD:r.design||145,matDiv:r.matDiv||0.65,subDiv:r.subDiv||0.75,contLabor:10,contMat:10,taxRate:0};
@@ -6597,9 +6618,11 @@ function estEditorHtml(e){
         <span>Construction labor $/hr</span><input data-t="rateC" type="number" step="any" value="${estS(estTerms.rateC)}" ${dis} ${inp}>
         <span>Design labor $/hr</span><input data-t="rateD" type="number" step="any" value="${estS(estTerms.rateD)}" ${dis} ${inp}>
         <span>Materials divisor</span><input data-t="matDiv" type="number" step="any" value="${estS(estTerms.matDiv)}" ${dis} ${inp}>
-        <span>Subcontractor divisor</span><input data-t="subDiv" type="number" step="any" value="${estS(estTerms.subDiv)}" ${dis} ${inp}></div>
+        <span>Subcontractor divisor</span><input data-t="subDiv" type="number" step="any" value="${estS(estTerms.subDiv)}" ${dis} ${inp}>
+        <span>Valid through (optional)</span><input data-t="validThrough" type="date" value="${esc(estTerms.validThrough||'')}" ${dis} ${inp}></div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Starts from this job's billing rates and is saved with the revision.</div></div>
-    <div id="est-totals" style="flex:1;min-width:280px"></div></div></div>`;
+    <div id="est-totals" style="flex:1;min-width:280px"></div></div>
+  <div style="margin-top:14px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Assumptions and clarifications (printed on the client estimate)</div><textarea id="est-notes" rows="4" ${dis} style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;background:#fff">${esc(estNotes)}</textarea></div></div>`;
   return h;
 }
 function estTotalsHtml(){
@@ -6625,6 +6648,7 @@ function estWireEditor(e){
   const ed=$('est-editor');
   ed.querySelectorAll('[data-t]').forEach(i=>{i.oninput=()=>{estTerms[i.dataset.t]=i.value;
     body.querySelectorAll('[data-i]').forEach(tr=>{const l=estLines[+tr.dataset.i];const a=tr.querySelector('[data-amtv]');if(a&&l)a.textContent=tmMoney(estLineAmt(l,estTerms))});refresh()}});
+  const nt=$('est-notes');if(nt)nt.oninput=()=>{estNotes=nt.value;estDirty=true;const sb=$('est-save');if(sb)sb.textContent='Save lines *'};
   $('est-totals').innerHTML=estTotalsHtml();
 }
 window._estAddLine=()=>{if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);const last=estLines[estLines.length-1];estLines.push(estNewLine(last?.type||'labor-c',last?.room||''));$('est-editor').innerHTML=estEditorHtml(e);estWireEditor(e);estDirty=true};
@@ -6633,15 +6657,100 @@ window._estSave=async()=>{
   if(!estEditable)return;const e=estList.find(x=>x.id===estOpenId);if(!e)return;
   const lines=estLines.map(l=>({id:l.id,room:l.room||'',trade:(l.trade||'').trim(),type:l.type,desc:(l.desc||'').trim(),qty:parseFloat(l.qty)||0,unit:(l.unit||'').trim(),price:parseFloat(l.price)||0,allowance:!!l.allowance,taxable:l.type==='fee'?!!l.taxable:false}));
   const bad=lines.findIndex(l=>!l.desc);if(bad>=0){alert('Line '+(bad+1)+' needs a description.');return}
-  const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75};
+  const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,validThrough:estTerms.validThrough||''};
   const lineAmts=lines.map(l=>({...l,client:estLineAmt(l,terms)}));
   try{
-    await updateDoc(doc(db,'estimates',e.id,'revisions',String(e.rev||1)),{lines:lineAmts,terms,totals:estCalc(lines,terms),updatedAt:serverTimestamp(),updatedBy:invWho()});
-    estLines=lineAmts.map(l=>({...l}));estTerms=terms;estDirty=false;estRev={...estRev,lines:lineAmts,terms};
+    await updateDoc(doc(db,'estimates',e.id,'revisions',String(e.rev||1)),{lines:lineAmts,terms,clientNotes:estNotes||'',totals:estCalc(lines,terms),updatedAt:serverTimestamp(),updatedBy:invWho()});
+    estLines=lineAmts.map(l=>({...l}));estTerms=terms;estDirty=false;estRev={...estRev,lines:lineAmts,terms,clientNotes:estNotes||''};
     const sb=$('est-save');if(sb)sb.textContent='Save lines';estFlash('Saved '+lines.length+' line'+(lines.length===1?'':'s')+' on '+esc(e.number)+(e.rev>1?' revision '+e.rev:'')+'.');
   }catch(err){alert('Could not save: '+(err.message||err))}
 };
 // ── END ESTIMATING (slice 2) ───────────────────────────────────────────────────
+// ── ESTIMATING (client PDF) ────────────────────────────────────────────────────
+// Payment schedule (company standard, 2026-11-09): 100% of materials (with their contingency) and tax, any fees, and 50% of
+// labor (with its contingency) and subcontractors up front; then 25% at drywall completion, 20% at countertop installation
+// and 5% at punch list, each of total labor and subcontractors. Design labor is counted with labor (to be confirmed).
+function estSchedule(c){
+  const lab=estR2(c.labor+c.contLabor+c.sub),mat=estR2(c.materials+c.contMat);
+  const p1=estR2(mat+c.tax+c.fee+lab*0.5),p2=estR2(lab*0.25),p3=estR2(lab*0.2),p4=estR2(c.total-p1-p2-p3);
+  const rows=[['To begin work',lab>0?'100% of materials and tax, plus 50% of labor and subcontractors':'Materials, fees and tax',lab>0?p1:c.total]];
+  if(lab>0){rows.push(['At drywall completion','25% of labor and subcontractors',p2],['At countertop installation','20% of labor and subcontractors',p3],['At punch list','5% of labor and subcontractors',p4])}
+  return rows;
+}
+async function estBuildPdf(e,rev,lines,terms,notes){
+  await loadPdfLib();const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({unit:'pt',format:'letter',compress:true});
+  const proj=(allProjects||[]).find(p=>p.id===e.projectId)||{};
+  pdf.setProperties({title:e.number+' '+pdfTxt(e.projectName),author:'MOTIF Design Solutions'});
+  const H=792,M=48,R=564,cA=R-6,cR=R-96,cQ=R-176,dW=cQ-M-52,{ink,mute,cream,gold}=PDFC;
+  const tc=c=>pdf.setTextColor(c[0],c[1],c[2]);
+  const lbl=(t,x,yy,al)=>{pdf.setFont('helvetica','bold');pdf.setFontSize(7);tc(mute);pdf.text(t,x,yy,al?{align:al}:{charSpace:1.2})};
+  const c=estCalc(lines,terms);let y=0;
+  const items=[{label:'PREPARED FOR',value:pdfTxt(e.projectName)},{label:'ESTIMATE NUMBER',value:e.number+(rev>1?' (revision '+rev+')':'')},{label:'DATE',value:tmLongDate(e.sentDate||estTodayYmd())}];
+  if(terms.validThrough)items.push({label:'VALID THROUGH',value:tmLongDate(terms.validThrough)});
+  const spec={title:'ESTIMATE',next:PDF_NEXT.estimate,items,sub:pdfTxt([e.title,proj.address].filter(Boolean).join('  |  '))||undefined,cont:e.number+'  |  Estimate  |  '+pdfTxt(e.projectName)};
+  function tableHead(){lbl('DESCRIPTION',M+6,y);lbl('QTY',cQ,y,'right');lbl('RATE',cR,y,'right');lbl('AMOUNT',cA,y,'right');pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(.8);pdf.line(M,y+7,R,y+7);y+=26}
+  const header=first=>{y=first?pdfBanner(pdf,spec):pdfContHeader(pdf,spec)};
+  const ensure=(h,th=true)=>{if(y+h>H-64){pdf.addPage();header(false);if(th)tableHead()}};
+  header(true);tableHead();
+  const order=[],byRoom={};
+  (lines||[]).forEach(l=>{const r=l.room||'Whole project';if(!byRoom[r]){byRoom[r]=[];order.push(r)}byRoom[r].push(l)});
+  order.forEach(r=>{
+    ensure(60);pdf.setFillColor(cream[0],cream[1],cream[2]);pdf.rect(M,y-13,R-M,22,'F');
+    pdf.setFont('helvetica','bold');pdf.setFontSize(9.5);tc(ink);pdf.text(pdfTxt(r),M+6,y+2);y+=26;
+    let sub=0;
+    byRoom[r].forEach(l=>{
+      const amt=estLineAmt(l,terms),q=parseFloat(l.qty)||0;sub+=amt;
+      pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);
+      const dl=pdf.splitTextToSize(pdfTxt(l.desc),dW);
+      pdf.setFontSize(8);const nl=l.allowance?pdf.splitTextToSize('Allowance: the final cost depends on your selection.',dW):[];
+      ensure(dl.length*12+nl.length*10+14);
+      pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);pdf.text(dl,M+6,y);
+      pdf.text((q?String(q):'')+(l.unit?' '+pdfTxt(l.unit):''),cQ,y,{align:'right'});
+      if(q)pdf.text(tmMoney(amt/q),cR,y,{align:'right'});pdf.text(tmMoney(amt),cA,y,{align:'right'});
+      let last=y+(dl.length-1)*12;
+      if(nl.length){pdf.setFontSize(8);tc(mute);pdf.text(nl,M+6,last+11);last+=11+(nl.length-1)*10}
+      pdf.setDrawColor(240,234,226);pdf.setLineWidth(.5);pdf.line(M,last+7,R,last+7);y=last+21;
+    });
+    ensure(34);pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text('Subtotal',cR,y,{align:'right'});
+    pdf.setFont('helvetica','bold');pdf.setFontSize(9.5);tc(ink);pdf.text(tmMoney(sub),cA,y,{align:'right'});y+=30;
+  });
+  ensure(150,false);
+  const sumRow=(t,v,bold)=>{ensure(18,false);pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(9.5);tc(bold?ink:mute);pdf.text(t,cR,y,{align:'right'});tc(ink);pdf.text(tmMoney(v),cA,y,{align:'right'});y+=16};
+  sumRow('Subtotal',c.subtotal,true);
+  if(c.contLabor)sumRow('Contingency on labor ('+(parseFloat(terms.contLabor)||0)+'%)',c.contLabor);
+  if(c.contMat)sumRow('Contingency on materials ('+(parseFloat(terms.contMat)||0)+'%)',c.contMat);
+  if(c.tax)sumRow('Sales tax ('+(parseFloat(terms.taxRate)||0)+'%)',c.tax);
+  y+=4;pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(1.2);pdf.line(M,y-8,R,y-8);
+  pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text('Estimate total',M+6,y+12);pdf.setFontSize(13);pdf.text(tmMoney(c.total),cA,y+12,{align:'right'});y+=44;
+  if(c.allowances){
+    ensure(52,false);lbl('ABOUT ALLOWANCES',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(ink);
+    pdf.splitTextToSize('An allowance is an amount set aside for an item that has not been selected yet. If your final selection costs more, the difference is added by change order. If it costs less, the savings are carried forward.',R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=12});y+=14;
+  }
+  ensure(96,false);lbl('PAYMENT SCHEDULE',M,y);y+=15;
+  estSchedule(c).forEach(([a,b,v])=>{ensure(18,false);pdf.setFont('helvetica','bold');pdf.setFontSize(9.5);tc(ink);pdf.text(a,M,y);pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);tc(mute);pdf.text(b,M+150,y);pdf.setFontSize(9.5);tc(ink);pdf.text(tmMoney(v),R,y,{align:'right'});y+=16});y+=14;
+  if(String(notes||'').trim()){
+    ensure(46,false);lbl('ASSUMPTIONS AND CLARIFICATIONS',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);
+    String(notes).split(/\r?\n/).forEach(par=>{pdf.splitTextToSize(pdfTxt(par)||' ',R-M).forEach(t=>{ensure(14,false);pdf.text(t,M,y);y+=13})});y+=14;
+  }
+  ensure(110,false);lbl('APPROVAL',M,y);y+=15;pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(ink);
+  pdf.text('To approve this estimate, sign below and return it to MOTIF Design Solutions.',M,y);y+=44;
+  pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(.7);pdf.line(M,y,M+280,y);pdf.line(M+310,y,R,y);y+=12;
+  lbl('SIGNATURE',M,y);lbl('DATE',M+310,y);
+  pdfFooters(pdf);return pdf;
+}
+window._estPdf=async id=>{
+  const e=estList.find(x=>x.id===id);if(!e)return;
+  try{
+    const terms={taxRate:parseFloat(estTerms.taxRate)||0,contLabor:parseFloat(estTerms.contLabor)||0,contMat:parseFloat(estTerms.contMat)||0,rateC:parseFloat(estTerms.rateC)||0,rateD:parseFloat(estTerms.rateD)||0,matDiv:parseFloat(estTerms.matDiv)||0.65,subDiv:parseFloat(estTerms.subDiv)||0.75,validThrough:estTerms.validThrough||''};
+    const lines=estLines.filter(l=>(l.desc||'').trim());
+    if(!lines.length){alert('Add at least one line with a description first.');return}
+    const pdf=await estBuildPdf(e,e.rev||1,lines,terms,estNotes);
+    const sent=!!estRev?.sentAt||!!e.sentDate;
+    pdf.save(e.number+((e.rev||1)>1?'-r'+(e.rev||1):'')+(sent?'':'-DRAFT')+'.pdf');
+  }catch(err){alert('Could not make the PDF: '+(err.message||err))}
+};
+// ── END ESTIMATING (client PDF) ────────────────────────────────────────────────
 
 document.querySelectorAll('.nav-tab').forEach(tab=>{
   tab.onclick=()=>{

@@ -431,7 +431,8 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
               </div>
             </div>
           </div>
-          <div style="margin-top:14px;text-align:right"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Report</button></div>
+          <div style="margin-top:14px;text-align:right"><button class="btn btn-gold" id="rpt-run-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Internal Reporting</button> <button class="btn btn-gold" id="rpt-client-btn" style="width:auto;padding:11px 28px;white-space:nowrap">Run Client Report</button></div>
+          <div style="margin-top:6px;text-align:right;font-size:12px;color:var(--muted)">Client Report needs one Project and a period. It ignores the Employee, Category, Room and Billable filters, so an invoice always covers all the billable work.</div>
           <div id="rpt-active-filters" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
           <div id="rpt-results"></div>
         </div>
@@ -3827,6 +3828,7 @@ wirePeriod('tm',()=>{$('tm-results').innerHTML=''});
 $('rpt-run-btn').onclick=async()=>{
   const pid=$('rpt-project').value,fr=$('rpt-from').value,to=$('rpt-to').value;
   if(!pid&&!fr&&!to){alert('Select at least a project or a date range before running.');return}
+  if($('tm-results')){$('tm-results').innerHTML='';window._tmData=null}
   $('rpt-run-btn').disabled=true;$('rpt-run-btn').textContent='Running...';$('rpt-results').innerHTML='<div class="empty">Loading...</div>';
   const col=currentRptType==='time'?'timeLogs':'receipts';
   const tf=currentRptType==='time'?'clockIn':'submittedAt';
@@ -3853,7 +3855,7 @@ $('rpt-run-btn').onclick=async()=>{
     applyReportFilters();
     populateSecondaryFilters(_rptRawData);
   }catch(e){$('rpt-results').innerHTML='<div class="err">Query failed: '+e.message+'</div>'}
-  $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Run Report';
+  $('rpt-run-btn').disabled=false;$('rpt-run-btn').textContent='Internal Reporting';
 };
 
 function populateSecondaryFilters(data){
@@ -4160,6 +4162,12 @@ async function tmPanelOpen(scope){
   sel.onchange=()=>{tmApplyClientDivisors();tmSyncLogProject()};
   tmApplyClientDivisors();
   if(scope!=='both')tmCopyPeriodFromLog();
+  // On the Time Log and Receipts tabs the job and period come from the filters above, and the "Run Client Report" button there runs it.
+  const own=scope==='both';
+  const pf=$('tm-project').closest('.field');if(pf)pf.style.display=own?'':'none';
+  const pb=$('rpt-tm-panel').querySelector('.rpt-period');if(pb)pb.style.display=own?'':'none';
+  $('tm-run-btn').parentElement.style.display=own?'':'none';
+  const cb=$('rpt-client-btn');if(cb)cb.textContent=scope==='materials'?'Run Client Materials Report':'Run Client Report';
 }
 function tmSyncLogProject(){
   if((window._tmScope||'both')==='both')return;
@@ -4192,6 +4200,17 @@ $('rpt-tm-btn').onclick=async()=>{
   $('rpt-tm-btn').classList.add('on');
   hide('rpt-standard-panel');hide('rpt-payroll-panel');hide('rpt-logtime-panel');
   await tmPanelOpen('both');
+};
+$('rpt-client-btn').onclick=()=>{
+  const pid=$('rpt-project').value,res=$('rpt-results');
+  const err=m=>{res.innerHTML='<div class="err">'+m+'</div>';$('rpt-active-filters').textContent='';$('tm-results').innerHTML='';window._tmData=null};
+  if(!pid){err('Choose a Project above. The client report runs for one job at a time, so All Projects is not available.');return}
+  const sel=$('tm-project');sel.value=pid;
+  if(sel.value!==pid){err('That project is not available for client reports.');return}
+  if(!$('rpt-week').value&&!($('rpt-from').value&&$('rpt-to').value)){err('Choose a billing week, or both a From and a To date.');return}
+  res.innerHTML='';$('rpt-active-filters').textContent='';
+  tmApplyClientDivisors();tmCopyPeriodFromLog();
+  $('tm-run-btn').click();
 };
 $('tm-run-btn').onclick=async()=>{
   const pid=$('tm-project').value,fr=$('tm-from').value,to=$('tm-to').value;

@@ -434,15 +434,20 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <div class="field" id="rpt-billable-wrap" style="margin-bottom:0"><label>Billable</label><select id="rpt-billable"><option value="">All</option><option value="yes">Billable Only</option><option value="no">Not Billable</option></select></div>
           </div>
           <div class="rpt-period">
-            <div class="rpt-period-title">Choose a time period <span>(use one or the other)</span></div>
+            <div class="rpt-period-title">Choose a time period <span>(use one)</span></div>
             <div class="rpt-period-row">
               <div class="rpt-opt" id="rpt-opt-week">
                 <div class="rpt-opt-label">Option 1 &middot; A billing week</div>
                 <div class="field" style="margin-bottom:0"><label>Week of</label><select id="rpt-week" style="width:100%"><option value=""></option></select></div>
               </div>
               <div class="rpt-or"><span>OR</span></div>
+              <div class="rpt-opt" id="rpt-opt-month">
+                <div class="rpt-opt-label">Option 2 &middot; A billing month</div>
+                <div class="field" style="margin-bottom:0"><label>Month of</label><select id="rpt-month" style="width:100%"><option value=""></option></select></div>
+              </div>
+              <div class="rpt-or"><span>OR</span></div>
               <div class="rpt-opt" id="rpt-opt-dates">
-                <div class="rpt-opt-label">Option 2 &middot; A custom date range</div>
+                <div class="rpt-opt-label">Option 3 &middot; A custom date range</div>
                 <div class="rpt-dates">
                   <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="rpt-from" style="width:100%"></div>
                   <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="rpt-to" style="width:100%"></div>
@@ -469,15 +474,20 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
             <div class="field" style="margin-bottom:0"><label>Subcontractors: cost &divide;</label><input type="number" step="0.01" id="tm-sub-div" value="0.75" style="width:100%"></div>
           </div>
           <div class="rpt-period">
-            <div class="rpt-period-title">Choose a time period <span>(use one or the other)</span></div>
+            <div class="rpt-period-title">Choose a time period <span>(use one)</span></div>
             <div class="rpt-period-row">
               <div class="rpt-opt" id="tm-opt-week">
                 <div class="rpt-opt-label">Option 1 &middot; A billing week</div>
                 <div class="field" style="margin-bottom:0"><label>Week of</label><select id="tm-week" style="width:100%"><option value=""></option></select></div>
               </div>
               <div class="rpt-or"><span>OR</span></div>
+              <div class="rpt-opt" id="tm-opt-month">
+                <div class="rpt-opt-label">Option 2 &middot; A billing month</div>
+                <div class="field" style="margin-bottom:0"><label>Month of</label><select id="tm-month" style="width:100%"><option value=""></option></select></div>
+              </div>
+              <div class="rpt-or"><span>OR</span></div>
               <div class="rpt-opt" id="tm-opt-dates">
-                <div class="rpt-opt-label">Option 2 &middot; A custom date range</div>
+                <div class="rpt-opt-label">Option 3 &middot; A custom date range</div>
                 <div class="rpt-dates">
                   <div class="field" style="margin-bottom:0"><label>From</label><input type="date" id="tm-from" style="width:100%"></div>
                   <div class="field" style="margin-bottom:0"><label>To</label><input type="date" id="tm-to" style="width:100%"></div>
@@ -570,6 +580,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button type="button" class="btn btn-outline btn-sm db-quick" data-r="last" style="width:auto">Last month</button>
           <button type="button" class="btn btn-outline btn-sm db-quick" data-r="30" style="width:auto">Last 30 days</button>
           <button type="button" class="btn btn-outline btn-sm db-quick" data-r="ytd" style="width:auto">Year to date</button>
+          <select id="db-month" class="db-monthpick" data-pre="db" style="width:auto;padding:5px 8px;font-size:12px"><option value="">Pick a month...</option></select>
         </div>
       </div>
       <div id="db-results"></div>
@@ -587,7 +598,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
           <button type="button" class="btn btn-outline" id="as-xlsx" style="width:auto;padding:10px 18px">Excel</button>
         </div>
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" class="btn btn-outline btn-sm as-quick" data-r="week" style="width:auto">This week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="lastweek" style="width:auto">Last week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="month" style="width:auto">This month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="last" style="width:auto">Last month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="30" style="width:auto">Last 30 days</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="ytd" style="width:auto">Year to date</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="all" style="width:auto">All time</button>
+          <button type="button" class="btn btn-outline btn-sm as-quick" data-r="week" style="width:auto">This week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="lastweek" style="width:auto">Last week</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="month" style="width:auto">This month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="last" style="width:auto">Last month</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="30" style="width:auto">Last 30 days</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="ytd" style="width:auto">Year to date</button><button type="button" class="btn btn-outline btn-sm as-quick" data-r="all" style="width:auto">All time</button><select id="as-month" class="db-monthpick" data-pre="as" style="width:auto;padding:5px 8px;font-size:12px"><option value="">Pick a month...</option></select>
         </div>
       </div>
       <div id="as-results"></div>
@@ -3929,17 +3940,41 @@ function fillWeekOptions(sel){
     sel.appendChild(o);
   }
 }
-// Either/or time-period block (Week of vs. custom From/To). p is the id prefix: 'rpt' or 'tm'.
+// Billing months (added 2026-11-10): jobs can be billed monthly as well as weekly. A month runs from the 1st to the last day
+// of a calendar month; choosing one fills From/To the same way a billing week does.
+function fillMonthOptions(sel,n){
+  if(!sel)return;
+  const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const t0=new Date();
+  for(let i=0;i<(n||36);i++){
+    const s0=new Date(t0.getFullYear(),t0.getMonth()-i,1),e0=new Date(s0.getFullYear(),s0.getMonth()+1,0);
+    const o=document.createElement('option');o.value=ymd(s0);o.dataset.to=ymd(e0);
+    o.textContent=s0.toLocaleDateString('en-US',{month:'long',year:'numeric'})+(i===0?'  (this month)':i===1?'  (last month)':'');
+    sel.appendChild(o);
+  }
+}
+// Either/or time-period block (Week of, Month of, or custom From/To). p is the id prefix: 'rpt' or 'tm'.
 function wirePeriod(p,onChange){
   const sel=$(p+'-week');if(!sel)return;
-  fillWeekOptions(sel);
-  const optW=$(p+'-opt-week'),optD=$(p+'-opt-dates'),fr=$(p+'-from'),to=$(p+'-to');
-  const refresh=()=>{const has=!!sel.value;fr.disabled=has;to.disabled=has;optD.classList.toggle('off',has);optW.classList.toggle('off',!has&&!!(fr.value||to.value))};
+  const msel=$(p+'-month');
+  fillWeekOptions(sel);fillMonthOptions(msel);
+  const optW=$(p+'-opt-week'),optM=$(p+'-opt-month'),optD=$(p+'-opt-dates'),fr=$(p+'-from'),to=$(p+'-to');
+  const refresh=()=>{
+    const hw=!!sel.value,hm=!!(msel&&msel.value),has=hw||hm,typed=!!(fr.value||to.value);
+    fr.disabled=has;to.disabled=has;optD.classList.toggle('off',has);
+    optW.classList.toggle('off',!hw&&(hm||typed));if(optM)optM.classList.toggle('off',!hm&&(hw||typed));
+  };
   sel.onchange=()=>{
+    if(msel)msel.value='';
     if(sel.value){fr.value=sel.value;to.value=sel.selectedOptions[0].dataset.to}else{fr.value='';to.value=''}
     refresh();if(onChange)onChange();
   };
-  [fr,to].forEach(el=>el.addEventListener('input',()=>{if(sel.value)return;refresh()}));
+  if(msel)msel.onchange=()=>{
+    sel.value='';
+    if(msel.value){fr.value=msel.value;to.value=msel.selectedOptions[0].dataset.to}else{fr.value='';to.value=''}
+    refresh();if(onChange)onChange();
+  };
+  [fr,to].forEach(el=>el.addEventListener('input',()=>{if(sel.value||(msel&&msel.value))return;refresh()}));
 }
 wirePeriod('rpt',()=>{$('rpt-results').innerHTML='';$('rpt-active-filters').textContent=''});
 wirePeriod('tm',()=>{$('tm-results').innerHTML=''});
@@ -4151,7 +4186,7 @@ window._xlsx=async()=>{
     names.forEach(n=>{let t=n.replace(/[\\\/?*\[\]:]/g,'').replace(/\s+/g,' ').trim().slice(0,31)||'Unknown';let i=2;while(used.has(t))t=t.slice(0,28)+' '+(i++);used.add(t);
       XLSX.utils.book_append_sheet(wb,mk(sorted.filter(r=>(r.userName||'Unknown')===n)),t)});
     const fr=$('rpt-from').value,to=$('rpt-to').value;
-    XLSX.writeFile(wb,'MOTIF_Time_Report_'+($('rpt-week')?.value?'Week_of_'+$('rpt-week').value:(fr||'start')+'_to_'+(to||'today'))+'.xlsx');
+    XLSX.writeFile(wb,'MOTIF_Time_Report_'+($('rpt-week')?.value?'Week_of_'+$('rpt-week').value:$('rpt-month')?.value?'Month_of_'+$('rpt-month').value.slice(0,7):(fr||'start')+'_to_'+(to||'today'))+'.xlsx');
   }catch(e){alert('Excel export failed: '+e.message)}
 };
 
@@ -4300,15 +4335,18 @@ function tmSyncLogProject(){
 // The report period follows the log's week / date range above it (one way). The report's own period boxes can be changed
 // freely afterwards; the next change to the log's period replaces them again.
 function tmCopyPeriodFromLog(){
-  const rw=$('rpt-week'),rf=$('rpt-from'),rt=$('rpt-to'),tw=$('tm-week'),tf=$('tm-from'),tt=$('tm-to');
-  if(!rw||!tw||(!rw.value&&!rf.value&&!rt.value))return;
-  const before=[tw.value,tf.value,tt.value].join('|');
-  if(rw.value){tw.value=rw.value;tf.value=rw.value;tt.value=rw.selectedOptions[0]?.dataset.to||''}else{tw.value='';tf.value=rf.value;tt.value=rt.value}
-  const has=!!tw.value;tf.disabled=has;tt.disabled=has;
-  $('tm-opt-dates').classList.toggle('off',has);$('tm-opt-week').classList.toggle('off',!has&&!!(tf.value||tt.value));
-  if([tw.value,tf.value,tt.value].join('|')!==before){$('tm-results').innerHTML='';window._tmData=null}
+  const rw=$('rpt-week'),rm=$('rpt-month'),rf=$('rpt-from'),rt=$('rpt-to'),tw=$('tm-week'),tmo=$('tm-month'),tf=$('tm-from'),tt=$('tm-to');
+  if(!rw||!tw||(!rw.value&&!(rm&&rm.value)&&!rf.value&&!rt.value))return;
+  const before=[tw.value,tmo?tmo.value:'',tf.value,tt.value].join('|');
+  if(rw.value){tw.value=rw.value;if(tmo)tmo.value='';tf.value=rw.value;tt.value=rw.selectedOptions[0]?.dataset.to||''}
+  else if(rm&&rm.value&&tmo){tw.value='';tmo.value=rm.value;tf.value=rm.value;tt.value=rm.selectedOptions[0]?.dataset.to||''}
+  else{tw.value='';if(tmo)tmo.value='';tf.value=rf.value;tt.value=rt.value}
+  const hw=!!tw.value,hm=!!(tmo&&tmo.value),has=hw||hm,typed=!!(tf.value||tt.value);
+  tf.disabled=has;tt.disabled=has;
+  $('tm-opt-dates').classList.toggle('off',has);$('tm-opt-week').classList.toggle('off',!hw&&(hm||typed));$('tm-opt-month').classList.toggle('off',!hm&&(hw||typed));
+  if([tw.value,tmo?tmo.value:'',tf.value,tt.value].join('|')!==before){$('tm-results').innerHTML='';window._tmData=null}
 }
-['rpt-week','rpt-from','rpt-to'].forEach(id=>$(id).addEventListener(id==='rpt-week'?'change':'input',()=>{
+['rpt-week','rpt-month','rpt-from','rpt-to'].forEach(id=>$(id).addEventListener(/week|month/.test(id)?'change':'input',()=>{
   if((window._tmScope||'both')==='both'||$('rpt-tm-panel').classList.contains('hidden'))return;
   tmCopyPeriodFromLog();
 }));
@@ -4330,7 +4368,7 @@ $('rpt-client-btn').onclick=()=>{
   if(!pid){err('Choose a Project above. The client report runs for one job at a time, so All Projects is not available.');return}
   const sel=$('tm-project');sel.value=pid;
   if(sel.value!==pid){err('That project is not available for client reports.');return}
-  if(!$('rpt-week').value&&!($('rpt-from').value&&$('rpt-to').value)){err('Choose a billing week, or both a From and a To date.');return}
+  if(!$('rpt-week').value&&!($('rpt-from').value&&$('rpt-to').value)){err('Choose a billing week, a billing month, or both a From and a To date.');return}
   res.innerHTML='';$('rpt-active-filters').textContent='';
   tmApplyClientDivisors();tmCopyPeriodFromLog();
   $('tm-run-btn').click();
@@ -4340,7 +4378,7 @@ $('tm-run-btn').onclick=async()=>{
   const matDiv=parseFloat($('tm-mat-div').value),subDiv=parseFloat($('tm-sub-div').value);
   const out=$('tm-results');
   if(!pid){out.innerHTML='<div class="err">Choose a job.</div>';return}
-  if(!fr||!to){out.innerHTML='<div class="err">Choose a week or a From and To date.</div>';return}
+  if(!fr||!to){out.innerHTML='<div class="err">Choose a week, a month, or a From and To date.</div>';return}
   if(!(matDiv>0&&matDiv<=1)||!(subDiv>0&&subDiv<=1)){out.innerHTML='<div class="err">The materials and subcontractor divisors must be between 0 and 1 (for example 0.65).</div>';return}
   $('tm-run-btn').disabled=true;$('tm-run-btn').textContent='Running...';out.innerHTML='<div class="empty">Loading...</div>';
   try{
@@ -4392,6 +4430,9 @@ $('tm-run-btn').onclick=async()=>{
       (isSub?wk(d).subs:wk(d).mats).push({rid:r.id,date:d,vendor:r.vendor||'',num:r.billNumber||'',room:r.room||'',codes:codes.join('; '),desc:r.notes||'',by:r.submittedByName||'',cost,price:tmR2(cost/div)});
     });
     const weekList=Object.values(weeks).sort((a,b)=>a.sun-b.sun);
+    // A week that straddles the start or end of the period (a month boundary, or a custom range) is labelled with only the days inside it.
+    const frD=new Date(fr+'T00:00:00'),toD=new Date(to+'T00:00:00');
+    weekList.forEach(w=>{w.from=w.sun<frD?frD:w.sun;w.to=w.sat>toD?toD:w.sat});
     const sum=(a,k)=>tmR2(a.reduce((s,x)=>s+x[k],0));
     weekList.forEach(w=>{
       w.laborLines=Object.values(w.labor).sort((a,b)=>String(a.code).localeCompare(String(b.code))||String(a.room).localeCompare(String(b.room)));
@@ -4428,10 +4469,10 @@ function tmReviewHtml(){
   const wl=sc==='both'?weekList:weekList.filter(w=>(onL&&w.laborLines.length)||(onM&&(w.mats.length||w.subs.length)));
   if(!wl.length)h+='<div class="empty">'+(sc==='labor'?'No billable time in this period.':sc==='materials'?'No billable receipts in this period.':'No billable time or receipts in this period.')+'</div>';
   wl.forEach(w=>{
-    h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} ${onL?'Labor Hours':'Materials'} ${rng(w.sun,w.sat)}</div>`;
+    h+=`<div style="border:1px solid var(--border);border-radius:8px;margin:12px 0;padding:12px;background:#fff"><div style="font-weight:700;margin-bottom:8px">${esc(proj.name||'Job')} ${onL?'Labor Hours':'Materials'} ${rng(w.from||w.sun,w.to||w.sat)}</div>`;
     h+=`<table class="tbl"><thead><tr><th>Description</th><th ${td}>${onL?'Hours':''}</th><th ${td}>${onL?'Rate':''}</th><th ${td}>Amount</th></tr></thead><tbody>`;
     if(onL&&!w.laborLines.length)h+='<tr><td colspan="4" style="color:var(--muted)">No billable labor this week.</td></tr>';
-    if(onL)w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L,true))} ${rng(w.sun,w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
+    if(onL)w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L,true))} ${rng(w.from||w.sun,w.to||w.sat)} <span style="font-size:10px;color:var(--muted)">${L.cls}</span></td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
     if(onM&&(w.mats.length||w.subs.length)){
       h+=`<tr><td colspan="4" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:12px">Materials and subcontractors (our cost shown for review)</td></tr>`;
       [['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr,div])=>arr.forEach(m=>{h+=`<tr><td>${esc(m.vendor||lab)}${m.desc?' &mdash; '+esc(m.desc):''} <span style="font-size:10px;color:var(--muted)">${lab}${m.num?' &middot; '+esc(m.num):''} &middot; cost ${tmMoney(m.cost)} &divide; ${div}</span></td><td ${td}></td><td ${td}></td><td ${td}>${tmMoney(m.price)}</td></tr>`}));
@@ -4472,7 +4513,7 @@ function tmLaborInvoiceHtml(D){
   else{
     h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`;
     weeks.forEach(w=>{
-      const rg=tmMDY(w.sun)+' - '+tmMDY(w.sat);
+      const rg=tmMDY(w.from||w.sun)+' - '+tmMDY(w.to||w.sat);
       h+=`<tr class="inv-wk"><td colspan="4">${esc(proj.name||'Job')} Labor Hours ${rg}</td></tr>`;
       w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L))} ${rg}</td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
       h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(w.T.labor)}</td></tr>`;
@@ -4532,8 +4573,8 @@ window._tmXlsx=async()=>{
     weekList.forEach(w=>{
       if(sc==='labor'&&!w.laborLines.length)return;
       if(sc==='materials'&&!(w.mats.length||w.subs.length))return;
-      inv.push([(proj.name||'Job')+(onL?' Labor Hours ':' Materials ')+rng(w.sun,w.sat)]);
-      if(onL)w.laborLines.forEach(L=>inv.push([tmLaborDesc(L)+' '+rng(w.sun,w.sat),L.hrs,L.rate,L.amt]));
+      inv.push([(proj.name||'Job')+(onL?' Labor Hours ':' Materials ')+rng(w.from||w.sun,w.to||w.sat)]);
+      if(onL)w.laborLines.forEach(L=>inv.push([tmLaborDesc(L)+' '+rng(w.from||w.sun,w.to||w.sat),L.hrs,L.rate,L.amt]));
       if(onM)[['Material',w.mats,D.matDiv],['Subcontractor',w.subs,D.subDiv]].forEach(([lab,arr])=>arr.forEach(m=>inv.push([(m.num?m.num+': ':'')+(m.vendor||lab)+(m.desc?' - '+m.desc:'')+(m.codes||m.room?' ['+[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeLabel).join(', '),m.room].filter(Boolean).join(' | ')+']':''),1,m.price,m.price])));
       const wt=sc==='both'?w.T.total:sc==='labor'?w.T.labor:tmR2(w.T.mat+w.T.sub);
       inv.push(['Subtotal: '+wt.toFixed(2),'','',wt]);
@@ -4571,7 +4612,8 @@ window._tmXlsx=async()=>{
 const INV_LOGO_PNG='data:image/png;base64,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';
 const invR2=n=>Math.round((+n||0)*100)/100;
 const invId=()=>Math.random().toString(36).slice(2,9);
-let invAll=[],invCur=null,invDirty=false,invTab='draft',invJob='';
+let invAll=[],invCur=null,invDirty=false,invTab='draft',invJob='',invCad='';
+const invCadOf=x=>x.cadence||invCadence(x.periodFrom,x.periodTo);
 const invLetter=k=>k==='materials'?'M':'L';
 const invKindName=k=>k==='materials'?'Materials':'Labor';
 const invStatusName=s=>({draft:'Draft',ready:'Ready to send',sent:'Sent',void:'Void'}[s]||s);
@@ -4592,15 +4634,23 @@ function coRdfFor(ymd){
   if(!hit)return{fee:0,from:'',stale:true,missing:true};
   return{fee:hit.fee,from:hit.from,stale:hit.from<fy,missing:false}; // stale: no rate on file for the July-to-June year this date falls in
 }
+// A period is a "month" when it is exactly one calendar month, a "week" when it is one Sunday-to-Saturday week, otherwise "custom".
+function invCadence(fr,to){
+  const a=new Date(fr+'T00:00:00'),b=new Date(to+'T00:00:00');if(isNaN(a)||isNaN(b))return'custom';
+  if(a.getDate()===1&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&new Date(b.getFullYear(),b.getMonth()+1,0).getDate()===b.getDate())return'month';
+  if(a.getDay()===0&&Math.round((b-a)/864e5)===6)return'week';
+  return'custom';
+}
+const invCadName=c=>c==='month'?'Monthly':c==='week'?'Weekly':'Custom range';
 function invBuildFromReport(D){
   const nm=D.proj.name||'Job',prefix=projPrefix(D.proj),out=[];
   const pr=D.rates||{};
   const pricing={atCost:!!D.atCost,burdenPct:+pr.burdenPct||0,construction:+pr.construction||0,design:+pr.design||0,procurement:+pr.procurement||0,matDiv:+D.matDiv||0,subDiv:+D.subDiv||0};
-  const base=k=>({kind:k,projectId:D.proj.id,projectName:nm,prefix,status:'draft',number:null,periodFrom:D.fr,periodTo:D.to,notes:'',sections:[],internal:{},pricing,internalAt:Date.now()});
+  const base=k=>({kind:k,projectId:D.proj.id,projectName:nm,prefix,status:'draft',number:null,periodFrom:D.fr,periodTo:D.to,cadence:invCadence(D.fr,D.to),notes:'',sections:[],internal:{},pricing,internalAt:Date.now()});
   const lw=D.weekList.filter(w=>w.laborLines.length);
   if(lw.length){
     const b=base('labor');
-    lw.forEach(w=>{const rg=tmMDY(w.sun)+' - '+tmMDY(w.sat);
+    lw.forEach(w=>{const rg=tmMDY(w.from||w.sun)+' - '+tmMDY(w.to||w.sat);
       b.sections.push({id:invId(),heading:nm+' Labor Hours '+rg,lines:w.laborLines.map(L=>{const lid=invId();
         b.internal[lid]={s:'L',code:String(L.code||''),room:String(L.room||''),cls:String(L.cls||''),ents:(L.ents||[]).map(e=>({id:e.id,d:e.date.getTime(),n:String(e.name||''),r:String(e.room||''),c:String(e.code||''),h:+e.hrs||0,w:+e.wage||0,rt:+e.rate||0,a:+e.amt||0,dm:+e.dms||0,nt:String(e.notes||'')}))};
         return{id:lid,desc:tmLaborDesc(L)+' '+rg,note:'',qty:L.hrs,rate:L.rate,amount:L.amt}})})});
@@ -4631,8 +4681,10 @@ window._tmSaveDrafts=async()=>{
   if(!drafts.length){msg.innerHTML='<div class="err">There is nothing billable in this period, so there is nothing to save.</div>';return}
   try{
     await invLoad();
-    const dup=drafts.filter(d=>invAll.some(x=>x.projectId===d.projectId&&x.kind===d.kind&&x.periodFrom===d.periodFrom&&x.periodTo===d.periodTo&&x.status!=='void'));
-    if(dup.length&&!confirm('An invoice for this job and period already exists ('+dup.map(d=>invKindName(d.kind)).join(' and ')+'). Save another draft anyway?'))return;
+    // Same job and kind, and the periods overlap (so a monthly invoice is flagged against weekly ones inside it, and the reverse).
+    const clash=drafts.map(d=>({d,x:invAll.filter(x=>x.projectId===d.projectId&&x.kind===d.kind&&x.status!=='void'&&x.periodFrom<=d.periodTo&&x.periodTo>=d.periodFrom)})).filter(c=>c.x.length);
+    const clashTxt=clash.map(c=>'the '+invKindName(c.d.kind).toLowerCase()+' invoice'+(c.x.length>1?'s':'')+' '+c.x.map(x=>(x.number||'draft')+' ('+tmLongDate(x.periodFrom)+' to '+tmLongDate(x.periodTo)+')').join(', ')).join(' and ');
+    if(clash.length&&!confirm('This job already has '+clashTxt+' overlapping this period. The same time and receipts cannot be finalized on two invoices. Save another draft anyway?'))return;
     for(const d of drafts){
       if(JSON.stringify(d).length>900000)throw new Error('This '+invKindName(d.kind).toLowerCase()+' invoice has too much detail to store in one record. Run the report for a shorter period.');
       await addDoc(collection(db,'invoices'),{...d,createdBy:invWho(),createdByUid:currentUser.uid,createdAt:serverTimestamp(),updatedBy:invWho(),updatedAt:serverTimestamp()});
@@ -4651,21 +4703,23 @@ function invRenderList(){
   const root=$('inv-root');
   const cnt=s=>invAll.filter(x=>x.status===s).length;
   const jobs=[...new Map(invAll.map(x=>[x.projectId,x.projectName])).entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
-  let rows=invAll.filter(x=>x.status===invTab&&(!invJob||x.projectId===invJob));
+  let rows=invAll.filter(x=>x.status===invTab&&(!invJob||x.projectId===invJob)&&(!invCad||invCadOf(x)===invCad));
   rows.sort((a,b)=>(b.updatedAt?.toMillis?.()||0)-(a.updatedAt?.toMillis?.()||0));
   let h=`<div class="invm-tabs">${['draft','ready','sent','void'].map(s=>`<button type="button" class="${invTab===s?'on':''}" onclick="window._invTab('${s}')">${invStatusName(s)} <span>${cnt(s)}</span></button>`).join('')}
-    <select id="inv-job" onchange="window._invJob(this.value)" style="margin-left:auto"><option value="">All jobs</option>${jobs.map(([id,n])=>`<option value="${esc(id)}" ${invJob===id?'selected':''}>${esc(n)}</option>`).join('')}</select></div>`;
+    <select id="inv-cad" onchange="window._invCad(this.value)" style="margin-left:auto"><option value="">Weekly and monthly</option>${[['week','Weekly'],['month','Monthly'],['custom','Custom range']].map(([k,n])=>`<option value="${k}" ${invCad===k?'selected':''}>${n}</option>`).join('')}</select>
+    <select id="inv-job" onchange="window._invJob(this.value)"><option value="">All jobs</option>${jobs.map(([id,n])=>`<option value="${esc(id)}" ${invJob===id?'selected':''}>${esc(n)}</option>`).join('')}</select></div>`;
   if(invTab==='ready')h+='<div class="notice" style="margin:10px 0;font-size:12px">These invoices are finalized and have a PDF. Lotus does not email clients: download the PDF and deliver it yourself, then click Mark as sent.</div>';
-  if(!rows.length)h+=`<div class="empty">No ${invStatusName(invTab).toLowerCase()} invoices${invJob?' for this job':''}.${invTab==='draft'?' Create drafts from the Time + Receipts tab (Client invoice view, Save as invoice drafts).':''}</div>`;
+  if(!rows.length)h+=`<div class="empty">No ${invStatusName(invTab).toLowerCase()} invoices${invJob?' for this job':''}${invCad?' ('+invCadName(invCad).toLowerCase()+')':''}.${invTab==='draft'?' Create drafts from the Time + Receipts tab (Client invoice view, Save as invoice drafts).':''}</div>`;
   else{
     h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Number</th><th>Job</th><th>Type</th><th>Period</th><th style="text-align:right">Total</th><th>'+(invTab==='sent'?'Delivered':'Updated')+'</th><th></th></tr></thead><tbody>';
-    rows.forEach(x=>{h+=`<tr><td style="white-space:nowrap;font-weight:600">${x.number?esc(x.number)+(x.status==='draft'?' <span style="color:var(--muted);font-weight:400;font-size:11px">(reopened)</span>':''):'<span style="color:var(--muted);font-weight:400">Draft</span>'}</td><td>${esc(x.projectName)}</td><td>${invKindName(x.kind)}</td><td style="white-space:nowrap">${esc(tmLongDate(x.periodFrom))} to ${esc(tmLongDate(x.periodTo))}</td><td style="text-align:right;white-space:nowrap">${tmMoney(x.total)}</td><td style="font-size:12px;color:var(--muted);white-space:nowrap">${invTab==='sent'?esc(x.sentDate?tmLongDate(x.sentDate):invDate(x.sentAt)):esc(invDate(x.updatedAt))+(x.updatedBy?' by '+esc(x.updatedBy):'')}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invOpen('${x.id}')">${x.status==='draft'?'Edit':'Open'}</button>${(x.status==='ready'||x.status==='sent')?` <button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${x.id}')">PDF</button>`:''}</td></tr>`});
+    rows.forEach(x=>{h+=`<tr><td style="white-space:nowrap;font-weight:600">${x.number?esc(x.number)+(x.status==='draft'?' <span style="color:var(--muted);font-weight:400;font-size:11px">(reopened)</span>':''):'<span style="color:var(--muted);font-weight:400">Draft</span>'}</td><td>${esc(x.projectName)}</td><td>${invKindName(x.kind)}</td><td style="white-space:nowrap">${esc(tmLongDate(x.periodFrom))} to ${esc(tmLongDate(x.periodTo))} <span style="color:var(--muted);font-size:11px">${esc(invCadName(invCadOf(x)))}</span></td><td style="text-align:right;white-space:nowrap">${tmMoney(x.total)}</td><td style="font-size:12px;color:var(--muted);white-space:nowrap">${invTab==='sent'?esc(x.sentDate?tmLongDate(x.sentDate):invDate(x.sentAt)):esc(invDate(x.updatedAt))+(x.updatedBy?' by '+esc(x.updatedBy):'')}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto" onclick="window._invOpen('${x.id}')">${x.status==='draft'?'Edit':'Open'}</button>${(x.status==='ready'||x.status==='sent')?` <button class="btn btn-gold btn-sm" style="width:auto" onclick="window._invDownload('${x.id}')">PDF</button>`:''}</td></tr>`});
     h+='</tbody></table></div>';
   }
   root.innerHTML=h;
 }
 window._invTab=s=>{invTab=s;invRenderList()};
 window._invJob=v=>{invJob=v;invRenderList()};
+window._invCad=v=>{invCad=v;invRenderList()};
 window._invOpen=id=>{
   const x=invAll.find(i=>i.id===id);if(!x)return;
   invCur={...x,sections:JSON.parse(JSON.stringify(x.sections||[]))};invDirty=false;invRenderEditor();window.scrollTo(0,0);
@@ -6272,6 +6326,10 @@ function dbOpen(){
 $('db-run').onclick=dbRun;
 $('db-xlsx').onclick=dbXlsx;
 document.querySelectorAll('.db-quick').forEach(b=>b.onclick=()=>{dbRange(b.dataset.r);dbRun()});
+document.querySelectorAll('.db-monthpick').forEach(m=>{
+  fillMonthOptions(m);
+  m.onchange=()=>{const pre=m.dataset.pre,o=m.selectedOptions[0];if(!m.value)return;$(pre+'-from').value=m.value;$(pre+'-to').value=o.dataset.to;if(pre==='as')asRun();else dbRun();m.value=''};
+});
 // ── END DASHBOARD (hours) ────────────────────────────────────────────────────
 
 // ── ACCOUNT SUMMARY ──────────────────────────────────────────────────────────

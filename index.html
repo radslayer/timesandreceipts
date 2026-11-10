@@ -4289,6 +4289,7 @@ window._saveTmRates=async pid=>{
   const proj=allProjects.find(p=>p.id===pid)||{};
   const taxRaw=String(g('taxRate').value).trim(),taxNew=taxRaw===''?0:parseFloat(taxRaw);
   if(!(taxNew>=0&&taxNew<=20)){alert('Enter a sales tax rate from 0 to 20 (a percent, for example 8.75), or leave it blank for none.');return}
+  if(taxNew>0&&taxNew<1&&!confirm('Sales tax is entered as a percent, so '+taxNew+' means '+taxNew+'%, which is almost nothing. Did you mean '+tmR2(taxNew*100)+'%? Press Cancel to change it, or OK to save '+taxNew+'% as entered.'))return;
   const was=window._clientRates[pid]||null;
   try{
     await setDoc(doc(db,'settings','clientBillingRates'),{

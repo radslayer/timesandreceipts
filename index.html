@@ -4526,14 +4526,16 @@ function tmLaborInvoiceHtml(D){
 function tmMaterialsInvoiceHtml(D){
   const {proj,weekList,T,fr,to}=D;const td='class="r"';
   const sec={con:[],des:[],sub:[]};
+  const rate=+proj.salesTaxRate||0,rdf=coRdfFor(dbYmd(new Date())).fee;
   weekList.forEach(w=>{w.mats.forEach(m=>(tmIsDesignMaterial(m.codes)?sec.des:sec.con).push(m));w.subs.forEach(m=>sec.sub.push(m))});
   Object.values(sec).forEach(a=>a.sort((x,y)=>invMatCmp({m:x,wk:tmSunday(x.date).getTime()},{m:y,wk:tmSunday(y.date).getTime()})));
+  const base=tmR2(sec.con.concat(sec.des).reduce((t,x)=>t+x.price,0)),tax=tmR2(base*rate/100);
   const line=m=>{const d=(m.num?esc(m.num)+': ':'')+esc([m.vendor,m.desc].filter(Boolean).join(' - '));const tags=[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeLabel).join(', '),m.room].filter(Boolean).join(' \u00b7 ');return `<tr><td>${d||'Materials'}${tags?`<div class="inv-tag">${esc(tags)}</div>`:''}</td><td ${td}>1</td><td ${td}>${tmMoney(m.price)}</td><td ${td}>${tmMoney(m.price)}</td></tr>`};
   const block=(title,arr)=>arr.length?`<tr class="inv-wk"><td colspan="4">${title}</td></tr>`+arr.map(line).join('')+`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(tmR2(arr.reduce((s,x)=>s+x.price,0)))}</td></tr>`:'';
   let h=`<div class="inv-doc">${tmInvHead('Materials Invoice',proj,tmLongDate(fr)+' to '+tmLongDate(to),'Invoice number')}`;
   if(!sec.con.length&&!sec.des.length&&!sec.sub.length)h+='<div class="inv-empty">No billable materials or subcontractor charges in this period.</div>';
   else{
-    h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`+block('Construction materials',sec.con)+block('Design materials',sec.des)+block('Labor / installation by outside subcontractors',sec.sub)+`</tbody></table><div class="inv-total"><span>Total materials and subcontractors</span><span>${tmMoney(tmR2(T.mat+T.sub))}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
+    h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th></tr></thead><tbody>`+block('Construction materials',sec.con)+block('Design materials',sec.des)+block('Labor / installation by outside subcontractors',sec.sub)+`<tr class="inv-wk"><td colspan="4">Colorado retail delivery fee</td></tr><tr><td>Colorado retail delivery fee</td><td ${td}>1</td><td ${td}>${tmMoney(rdf)}</td><td ${td}>${tmMoney(rdf)}</td></tr></tbody></table>${tax?`<div class="inv-total" style="font-weight:400;border-top:0;padding-bottom:0"><span>Sales tax (${rate}% on ${tmMoney(base)})</span><span>${tmMoney(tax)}</span></div>`:`<div class="notice" style="font-size:12px;margin:8px 0">No sales tax rate is recorded for this job yet, so no tax is shown. Enter the rate on the invoice draft (or on an estimate for this job).</div>`}<div class="inv-total"><span>Total</span><span>${tmMoney(tmR2(T.mat+T.sub+tax+rdf))}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
   }
   return h+'</div>';
 }
@@ -4645,7 +4647,10 @@ const invWho=()=>userProfile?.name||currentUser?.email||'';
 function invTags(m){return[String(m.codes||'').split('; ').filter(Boolean).map(tmCodeLabel).join(', '),m.room].filter(Boolean).join(' · ')}
 // Materials order (Guapo): week, then task code number, then room, then receipt number.
 function invMatCmp(a,b){return (a.wk-b.wk)||String(a.m.codes||'').localeCompare(String(b.m.codes||''))||String(a.m.room||'').localeCompare(String(b.m.room||''))||String(a.m.num||'').localeCompare(String(b.m.num||''),undefined,{numeric:true})}
-function invCalc(inv){let t=0;(inv.sections||[]).forEach(s=>{let st=0;(s.lines||[]).forEach(l=>{l.amount=invR2((+l.qty||0)*(+l.rate||0));st=invR2(st+l.amount)});s.subtotal=st;t=invR2(t+st)});inv.total=t;return inv}
+// Sales tax (materials invoices): lines flagged taxable are taxed at the job's recorded rate. The delivery fee, subcontractor labor
+// and anything not flagged are not taxed. Labor invoices have no tax.
+function invCalc(inv){let t=0,tb=0;(inv.sections||[]).forEach(s=>{let st=0;(s.lines||[]).forEach(l=>{l.amount=invR2((+l.qty||0)*(+l.rate||0));st=invR2(st+l.amount);if(l.taxable)tb=invR2(tb+l.amount)});s.subtotal=st;t=invR2(t+st)});
+  inv.taxBase=inv.kind==='materials'?tb:0;inv.taxAmount=inv.kind==='materials'?invR2(inv.taxBase*(+inv.taxRate||0)/100):0;inv.total=invR2(t+inv.taxAmount);return inv}
 // Colorado retail delivery fee: a state-mandated fee that must appear as its own line on every invoice and estimate that bills materials.
 // The Department of Revenue sets a new rate each July 1 (rates page: tax.colorado.gov/retail-delivery-fee-rates). Each entry is the
 // total fee that took effect on its date. A new invoice or estimate uses the entry in force on the day it is created.
@@ -4671,6 +4676,7 @@ function invBuildFromReport(D){
   const pr=D.rates||{};
   const pricing={atCost:!!D.atCost,burdenPct:+pr.burdenPct||0,construction:+pr.construction||0,design:+pr.design||0,procurement:+pr.procurement||0,matDiv:+D.matDiv||0,subDiv:+D.subDiv||0};
   const base=k=>({kind:k,projectId:D.proj.id,projectName:nm,prefix,status:'draft',number:null,periodFrom:D.fr,periodTo:D.to,cadence:invCadence(D.fr,D.to),notes:'',sections:[],internal:{},pricing,internalAt:Date.now()});
+  const taxRate=+(D.proj&&D.proj.salesTaxRate)||0;
   const lw=D.weekList.filter(w=>w.laborLines.length);
   if(lw.length){
     const b=base('labor');
@@ -4689,10 +4695,10 @@ function invBuildFromReport(D){
       const arr=items.filter(x=>x.sec===k);
       if(arr.length)b.sections.push({id:invId(),heading:h,lines:arr.map(({m})=>{const lid=invId();
         b.internal[lid]={s:'R',rid:String(m.rid||''),d:m.date.getTime(),v:String(m.vendor||''),n:String(m.num||''),rm:String(m.room||''),c:String(m.codes||''),ds:String(m.desc||''),by:String(m.by||''),cost:+m.cost||0,price:+m.price||0};
-        return{id:lid,desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||''}})});
+        return{id:lid,desc:(m.num?m.num+': ':'')+([m.vendor,m.desc].filter(Boolean).join(' - ')||'Materials'),note:invTags(m),qty:1,rate:m.price,amount:m.price,rid:m.rid||'',taxable:k!=='sub'}})});
     });
-    const rdf=coRdfFor(dbYmd(new Date()));b.rdfStale=rdf.stale;
-    b.sections.push({id:invId(),heading:'Colorado retail delivery fee',lines:[{id:invId(),desc:'Colorado retail delivery fee',note:'State-mandated fee, shown as its own line as required.'+(rdf.stale?' CHECK THE RATE: the state may have changed it on July 1.':''),qty:1,rate:rdf.fee,amount:rdf.fee,fee:'rdf',feeFrom:rdf.from}]});
+    const rdf=coRdfFor(dbYmd(new Date()));b.rdfStale=rdf.stale;b.taxRate=taxRate;
+    b.sections.push({id:invId(),heading:'Colorado retail delivery fee',lines:[{id:invId(),desc:'Colorado retail delivery fee',note:'State-mandated fee, shown as its own line as required.'+(rdf.stale?' CHECK THE RATE: the state may have changed it on July 1.':''),qty:1,rate:rdf.fee,amount:rdf.fee,fee:'rdf',feeFrom:rdf.from,taxable:false}]});
     out.push(invCalc(b));
   }
   return out;
@@ -4769,7 +4775,7 @@ function invRenderEditor(){
   v.sections.forEach((s,si)=>{
     h+=`<tr class="inv-wk"><td colspan="${ed?3:3}">${ed?`<input class="ie-in ie-h" value="${esc(s.heading)}" oninput="window._invS(${si},this.value)">`:esc(s.heading)}</td><td></td>${ed?`<td><button class="ie-x" title="Remove this section" onclick="window._invDelSec(${si})">&times;</button></td>`:''}</tr>`;
     (s.lines||[]).forEach((l,li)=>{
-      h+=`<tr><td>${ed?`<textarea class="ie-in ie-desc" rows="1" placeholder="Description" oninput="window._invGrow(this);window._invL(${si},${li},'desc',this.value)">${esc(l.desc)}</textarea><input class="ie-in ie-note" value="${esc(l.note||'')}" placeholder="Task code, room (optional second line)" oninput="window._invL(${si},${li},'note',this.value)">`:`${esc(l.desc)}${l.note?`<div class="inv-tag">${esc(l.note)}</div>`:''}`}</td>
+      h+=`<tr><td>${ed?`<textarea class="ie-in ie-desc" rows="1" placeholder="Description" oninput="window._invGrow(this);window._invL(${si},${li},'desc',this.value)">${esc(l.desc)}</textarea><input class="ie-in ie-note" value="${esc(l.note||'')}" placeholder="Task code, room (optional second line)" oninput="window._invL(${si},${li},'note',this.value)">${v.kind==='materials'?`<label class="inv-tag" style="cursor:pointer"><input type="checkbox" ${l.taxable?'checked':''} onchange="window._invTaxLine(${si},${li},this.checked)"> taxable</label>`:''}`:`${esc(l.desc)}${l.note?`<div class="inv-tag">${esc(l.note)}</div>`:''}`}</td>
         <td ${td}>${ed?`<input class="ie-in r" type="number" step="0.01" value="${l.qty}" oninput="window._invL(${si},${li},'qty',this.value)">`:invQty(v.kind,l.qty)}</td>
         <td ${td}>${ed?`<input class="ie-in r" type="number" step="0.01" value="${l.rate}" oninput="window._invL(${si},${li},'rate',this.value)">`:tmMoney(l.rate)}</td>
         <td ${td} id="ie-a-${si}-${li}">${tmMoney(l.amount)}</td>${ed?`<td><button class="ie-x" title="Remove this line" onclick="window._invDelLine(${si},${li})">&times;</button></td>`:''}</tr>`;
@@ -4777,7 +4783,7 @@ function invRenderEditor(){
     if(ed)h+=`<tr><td colspan="5"><button class="ie-add" onclick="window._invAddLine(${si})">+ Add a line</button></td></tr>`;
     h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td} id="ie-s-${si}">${tmMoney(s.subtotal)}</td>${ed?'<td></td>':''}</tr>`;
   });
-  h+=`</tbody></table>${ed?'<button class="ie-add" style="margin-top:8px" onclick="window._invAddSec()">+ Add a section</button>':''}<div class="inv-total"><span>Total</span><span id="ie-t">${tmMoney(v.total)}</span></div>`;
+  h+=`</tbody></table>${ed?'<button class="ie-add" style="margin-top:8px" onclick="window._invAddSec()">+ Add a section</button>':''}${v.kind==='materials'&&(ed||v.taxAmount)?`<div class="inv-total" style="font-weight:400;border-top:0;padding-bottom:0"><span>Sales tax (${ed?`<input class="ie-in r" style="width:70px;display:inline-block" type="number" step="0.001" value="${+v.taxRate||0}" oninput="window._invTaxRate(this.value)">`:esc(String(+v.taxRate||0))}% on <span id="ie-tb">${tmMoney(v.taxBase)}</span>)</span><span id="ie-tax">${tmMoney(v.taxAmount)}</span></div>`:''}<div class="inv-total"><span>Total</span><span id="ie-t">${tmMoney(v.total)}</span></div>${ed&&v.kind==='materials'&&!(+v.taxRate>0)?`<div class="err" style="margin:8px 0;font-size:12px">No sales tax rate is recorded for this job, so no tax is being charged. Look up the job site address at <a href="https://colorado.ttr.services" target="_blank" rel="noopener">colorado.ttr.services</a> and enter the combined rate above. Saving the draft records it for this job.</div>`:''}`;
   const hasCom=!!String(v.notes||'').trim();
   if(ed)h+=`<div class="inv-comm-ed"><div class="inv-lbl">Comments (printed below the total; leave blank and nothing prints)</div><textarea class="ie-in ie-notes" rows="3" placeholder="Optional comments for the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea></div>`;
   else if(hasCom)h+=`<div class="inv-terms"><b>Comments:</b> <span style="white-space:pre-wrap">${esc(v.notes)}</span></div>`;
@@ -4789,22 +4795,31 @@ function invRenderEditor(){
 window._invGrow=el=>{el.style.height='auto';el.style.height=el.scrollHeight+'px'};
 const invQty=(k,q)=>k==='labor'?(+q).toFixed(2):(Number.isInteger(+q)?String(+q):(+q).toFixed(2));
 function invMark(){invDirty=true;const b=$('inv-save');if(b)b.textContent='Save draft (unsaved changes)'}
-function invRefresh(){invCalc(invCur);invCur.sections.forEach((s,si)=>{(s.lines||[]).forEach((l,li)=>{const e=$('ie-a-'+si+'-'+li);if(e)e.textContent=tmMoney(l.amount)});const e=$('ie-s-'+si);if(e)e.textContent=tmMoney(s.subtotal)});const t=$('ie-t');if(t)t.textContent=tmMoney(invCur.total)}
+function invRefresh(){invCalc(invCur);invCur.sections.forEach((s,si)=>{(s.lines||[]).forEach((l,li)=>{const e=$('ie-a-'+si+'-'+li);if(e)e.textContent=tmMoney(l.amount)});const e=$('ie-s-'+si);if(e)e.textContent=tmMoney(s.subtotal)});const t=$('ie-t');if(t)t.textContent=tmMoney(invCur.total);const x=$('ie-tax');if(x)x.textContent=tmMoney(invCur.taxAmount);const xb=$('ie-tb');if(xb)xb.textContent=tmMoney(invCur.taxBase)}
 window._invS=(si,val)=>{invCur.sections[si].heading=val;invMark()};
 window._invL=(si,li,f,val)=>{const l=invCur.sections[si].lines[li];l[f]=(f==='qty'||f==='rate')?(parseFloat(val)||0):val;invRefresh();invMark()};
 window._invNotes=val=>{invCur.notes=val;invMark()};
+window._invTaxLine=(si,li,on)=>{invCur.sections[si].lines[li].taxable=!!on;invRefresh();invMark()};
+window._invTaxRate=val=>{invCur.taxRate=parseFloat(val)||0;invRefresh();invMark()};
+// The first time a rate is entered on an invoice for a job that has none, record it on the project (as the estimate editor does).
+async function invRecordTaxRate(v){
+  const pj=(allProjects||[]).find(x=>x.id===v.projectId);
+  if(!pj||!(+v.taxRate>0)||v.kind!=='materials'||+v.taxRate===+pj.salesTaxRate)return'';
+  try{const ymd=dbYmd(new Date());await updateDoc(doc(db,'projects',pj.id),{salesTaxRate:+v.taxRate,salesTaxRateSetAt:ymd,salesTaxRateBy:invWho()});pj.salesTaxRate=+v.taxRate;pj.salesTaxRateSetAt=ymd;return' Recorded the '+(+v.taxRate)+'% sales tax rate for this job.'}
+  catch(er){return' (Could not record the tax rate on the project: '+esc(er.message||String(er))+')'}
+}
 window._invAddLine=si=>{invCur.sections[si].lines.push({id:invId(),desc:'',note:'',qty:1,rate:0,amount:0});invMark();invRenderEditor()};
 window._invDelLine=(si,li)=>{invCur.sections[si].lines.splice(li,1);invMark();invRenderEditor()};
 window._invAddSec=()=>{invCur.sections.push({id:invId(),heading:'New section',lines:[{id:invId(),desc:'',note:'',qty:1,rate:0,amount:0}]});invMark();invRenderEditor()};
 window._invDelSec=si=>{if(!confirm('Remove this whole section and its lines?'))return;invCur.sections.splice(si,1);invMark();invRenderEditor()};
-function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount,rid:String(l.rid||'')}))})),total:invCur.total,notes:String(invCur.notes||'')}}
+function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount,rid:String(l.rid||''),taxable:!!l.taxable,fee:l.fee||'',feeFrom:l.feeFrom||''}))})),total:invCur.total,taxRate:+invCur.taxRate||0,taxBase:invCur.taxBase||0,taxAmount:invCur.taxAmount||0,notes:String(invCur.notes||'')}}
 function invFlash(html,cls){const m=$('inv-msg');if(m)m.innerHTML=`<div class="${cls||'notice'}" style="margin:8px 0">${html}</div>`}
 window._invSave=async()=>{
   if(!invCur||invCur.status!=='draft')return;
   try{
     const p=invPayload();await updateDoc(doc(db,'invoices',invCur.id),{...p,updatedAt:serverTimestamp(),updatedBy:invWho()});
     invDirty=false;const i=invAll.findIndex(x=>x.id===invCur.id);if(i>=0)invAll[i]={...invAll[i],...p,updatedBy:invWho(),updatedAt:{toDate:()=>new Date(),toMillis:()=>Date.now()}};
-    $('inv-save').textContent='Save draft';invFlash('Draft saved.');
+    $('inv-save').textContent='Save draft';invFlash('Draft saved.'+esc(await invRecordTaxRate(invCur)));
   }catch(e){invFlash('Could not save: '+esc(e.message),'err')}
 };
 window._invDelete=async()=>{
@@ -4871,6 +4886,7 @@ window._invFinalize=async()=>{
     if(x.s==='L')(x.ents||[]).forEach(e=>{tmap[e.id]=e.dm});
     if(x.s==='R'&&x.rid)rmap[x.rid]=x.cost});
   const tids=Object.keys(tmap);
+  if(v.kind==='materials'&&!(+v.taxRate>0)&&v.sections.some(sc=>(sc.lines||[]).some(l=>l.taxable))&&!confirm('This invoice has taxable lines but no sales tax rate, so no tax will be charged. Finalize anyway?'))return;
   if(!confirm('Finalize this '+invKindName(v.kind).toLowerCase()+' invoice for '+v.projectName+' ('+tmMoney(v.total)+')?\n\n'+(reuse?'It keeps its number '+v.number+'.':'It gets the next number ('+key+'-###).')+' A PDF is made, it can no longer be edited (an admin can reopen it), and the records behind it are locked: '+(tids.length?tids.length+' time entr'+(tids.length>1?'ies':'y'):'')+(tids.length&&rids.length?' and ':'')+(rids.length?rids.length+' receipt'+(rids.length>1?'s':''):'')+(!tids.length&&!rids.length?'no records':'')+'. Only voiding or reopening this invoice unlocks them. Nothing is sent to the client.'))return;
   const btns=[...document.querySelectorAll('.invm-actions button')];btns.forEach(b=>b.disabled=true);invFlash('Checking the source records...');
   try{
@@ -5087,6 +5103,7 @@ async function invMakePdf(inv){
     pdf.setFont('helvetica','normal');pdf.setFontSize(9);tc(mute);pdf.text('Subtotal',cR,y,{align:'right'});
     pdf.setFont('helvetica','bold');pdf.setFontSize(9.5);tc(ink);pdf.text(tmMoney(s.subtotal),cA,y,{align:'right'});y+=30;
   });
+  if(+inv.taxAmount>0){ensure(40,false);pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);tc(mute);pdf.text('Sales tax ('+(+inv.taxRate||0)+'% on '+tmMoney(inv.taxBase)+')',cR,y,{align:'right'});tc(ink);pdf.text(tmMoney(inv.taxAmount),cA,y,{align:'right'});y+=24}
   ensure(70,false);
   pdf.setDrawColor(ink[0],ink[1],ink[2]);pdf.setLineWidth(1.2);pdf.line(M,y-8,R,y-8);
   pdf.setFont('helvetica','bold');pdf.setFontSize(12);tc(ink);pdf.text('Total',M+6,y+12);pdf.setFontSize(13);pdf.text(tmMoney(inv.total),cA,y+12,{align:'right'});y+=44;

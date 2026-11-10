@@ -56,6 +56,9 @@
   .photo-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:12px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);font-size:13.5px;font-weight:600;flex:1 1 0;min-width:0}
   .photo-btn.has-photo{border-color:var(--green);color:var(--green)}
   .btn-row{display:flex;gap:8px}
+  .week-pill{flex:1 1 auto;min-width:0;height:42px;border-radius:12px;background:var(--greenbg);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;padding:0 8px}
+  .week-pill .wk-lbl{font-size:10.5px;font-weight:600;color:var(--greendk);letter-spacing:.2px;white-space:nowrap}
+  .week-pill .wk-val{font-size:15px;font-weight:700;color:var(--greendk);white-space:nowrap}
   .spacer{flex:1 1 auto;min-height:4px}
   .modal-bg{position:fixed;inset:0;background:rgba(10,12,18,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:0}
   .modal-sheet{background:var(--bg);width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 18px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
@@ -163,6 +166,7 @@
           </button>
           <input type="file" id="in-receipt-input" accept="image/*" capture="environment" class="hidden">
         </div>
+        <div class="week-pill" id="in-week-pill"><span class="wk-lbl" id="tt-weeklbl">Hours this week</span><span class="wk-val" id="in-week-val">--</span></div>
       </div>
 
       <div class="spacer"></div>
@@ -209,6 +213,7 @@
           </button>
           <input type="file" id="out-receipt-input" accept="image/*" capture="environment" class="hidden">
         </div>
+        <div class="week-pill" id="out-week-pill"><span class="wk-lbl" id="tt-weeklbl2">Hours this week</span><span class="wk-val" id="out-week-val">--</span></div>
       </div>
 
       <div class="spacer"></div>
@@ -467,6 +472,7 @@ const T={
     alreadyclockedin:"You're already clocked in.",genericerror:'Something went wrong. Please try again.',
     sincelbl:'since',punchessuffix:'punches',site:'Site',
     nophotoreminder:"You haven't added a job photo yet. Tap Cancel to take one, or OK to clock out without a photo.",
+    weeklbl:'Hours this week',
     addreceipt:'Add Receipt',receipttitle:'Add Receipt',amount:'AMOUNT ($)',vendor:'VENDOR',
     selectvendor:'Select vendor...',newvendorph:'Enter new vendor name...',
     rcnotesph:'Notes (optional)',submitreceipt:'SUBMIT RECEIPT',submittingreceipt:'Submitting...',
@@ -489,6 +495,7 @@ const T={
     alreadyclockedin:'Ya tienes una sesión activa.',genericerror:'Algo salió mal. Intenta de nuevo.',
     sincelbl:'desde',punchessuffix:'registros',site:'Sitio',
     nophotoreminder:'Aún no has agregado una foto del trabajo. Toca Cancelar para tomar una, o Aceptar para registrar la salida sin foto.',
+    weeklbl:'Horas esta semana',
     addreceipt:'Agregar Recibo',receipttitle:'Agregar Recibo',amount:'CANTIDAD ($)',vendor:'PROVEEDOR',
     selectvendor:'Seleccionar proveedor...',newvendorph:'Ingrese el nombre del nuevo proveedor...',
     rcnotesph:'Notas (opcional)',submitreceipt:'ENVIAR RECIBO',submittingreceipt:'Enviando...',
@@ -523,6 +530,7 @@ function applyTranslations(){
   if(!$('ci-code').value)$('ci-code').querySelector('option[value=""]').textContent=$('ci-cat').value?t('selectcodeph'):t('selectcategoryfirst');
   if(!$('ci-room').value)$('ci-room').querySelector('option[value=""]').textContent=$('ci-project').value?t('selectroomph'):t('selectprojectfirst');
   updateGeoText();
+  $('tt-weeklbl').textContent=t('weeklbl');$('tt-weeklbl2').textContent=t('weeklbl');
   $('tt-addreceipt').textContent=t('addreceipt');
   $('tt-addreceipt2').textContent=t('addreceipt');
   $('tt-receipttitle').textContent=t('receipttitle');
@@ -851,10 +859,36 @@ $('rc-submit').onclick=async()=>{
 };
 
 // ── ACTIVE SESSION / VIEW SWITCHING ──────────────────────────────────────────
+// Hours this week: this worker's completed entries from Sunday 12:00 AM (local time) to now, plus the running session.
+let weekBaseMs=null;
+function weekStartMs(){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()).getTime()}
+function tsToMs(v){if(!v)return 0;if(typeof v.toMillis==='function')return v.toMillis();if(typeof v.toDate==='function')return v.toDate().getTime();if(typeof v==='object'&&v.seconds!=null)return v.seconds*1000;return new Date(v).getTime()||0}
+function renderWeekPill(){
+  let txt='--';
+  if(weekBaseMs!==null){
+    let ms=weekBaseMs;
+    if(activeSession){const st=Math.max(tsToMs(activeSession.clockIn),weekStartMs());ms+=Math.max(0,Date.now()-st)}
+    txt=fmtDur(ms);
+  }
+  ['in','out'].forEach(k=>{const e=$(k+'-week-val');if(e)e.textContent=txt});
+}
+async function refreshWeek(){
+  try{
+    const ws=weekStartMs(),snap=await getDocs(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid)));
+    let ms=0;
+    snap.docs.forEach(d=>{const r=d.data();if(r.archived===true||r.status!=='complete'||!r.durationMs)return;if(tsToMs(r.clockIn)>=ws)ms+=r.durationMs});
+    weekBaseMs=ms;
+  }catch(e){console.error('Week total failed:',e)}
+  renderWeekPill();
+}
 function loadActiveSession(){
+  let hadSession=null;
   onSnapshot(query(collection(db,'timeLogs'),where('userId','==',currentUser.uid),where('status','==','active'),limit(1)),snap=>{
+    const prev=hadSession;
     activeSession=snap.empty?null:{id:snap.docs[0].id,...snap.docs[0].data()};
+    hadSession=activeSession?activeSession.id:null;
     renderActiveView();
+    if(weekBaseMs===null||prev!==hadSession)refreshWeek();
   });
 }
 function renderActiveView(){
@@ -866,11 +900,11 @@ function renderActiveView(){
     const start=activeSession.clockIn?.toDate?activeSession.clockIn.toDate():new Date(activeSession.clockIn||Date.now());
     $('active-since').textContent=t('sincelbl')+' '+start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     if(elapsedTimer)clearInterval(elapsedTimer);
-    elapsedTimer=setInterval(()=>{$('active-timer').textContent=fmtHHMMSS(Date.now()-start.getTime())},1000);
+    elapsedTimer=setInterval(()=>{$('active-timer').textContent=fmtHHMMSS(Date.now()-start.getTime());renderWeekPill()},1000);
     $('active-timer').textContent=fmtHHMMSS(Date.now()-start.getTime());
-    show('view-active');
+    renderWeekPill();show('view-active');
   }else{
-    show('view-in');
+    renderWeekPill();show('view-in');
     validateInForm();
   }
 }

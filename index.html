@@ -4444,7 +4444,8 @@ $('tm-run-btn').onclick=async()=>{
     T.grand=tmR2(T.labor+T.mat+T.sub);
     entries.sort((a,b)=>a.date-b.date);
     const byEmp={};entries.forEach(e=>{const x=byEmp[e.name]||(byEmp[e.name]={name:e.name,n:0,hrs:0});x.n++;x.hrs=tmR2(x.hrs+e.hrs)});
-    window._tmData={proj,fr,to,matDiv,subDiv,rates,atCost,weekList,entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
+    window._tmData={proj,fr,to,matDiv,subDiv,rates,atCost,weekList,weekListRaw:weekList,cadence:invCadence(fr,to),entries,empList:Object.values(byEmp).sort((a,b)=>a.name.localeCompare(b.name)),T,ex};
+    tmApplyGrouping(window._tmData);
     renderTM();
   }catch(e){out.innerHTML='<div class="err">Report failed: '+esc(e.message)+'</div>'}
   $('tm-run-btn').disabled=false;$('tm-run-btn').textContent=tmRunLabel();
@@ -4546,10 +4547,33 @@ window._tmPrint=which=>{
   window.print();
   setTimeout(()=>{document.body.removeAttribute('data-print');pr.innerHTML=''},500);
 };
+// Weeks or one section. A report that spans several billing weeks can show (and invoice) each week in its own section, or
+// merge them into a single section for the whole period. A monthly period merges by default; any other period separates by week
+// until you choose otherwise. The choice is remembered for later runs. Totals are the same either way.
+function tmMergedFor(D){return window._tmMerge!==undefined?!!window._tmMerge:D.cadence==='month'}
+function tmMergeWeeks(D){
+  const list=D.weekListRaw,frD=new Date(D.fr+'T00:00:00'),toD=new Date(D.to+'T00:00:00');
+  const m={sun:frD,sat:toD,from:frD,to:toD,labor:{},mats:[],subs:[]};
+  list.forEach(w=>{
+    (w.laborLines||[]).forEach(L=>{const key=(L.code||'(none)')+'|'+(L.room||'');
+      const M=m.labor[key]||(m.labor[key]={code:L.code,room:L.room,task:L.task,label:L.label,cls:L.cls,rate:L.rate,hrs:0,amt:0,ents:[]});
+      M.hrs=tmR2(M.hrs+L.hrs);M.amt=tmR2(M.amt+L.amt);M.ents=M.ents.concat(L.ents||[])});
+    m.mats=m.mats.concat(w.mats);m.subs=m.subs.concat(w.subs)});
+  Object.values(m.labor).forEach(L=>{if(D.atCost)L.rate=L.hrs>0?L.amt/L.hrs:0});
+  const sum=(a,k)=>tmR2(a.reduce((t,x)=>t+x[k],0));
+  m.laborLines=Object.values(m.labor).sort((a,b)=>String(a.code).localeCompare(String(b.code))||String(a.room).localeCompare(String(b.room)));
+  m.mats.sort((a,b)=>a.date-b.date);m.subs.sort((a,b)=>a.date-b.date);
+  m.T={hrs:sum(m.laborLines,'hrs'),labor:sum(m.laborLines,'amt'),matCost:sum(m.mats,'cost'),mat:sum(m.mats,'price'),subCost:sum(m.subs,'cost'),sub:sum(m.subs,'price')};
+  m.T.total=tmR2(m.T.labor+m.T.mat+m.T.sub);
+  return m;
+}
+function tmApplyGrouping(D){D.merged=D.weekListRaw.length>1&&tmMergedFor(D);D.weekList=D.merged?[tmMergeWeeks(D)]:D.weekListRaw}
+window._tmMergeSet=v=>{window._tmMerge=!!v;const D=window._tmData;if(!D)return;tmApplyGrouping(D);renderTM()};
 function renderTM(){
   const D=window._tmData;if(!D)return;
   const v=window._tmView||'review',sc=window._tmScope||'both';
-  let h=`<div class="tm-viewbar"><button type="button" class="${v==='review'?'on':''}" onclick="window._tmSetView('review')">Review (with our costs)</button><button type="button" class="${v==='invoice'?'on':''}" onclick="window._tmSetView('invoice')">Client invoice</button></div>`;
+  const grp=D.weekListRaw&&D.weekListRaw.length>1&&D.cadence!=='week'?`<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;margin:0 0 8px 12px;cursor:pointer"><input type="checkbox" ${D.merged?'checked':''} onchange="window._tmMergeSet(this.checked)"> Combine the ${D.weekListRaw.length} weeks into one section <span style="color:var(--muted);font-size:11px">(uncheck to separate by week)</span></label>`:'';
+  let h=grp+`<div class="tm-viewbar"><button type="button" class="${v==='review'?'on':''}" onclick="window._tmSetView('review')">Review (with our costs)</button><button type="button" class="${v==='invoice'?'on':''}" onclick="window._tmSetView('invoice')">Client invoice</button></div>`;
   if(v==='invoice'){
     h+=`<div class="tm-invbar"><div style="font-size:12px;color:var(--muted)">This is what the client sees: no costs, no markup, no employee names. ${sc==='both'?'Labor and materials are two separate invoices, as in QuickBooks.':sc==='labor'?'This is the labor invoice.':'This is the materials invoice.'}</div><div class="tm-invbtns"><button class="btn btn-gold btn-sm" type="button" onclick="window._tmSaveDrafts()">${sc==='both'?'Save as invoice drafts':'Save as invoice draft'}</button>${sc!=='materials'?'<button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint(\'labor\')">Print / PDF: Labor</button>':''}${sc!=='labor'?'<button class="btn btn-outline btn-sm" type="button" onclick="window._tmPrint(\'materials\')">Print / PDF: Materials</button>':''}</div></div><div id="tm-draft-msg"></div>
     ${sc!=='materials'?`<div id="tm-inv-labor" class="inv-wrap">${tmLaborInvoiceHtml(D)}</div>`:''}${sc!=='labor'?`<div id="tm-inv-materials" class="inv-wrap">${tmMaterialsInvoiceHtml(D)}</div>`:''}`;

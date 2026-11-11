@@ -1,0 +1,3 @@
+# Files that should never be sent to GitHub
+Claude outputs/
+deploy-old.bat

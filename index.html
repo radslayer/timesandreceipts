@@ -4684,6 +4684,67 @@ function invCadence(fr,to){
   return'custom';
 }
 const invCadName=c=>c==='month'?'Monthly':c==='week'?'Weekly':'Custom range';
+// ── Change log: who changed what on this invoice, and when. Appended on every Save, Finalize and Reopen; never edited or removed. ──
+function invSnapOf(v){const m={};(v.sections||[]).forEach(s=>(s.lines||[]).forEach(l=>{m[l.id]={desc:String(l.desc||''),qty:+l.qty||0,rate:+l.rate||0,amount:invR2(l.amount),taxable:!!l.taxable,reason:String(l.adjReason||'')}}));return m}
+function invLogDiff(){
+  const v=invCur,snap=v._snap||{},out=[],now=Date.now(),by=invWho(),q=n=>String(+(+n).toFixed(4)),push=t=>out.push({at:now,by,text:t});
+  const cur={};
+  (v.sections||[]).forEach(s=>(s.lines||[]).forEach(l=>{cur[l.id]=1;const o=snap[l.id],nm='"'+String(l.desc||'').slice(0,60)+'"';
+    if(!o){push('Added line '+nm+': '+q(l.qty)+' x '+tmMoney(l.rate)+' = '+tmMoney(l.amount));return}
+    if(o.desc!==String(l.desc||''))push('Changed description from "'+o.desc.slice(0,60)+'" to '+nm);
+    if(o.qty!==(+l.qty||0))push('Changed quantity on '+nm+' from '+q(o.qty)+' to '+q(l.qty));
+    if(Math.abs(o.rate-(+l.rate||0))>=0.00005)push('Changed rate on '+nm+' from '+tmMoney(o.rate)+' to '+tmMoney(l.rate)+' (amount '+tmMoney(o.amount)+' to '+tmMoney(l.amount)+')');
+    if(o.taxable!==!!l.taxable)push((l.taxable?'Marked taxable: ':'Marked not taxable: ')+nm);
+    if(o.reason!==String(l.adjReason||''))push('Adjustment reason on '+nm+': '+(l.adjReason?'"'+String(l.adjReason).slice(0,120)+'"':'(cleared)'));
+  }));
+  Object.keys(snap).forEach(id=>{if(cur[id])return;const o=snap[id],r=(v.removed||[]).find(x=>x.desc===o.desc&&(+x.at||0)>=(v._snapAt||0));
+    push('Removed line "'+o.desc.slice(0,60)+'" ('+tmMoney(o.amount)+')'+(r?'. Reason: '+r.reason:''))});
+  return out;
+}
+const invLogFmt=e=>{const d=new Date(+e.at||0);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})};
+function invLogRows(v){
+  const rows=[];
+  if(v.createdBy)rows.push({at:v.createdAt?.toMillis?v.createdAt.toMillis():0,by:v.createdBy,text:'Draft created from the report'});
+  (v.changeLog||[]).forEach(e=>rows.push(e));
+  // Reopen, delivered and void are written by their own actions (the security rules limit what those can touch), so they are read from the invoice's fields. Only the latest of each is kept there.
+  const tm=t=>t?.toMillis?t.toMillis():0;
+  if(v.reopenedAt)rows.push({at:tm(v.reopenedAt),by:v.reopenedBy,text:'Reopened for editing. Reason: '+(v.reopenReason||'')});
+  if(v.sentAt)rows.push({at:tm(v.sentAt),by:v.sentBy,text:'Marked as sent to the client'+(v.sentDate?' on '+v.sentDate:'')+(v.sentNote?': '+v.sentNote:'')});
+  if(v.voidedAt)rows.push({at:tm(v.voidedAt),by:v.voidedBy,text:'Voided. Reason: '+(v.voidReason||'')});
+  rows.sort((a,b)=>(+a.at||0)-(+b.at||0));
+  return rows;
+}
+function invLogHtml(v){
+  const rows=invLogRows(v);
+  if(!rows.length)return'';
+  return `<details style="margin-top:14px" open><summary style="cursor:pointer;font-weight:700;font-size:13px">Change log (who and when)</summary><div style="font-size:12px;margin-top:6px">${rows.map(e=>`<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="white-space:nowrap;color:var(--muted);min-width:150px">${e.at?esc(invLogFmt(e)):''}</span><span style="min-width:110px;font-weight:600">${esc(e.by||'')}</span><span>${esc(e.text||'')}</span></div>`).join('')}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Not shown to the client. Entries are added each time the draft is saved, finalized or reopened.</div></details>`;
+}
+// ── Adjusted lines: any change to a drafted line's amount is marked "adjusted", shows what it was, and needs a reason. ──
+// The baseline is the line as it came from the report (l.orig, stamped when the draft is built). Drafts saved before this existed
+// fall back to the internal record. Lines added by hand and the retail delivery fee line have no baseline and are not tracked.
+function invStampOrig(inv){(inv.sections||[]).forEach(s=>(s.lines||[]).forEach(l=>{if(!l.fee)l.orig={qty:+l.qty||0,rate:+l.rate||0,amount:invR2(l.amount)}}));return inv}
+function invBase(v,l){
+  if(l.fee)return null;if(l.orig)return l.orig;
+  const x=(v.internal||{})[l.id];if(!x)return null;
+  if(x.s==='L'){const a=invR2((x.ents||[]).reduce((t,e)=>t+(+e.a||0),0)),h=invR2((x.ents||[]).reduce((t,e)=>t+(+e.h||0),0));return h>0?{qty:h,rate:a/h,amount:a}:{qty:0,rate:0,amount:a}}
+  return{qty:1,rate:+x.price||0,amount:invR2(x.price)};
+}
+function invAdjOf(v,l){const b=invBase(v,l);if(!b)return null;const d=invR2((+l.amount||0)-b.amount);return Math.abs(d)>=0.005?{base:b,diff:d}:null}
+function invAdjTouch(v,l){if(invAdjOf(v,l)){l.adjBy=invWho();l.adjAt=Date.now()}else{delete l.adjBy;delete l.adjAt;delete l.adjReason}}
+function invAdjHtml(v,si,li,ed){
+  const l=v.sections[si].lines[li],a=invAdjOf(v,l);if(!a)return'';
+  const sign=a.diff<0?'-':'+',red='color:#b3261e;font-size:11px;margin-top:4px';
+  let h=`<div style="${red}"><b>Adjusted</b>: was ${tmMoney(a.base.amount)}, now ${tmMoney(l.amount)} (${sign}${tmMoney(Math.abs(a.diff))})${l.adjBy?' &middot; '+esc(l.adjBy):''}</div>`;
+  if(ed)h+=`<input class="ie-in ie-note" style="border-color:${l.adjReason?'var(--border)':'#b3261e'}" value="${esc(l.adjReason||'')}" placeholder="Reason for the adjustment (required)" oninput="window._invReason(${si},${li},this)">`;
+  else h+=`<div style="font-size:11px;color:var(--muted)">Reason: ${esc(l.adjReason||'(none recorded)')}</div>`;
+  return h;
+}
+function invAdjSummary(v){
+  let n=0,tot=0;(v.sections||[]).forEach(s=>(s.lines||[]).forEach(l=>{const a=invAdjOf(v,l);if(a){n++;tot=invR2(tot+a.diff)}}));
+  const rm=(v.removed||[]),rmTot=invR2(rm.reduce((t,r)=>t+(+r.amount||0),0));
+  if(!n&&!rm.length)return'';
+  return `<div class="notice" style="font-size:12px;margin:8px 0;border-color:#b3261e">Adjusted from the report: ${n?n+' line'+(n>1?'s':'')+' changed ('+(tot<0?'-':'+')+tmMoney(Math.abs(tot))+')':''}${n&&rm.length?'; ':''}${rm.length?rm.length+' line'+(rm.length>1?'s':'')+' removed ('+tmMoney(rmTot)+' of billing not charged)':''}. Each needs a reason, recorded with who made the change. Not shown to the client.</div>`;
+}
 function invBuildFromReport(D){
   const nm=D.proj.name||'Job',prefix=projPrefix(D.proj),out=[];
   const pr=D.rates||{};
@@ -4697,7 +4758,7 @@ function invBuildFromReport(D){
       b.sections.push({id:invId(),heading:nm+' Labor Hours '+rg,lines:w.laborLines.map(L=>{const lid=invId();
         b.internal[lid]={s:'L',code:String(L.code||''),room:String(L.room||''),cls:String(L.cls||''),ents:(L.ents||[]).map(e=>({id:e.id,d:e.date.getTime(),n:String(e.name||''),r:String(e.room||''),c:String(e.code||''),h:+e.hrs||0,w:+e.wage||0,rt:+e.rate||0,a:+e.amt||0,dm:+e.dms||0,nt:String(e.notes||'')}))};
         return{id:lid,desc:tmLaborDesc(L)+' '+rg,note:'',qty:L.hrs,rate:L.rate,amount:L.amt}})})});
-    out.push(invCalc(b));
+    out.push(invStampOrig(invCalc(b)));
   }
   const items=[];
   D.weekList.forEach(w=>{const wk=w.sun.getTime();w.mats.forEach(m=>items.push({m,wk,sec:tmIsDesignMaterial(m.codes)?'des':'con'}));w.subs.forEach(m=>items.push({m,wk,sec:'sub'}))});
@@ -4712,7 +4773,7 @@ function invBuildFromReport(D){
     });
     const rdf=coRdfFor(dbYmd(new Date()));b.rdfStale=rdf.stale;b.taxRate=taxRate;
     b.sections.push({id:invId(),heading:'Colorado retail delivery fee',lines:[{id:invId(),desc:'Colorado retail delivery fee',note:'State-mandated fee, shown as its own line as required.'+(rdf.stale?' CHECK THE RATE: the state may have changed it on July 1.':''),qty:1,rate:rdf.fee,amount:rdf.fee,fee:'rdf',feeFrom:rdf.from,taxable:false}]});
-    out.push(invCalc(b));
+    out.push(invStampOrig(invCalc(b)));
   }
   return out;
 }
@@ -4765,7 +4826,7 @@ window._invJob=v=>{invJob=v;invRenderList()};
 window._invCad=v=>{invCad=v;invRenderList()};
 window._invOpen=id=>{
   const x=invAll.find(i=>i.id===id);if(!x)return;
-  invCur={...x,sections:JSON.parse(JSON.stringify(x.sections||[]))};invDirty=false;invRenderEditor();window.scrollTo(0,0);
+  invCur={...x,sections:JSON.parse(JSON.stringify(x.sections||[])),removed:JSON.parse(JSON.stringify(x.removed||[])),changeLog:JSON.parse(JSON.stringify(x.changeLog||[]))};invCur._snap=invSnapOf(invCur);invCur._snapAt=Date.now();invDirty=false;invRenderEditor();window.scrollTo(0,0);
 };
 window._invBack=()=>{if(invDirty&&!confirm('You have unsaved changes to this draft. Leave without saving?'))return;invDirty=false;invCur=null;invRenderList()};
 // ── editor ──
@@ -4783,6 +4844,7 @@ function invRenderEditor(){
   if(ed)h+=`<div class="notice" style="font-size:12px;margin:8px 0">Draft: click any description, note, quantity or rate to change it. Amounts and totals recalculate. ${v.number?'This invoice was reopened by '+esc(v.reopenedBy||'an admin')+(v.reopenReason?' ('+esc(v.reopenReason)+')':'')+' and keeps its number '+esc(v.number)+'.':'The invoice number is assigned when you finalize.'} Lotus does not email clients; finalizing only makes a PDF for you to deliver.</div>`;
   else if(v.status==='void')h+=`<div class="err" style="margin:8px 0">Void${v.voidedBy?' (by '+esc(v.voidedBy)+')':''}${v.voidReason?': '+esc(v.voidReason):''}. The number ${esc(v.number||'')} is not reused.</div>`;
   else if(v.status==='sent')h+=`<div class="notice" style="font-size:12px;margin:8px 0">Delivered to the client on <b>${esc(v.sentDate?tmLongDate(v.sentDate):invDate(v.sentAt))}</b>${v.sentBy?' (recorded by '+esc(v.sentBy)+')':''}${v.sentNote?': '+esc(v.sentNote):''}.</div>`;
+  h+=`<div id="ie-adjsum">${invAdjSummary(v)}</div>`;
   h+=`<div class="inv-doc invm-doc">${tmInvHead(invKindName(v.kind)+' Invoice',{name:v.projectName},tmLongDate(v.periodFrom)+' to '+tmLongDate(v.periodTo),'Invoice number').replace('<div class="inv-val">&nbsp;</div>',`<div class="inv-val">${v.number?esc(v.number):'<span style="color:#8a7f74;font-weight:400;font-size:12px">Assigned when finalized</span>'}</div>`)}`;
   h+=`<table class="inv-tbl"><thead><tr><th>Description</th><th ${td}>Qty</th><th ${td}>Rate</th><th ${td}>Amount</th>${ed?'<th></th>':''}</tr></thead><tbody>`;
   v.sections.forEach((s,si)=>{
@@ -4790,7 +4852,7 @@ function invRenderEditor(){
     if(isFee&&v.sections.filter(x=>!(x.lines||[]).some(l=>l.fee==='rdf')).length>1)h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td} id="ie-pf">${tmMoney(v.preFee)}</td>${ed?'<td></td>':''}</tr>`;
     h+=`<tr class="inv-wk"><td colspan="${ed?3:3}">${ed?`<input class="ie-in ie-h" value="${esc(s.heading)}" oninput="window._invS(${si},this.value)">`:esc(s.heading)}</td><td></td>${ed?`<td><button class="ie-x" title="Remove this section" onclick="window._invDelSec(${si})">&times;</button></td>`:''}</tr>`;
     (s.lines||[]).forEach((l,li)=>{
-      h+=`<tr><td>${ed?`<textarea class="ie-in ie-desc" rows="1" placeholder="Description" oninput="window._invGrow(this);window._invL(${si},${li},'desc',this.value)">${esc(l.desc)}</textarea><input class="ie-in ie-note" value="${esc(l.note||'')}" placeholder="Task code, room (optional second line)" oninput="window._invL(${si},${li},'note',this.value)">${v.kind==='materials'?`<label class="inv-tag" style="cursor:pointer"><input type="checkbox" ${l.taxable?'checked':''} onchange="window._invTaxLine(${si},${li},this.checked)"> taxable</label>`:''}`:`${esc(l.desc)}${l.note?`<div class="inv-tag">${esc(l.note)}</div>`:''}`}</td>
+      h+=`<tr><td>${ed?`<textarea class="ie-in ie-desc" rows="1" placeholder="Description" oninput="window._invGrow(this);window._invL(${si},${li},'desc',this.value)">${esc(l.desc)}</textarea><input class="ie-in ie-note" value="${esc(l.note||'')}" placeholder="Task code, room (optional second line)" oninput="window._invL(${si},${li},'note',this.value)">${v.kind==='materials'?`<label class="inv-tag" style="cursor:pointer"><input type="checkbox" ${l.taxable?'checked':''} onchange="window._invTaxLine(${si},${li},this.checked)"> taxable</label>`:''}`:`${esc(l.desc)}${l.note?`<div class="inv-tag">${esc(l.note)}</div>`:''}`}<div id="ie-adj-${si}-${li}">${invAdjHtml(v,si,li,ed)}</div></td>
         <td ${td}>${ed?`<input class="ie-in r" type="number" step="0.01" value="${l.qty}" oninput="window._invL(${si},${li},'qty',this.value)">`:invQty(v.kind,l.qty)}</td>
         <td ${td}>${ed?`<input class="ie-in r" type="number" step="0.01" value="${l.rate}" oninput="window._invL(${si},${li},'rate',this.value)">`:tmMoney(l.rate)}</td>
         <td ${td} id="ie-a-${si}-${li}">${tmMoney(l.amount)}</td>${ed?`<td><button class="ie-x" title="Remove this line" onclick="window._invDelLine(${si},${li})">&times;</button></td>`:''}</tr>`;
@@ -4803,6 +4865,7 @@ function invRenderEditor(){
   if(ed)h+=`<div class="inv-comm-ed"><div class="inv-lbl">Comments (printed below the total; leave blank and nothing prints)</div><textarea class="ie-in ie-notes" rows="3" placeholder="Optional comments for the client" oninput="window._invNotes(this.value)">${esc(v.notes||'')}</textarea></div>`;
   else if(hasCom)h+=`<div class="inv-terms"><b>Comments:</b> <span style="white-space:pre-wrap">${esc(v.notes)}</span></div>`;
   h+=`<div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div></div>`;
+  h+='<div id="ie-log">'+invLogHtml(v)+'</div>';
   h+='<div id="inv-detail"></div>';
   $('inv-root').innerHTML=h;
   document.querySelectorAll('#inv-root .ie-desc').forEach(window._invGrow);
@@ -4810,22 +4873,42 @@ function invRenderEditor(){
 window._invGrow=el=>{el.style.height='auto';el.style.height=el.scrollHeight+'px'};
 const invQty=(k,q)=>k==='labor'?(+q).toFixed(2):(Number.isInteger(+q)?String(+q):(+q).toFixed(2));
 function invMark(){invDirty=true;const b=$('inv-save');if(b)b.textContent='Save draft (unsaved changes)'}
-function invRefresh(){invCalc(invCur);invCur.sections.forEach((s,si)=>{(s.lines||[]).forEach((l,li)=>{const e=$('ie-a-'+si+'-'+li);if(e)e.textContent=tmMoney(l.amount)});const e=$('ie-s-'+si);if(e)e.textContent=tmMoney(s.subtotal)});const t=$('ie-t');if(t)t.textContent=tmMoney(invCur.total);const pf=$('ie-pf');if(pf)pf.textContent=tmMoney(invCur.preFee);const x=$('ie-tax');if(x)x.textContent=tmMoney(invCur.taxAmount);const xb=$('ie-tb');if(xb)xb.textContent=tmMoney(invCur.taxBase)}
+function invRefresh(){invCalc(invCur);invCur.sections.forEach((s,si)=>{(s.lines||[]).forEach((l,li)=>{const e=$('ie-a-'+si+'-'+li);if(e)e.textContent=tmMoney(l.amount)});const e=$('ie-s-'+si);if(e)e.textContent=tmMoney(s.subtotal)});invCur.sections.forEach((s,si)=>(s.lines||[]).forEach((l,li)=>{const q=$('ie-adj-'+si+'-'+li);if(q)q.innerHTML=invAdjHtml(invCur,si,li,invCur.status==='draft')}));{const q=$('ie-adjsum');if(q)q.innerHTML=invAdjSummary(invCur)}const t=$('ie-t');if(t)t.textContent=tmMoney(invCur.total);const pf=$('ie-pf');if(pf)pf.textContent=tmMoney(invCur.preFee);const x=$('ie-tax');if(x)x.textContent=tmMoney(invCur.taxAmount);const xb=$('ie-tb');if(xb)xb.textContent=tmMoney(invCur.taxBase)}
 window._invS=(si,val)=>{invCur.sections[si].heading=val;invMark()};
-window._invL=(si,li,f,val)=>{const l=invCur.sections[si].lines[li];l[f]=(f==='qty'||f==='rate')?(parseFloat(val)||0):val;invRefresh();invMark()};
+window._invL=(si,li,f,val)=>{const l=invCur.sections[si].lines[li];l[f]=(f==='qty'||f==='rate')?(parseFloat(val)||0):val;invRefresh();if(f==='qty'||f==='rate'){invAdjTouch(invCur,l);invRefresh()}invMark()};
+window._invReason=(si,li,el)=>{const l=invCur.sections[si].lines[li];l.adjReason=el.value;el.style.borderColor=el.value.trim()?'var(--border)':'#b3261e';invMark()};
 window._invNotes=val=>{invCur.notes=val;invMark()};
 window._invTaxLine=(si,li,on)=>{invCur.sections[si].lines[li].taxable=!!on;invRefresh();invMark()};
 window._invTaxRate=val=>{invCur.taxRate=parseFloat(val)||0;invRefresh();invMark()};
 window._invAddLine=si=>{invCur.sections[si].lines.push({id:invId(),desc:'',note:'',qty:1,rate:0,amount:0});invMark();invRenderEditor()};
-window._invDelLine=(si,li)=>{invCur.sections[si].lines.splice(li,1);invMark();invRenderEditor()};
+// Removing a line that came from the report is an adjustment too: ask for a reason and keep a record of what was taken off.
+// (Setting its rate to 0 instead keeps the line and still locks its time or receipts when the invoice is finalized. A removed line's
+// time or receipts are NOT locked, so they will show up again on the next report.)
+function invRemoveRecord(l,why){const b=invBase(invCur,l);(invCur.removed=invCur.removed||[]).push({desc:String(l.desc||''),qty:b?b.qty:+l.qty||0,rate:b?b.rate:+l.rate||0,amount:b?b.amount:invR2(l.amount),reason:why,by:invWho(),at:Date.now()})}
+window._invDelLine=(si,li)=>{
+  const l=invCur.sections[si].lines[li],b=invBase(invCur,l);
+  if(b&&b.amount>0){
+    const why=prompt('Remove this billed line ('+tmMoney(b.amount)+')? Enter the reason.\n\nTip: setting the rate to 0 instead keeps the line on the invoice at no charge and still locks its time or receipts when you finalize. A removed line\'s time or receipts stay unbilled and will appear on the next report.','');
+    if(why===null)return;if(!String(why).trim()){alert('A reason is required to remove a billed line.');return}
+    invRemoveRecord(l,String(why).trim());
+  }
+  invCur.sections[si].lines.splice(li,1);invMark();invRenderEditor()};
 window._invAddSec=()=>{invCur.sections.push({id:invId(),heading:'New section',lines:[{id:invId(),desc:'',note:'',qty:1,rate:0,amount:0}]});invMark();invRenderEditor()};
-window._invDelSec=si=>{if(!confirm('Remove this whole section and its lines?'))return;invCur.sections.splice(si,1);invMark();invRenderEditor()};
-function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount,rid:String(l.rid||''),taxable:!!l.taxable,fee:l.fee||'',feeFrom:l.feeFrom||''}))})),total:invCur.total,taxRate:+invCur.taxRate||0,taxBase:invCur.taxBase||0,taxAmount:invCur.taxAmount||0,notes:String(invCur.notes||'')}}
+window._invDelSec=si=>{
+  const ls=invCur.sections[si].lines||[],billed=ls.filter(l=>{const b=invBase(invCur,l);return b&&b.amount>0});
+  if(billed.length){
+    const why=prompt('Remove this whole section ('+billed.length+' billed line'+(billed.length>1?'s':'')+')? Enter the reason.\n\nA removed line\'s time or receipts stay unbilled and will appear on the next report.','');
+    if(why===null)return;if(!String(why).trim()){alert('A reason is required to remove billed lines.');return}
+    billed.forEach(l=>invRemoveRecord(l,String(why).trim()));
+  }else if(!confirm('Remove this whole section and its lines?'))return;
+  invCur.sections.splice(si,1);invMark();invRenderEditor()};
+function invPayload(){invCalc(invCur);return{sections:invCur.sections.map(s=>({id:s.id||invId(),heading:String(s.heading||''),subtotal:s.subtotal,lines:(s.lines||[]).map(l=>({id:l.id||invId(),desc:String(l.desc||''),note:String(l.note||''),qty:+l.qty||0,rate:+l.rate||0,amount:l.amount,rid:String(l.rid||''),taxable:!!l.taxable,fee:l.fee||'',feeFrom:l.feeFrom||'',orig:l.orig||(invBase(invCur,l)?{qty:invBase(invCur,l).qty,rate:invBase(invCur,l).rate,amount:invBase(invCur,l).amount}:null),adjReason:String(l.adjReason||''),adjBy:l.adjBy||'',adjAt:l.adjAt||0}))})),changeLog:(invCur.changeLog||[]).concat(invLogDiff()),removed:(invCur.removed||[]).map(r=>({desc:String(r.desc||''),qty:+r.qty||0,rate:+r.rate||0,amount:+r.amount||0,reason:String(r.reason||''),by:String(r.by||''),at:+r.at||0})),total:invCur.total,taxRate:+invCur.taxRate||0,taxBase:invCur.taxBase||0,taxAmount:invCur.taxAmount||0,notes:String(invCur.notes||'')}}
 function invFlash(html,cls){const m=$('inv-msg');if(m)m.innerHTML=`<div class="${cls||'notice'}" style="margin:8px 0">${html}</div>`}
 window._invSave=async()=>{
   if(!invCur||invCur.status!=='draft')return;
   try{
     const p=invPayload();await updateDoc(doc(db,'invoices',invCur.id),{...p,updatedAt:serverTimestamp(),updatedBy:invWho()});
+    invCur.changeLog=p.changeLog;invCur._snap=invSnapOf(invCur);invCur._snapAt=Date.now();{const lg=$('ie-log');if(lg)lg.innerHTML=invLogHtml(invCur)}
     invDirty=false;const i=invAll.findIndex(x=>x.id===invCur.id);if(i>=0)invAll[i]={...invAll[i],...p,updatedBy:invWho(),updatedAt:{toDate:()=>new Date(),toMillis:()=>Date.now()}};
     $('inv-save').textContent='Save draft';invFlash('Draft saved.');
   }catch(e){invFlash('Could not save: '+esc(e.message),'err')}
@@ -4884,6 +4967,7 @@ window._invFinalize=async()=>{
   if(!v.sections.some(s=>(s.lines||[]).length)){invFlash('Add at least one line before finalizing.','err');return}
   if(bad.length){invFlash('Every line needs a description. '+bad.length+' line'+(bad.length>1?'s are':' is')+' blank.','err');return}
   invCalc(v);
+  {const nr=v.sections.flatMap(s=>s.lines||[]).filter(l=>invAdjOf(v,l)&&!String(l.adjReason||'').trim());if(nr.length){invFlash('Every adjusted line needs a reason. '+nr.length+' adjusted line'+(nr.length>1?'s are':' is')+' missing one (marked in red).','err');return}}
   const key=v.prefix+'-'+invLetter(v.kind),reuse=!!v.number;
   const rids=[...new Set(v.sections.flatMap(s=>s.lines||[]).map(l=>l.rid).filter(Boolean))];
   // The internal record (cost codes, source time entries and receipts) was captured when the draft was saved from the report.
@@ -4918,7 +5002,7 @@ window._invFinalize=async()=>{
             if(((c.exists()?c.data()[key]:0)||0)!==cur)throw new Error('COUNTER_MOVED');
             tx.set(cRef,{[key]:next},{merge:true});
           }
-          tx.update(iRef,{...p,number,status:'ready',receiptIds:rids,timeIds:tids,internal:keepInt,finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
+          tx.update(iRef,{...p,changeLog:(p.changeLog||[]).concat([{at:Date.now(),by:invWho(),text:'Finalized as '+number+' ('+tmMoney(p.total)+')'}]),number,status:'ready',receiptIds:rids,timeIds:tids,internal:keepInt,finalizedBy:invWho(),finalizedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:invWho()});
           tx.set(fRef,{pdf,number,projectId:v.projectId,createdAt:serverTimestamp()});
         });
         done=number;
@@ -4985,6 +5069,7 @@ window._invDetail=()=>{
     (sec.lines||[]).forEach(l=>{
       const x=I[l.id];
       h+='<div class="inv-det-line"><div style="display:flex;justify-content:space-between;gap:10px"><b>'+esc(l.desc||'')+'</b><span style="white-space:nowrap">'+(v.kind==='materials'?'':invQty(v.kind,l.qty)+' &times; '+tmMoney(l.rate)+' = ')+tmMoney(l.amount)+'</span></div>';
+      {const a=invAdjOf(v,l);if(a)h+='<div style="font-size:12px;color:#b3261e;margin:2px 0"><b>Adjusted</b>: was '+tmMoney(a.base.amount)+', billed '+tmMoney(l.amount)+' ('+(a.diff<0?'-':'+')+tmMoney(Math.abs(a.diff))+') &middot; Reason: '+esc(l.adjReason||'(none recorded)')+(l.adjBy?' &middot; by '+esc(l.adjBy)+(l.adjAt?' on '+invD(l.adjAt):''):'')+'</div>'}
       if(!x)h+='<div style="font-size:12px;color:var(--muted)">Added by hand; no source records.</div>';
       else if(x.s==='L'){
         h+='<div style="font-size:12px;color:var(--muted);margin:2px 0 4px">Cost code: '+esc(x.code||'(none)')+(x.room?' &middot; Room: '+esc(x.room):'')+' &middot; Rate class: '+esc(x.cls||'')+'</div>';
@@ -4995,6 +5080,7 @@ window._invDetail=()=>{
       h+='</div>';
     });
   });
+  if((v.removed||[]).length)h+='<div class="inv-det-line"><div style="font-weight:700;color:#b3261e">Lines removed from this invoice</div>'+v.removed.map(r=>'<div style="font-size:12px;margin-top:3px">'+esc(r.desc)+' &middot; '+tmMoney(r.amount)+' &middot; Reason: '+esc(r.reason)+' &middot; by '+esc(r.by)+(r.at?' on '+invD(r.at):'')+'</div>').join('')+'</div>';
   box.innerHTML=h+'</div>';
 };
 window._invDetailXlsx=async()=>{
@@ -5014,6 +5100,11 @@ window._invDetailXlsx=async()=>{
       else det.push([v.number||'(draft)',line.desc||'','Added by hand','','','','','','','','','',+line.amount||0,'']);
     });
     XLSX.utils.book_append_sheet(wb,sh(det,[14,50,14,12,24,12,14,34,8,10,10,12,12,40]),'Internal detail');
+    {const adj=[['Invoice','Line','Change','Original amount','Billed amount','Difference','Reason','By','On']];
+      v.sections.forEach(sec=>(sec.lines||[]).forEach(l=>{const a=invAdjOf(v,l);if(a)adj.push([v.number||'(draft)',l.desc||'','Adjusted',a.base.amount,+l.amount||0,a.diff,l.adjReason||'',l.adjBy||'',l.adjAt?invD(l.adjAt):''])}));
+      (v.removed||[]).forEach(r=>adj.push([v.number||'(draft)',r.desc||'','Removed',+r.amount||0,0,-(+r.amount||0),r.reason||'',r.by||'',r.at?invD(r.at):'']));
+      if(adj.length>1)XLSX.utils.book_append_sheet(wb,sh(adj,[14,50,10,14,14,12,40,18,12]),'Adjustments')}
+    {const lg=[['Invoice','When','Who','What']];invLogRows(v).forEach(e=>lg.push([v.number||'(draft)',e.at?invLogFmt(e):'',e.by||'',e.text||'']));if(lg.length>1)XLSX.utils.book_append_sheet(wb,sh(lg,[14,22,22,100]),'Change log')}
     XLSX.writeFile(wb,((v.number||'Draft')+' - '+(v.projectName||'job')+' - Internal detail.xlsx').replace(/[\\/:*?"<>|]+/g,'-'));
   }catch(e){alert('Could not make the Excel file: '+e.message)}
 };

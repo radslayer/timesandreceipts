@@ -4497,7 +4497,7 @@ function tmReviewHtml(){
     ${onL?`<tr><td>Labor (${T.hrs.toFixed(2)} hrs)</td><td ${td}>${tmMoney(T.labor)}</td></tr>`:''}
     ${onM?`<tr><td>Materials</td><td ${td}>${tmMoney(T.mat)}</td></tr>
     <tr><td>Subcontractors</td><td ${td}>${tmMoney(T.sub)}</td></tr>`:''}
-    <tr style="font-weight:700;font-size:15px"><td>${sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors'}</td><td ${td}>${tmMoney(sc==='both'?T.grand:sc==='labor'?T.labor:tmR2(T.mat+T.sub))}</td></tr></tbody></table>
+    <tr style="font-weight:700;font-size:15px"><td>${sc==='both'?'Total':sc==='labor'?'Total Labor':'Total Materials'}</td><td ${td}>${tmMoney(sc==='both'?T.grand:sc==='labor'?T.labor:tmR2(T.mat+T.sub))}</td></tr></tbody></table>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">${onM?'Each receipt is marked up on its full amount, exactly as paid. ':''}${!onL?'':D.atCost?'Labor is each employee&rsquo;s wage plus the burden %, straight time (overtime premiums are not included).':'Labor is hours times the client&rsquo;s rate for that type of work (overtime is not marked up).'}</div>`;
   if(onL&&entries.length){
     h+=`<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">Hours by employee and each time entry (for reference, not for the client)</summary><div style="overflow-x:auto"><table class="tbl" style="max-width:420px;margin:8px 0"><thead><tr><th>Employee</th><th ${td}>Entries</th><th ${td}>Hours</th></tr></thead><tbody>${empList.map(e=>`<tr><td>${esc(e.name)}</td><td ${td}>${e.n}</td><td ${td}>${e.hrs.toFixed(2)}</td></tr>`).join('')}</tbody></table>
@@ -4532,7 +4532,7 @@ function tmLaborInvoiceHtml(D){
       w.laborLines.forEach(L=>{h+=`<tr><td>${esc(tmLaborDesc(L))} ${rg}</td><td ${td}>${L.hrs.toFixed(2)}</td><td ${td}>${tmMoney(L.rate)}</td><td ${td}>${tmMoney(L.amt)}</td></tr>`});
       h+=`<tr class="inv-st"><td colspan="3">Subtotal</td><td ${td}>${tmMoney(w.T.labor)}</td></tr>`;
     });
-    h+=`</tbody></table><div class="inv-total"><span>Total labor</span><span>${tmMoney(T.labor)}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
+    h+=`</tbody></table><div class="inv-total"><span>Total Labor</span><span>${tmMoney(T.labor)}</span></div><div class="inv-terms"><b>Terms:</b> ${INV_TERMS}</div>`;
   }
   return h+'</div>';
 }
@@ -4618,12 +4618,12 @@ window._tmXlsx=async()=>{
       const wt=sc==='both'?w.T.total:sc==='labor'?w.T.labor:tmR2(w.T.mat+w.T.sub);
       inv.push(['Subtotal: '+wt.toFixed(2),'','',wt]);
     });
-    inv.push([],[sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors','','',tot]);
+    inv.push([],[sc==='both'?'Total':sc==='labor'?'Total Labor':'Total Materials','','',tot]);
     XLSX.utils.book_append_sheet(wb,sheet(inv,[70,10,10,12]),'Invoice lines');
     const sum=[[sc==='both'?'Time + Receipts':sc==='labor'?'Time':'Receipts',proj.name||''],['Period',fr+' to '+to],[]];
     if(onL)sum.push(['Labor hours',T.hrs],['Labor',T.labor]);
     if(onM)sum.push(['Materials (cost / '+D.matDiv+')',T.mat],['Subcontractors (cost / '+D.subDiv+')',T.sub]);
-    sum.push([sc==='both'?'Total to bill':sc==='labor'?'Total labor':'Total materials and subcontractors',tot],[]);
+    sum.push([sc==='both'?'Total':sc==='labor'?'Total Labor':'Total Materials',tot],[]);
     if(onL)sum.push(['Client rate: Construction',rates.construction],['Client rate: Design',rates.design],['Client rate: Procurement',rates.procurement],['Rates saved for this client?',rates._saved?'Yes':'No, defaults used'],[]);
     if(onM)sum.push(['Our cost: materials',T.matCost],['Our cost: subcontractors',T.subCost],[]);
     if(onL)sum.push(['Left out: non-billable time entries',ex.nonBillTime]);
@@ -4808,7 +4808,7 @@ function invRenderList(){
   const cnt=s=>invAll.filter(x=>x.status===s).length;
   const jobs=[...new Map(invAll.map(x=>[x.projectId,x.projectName])).entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
   let rows=invAll.filter(x=>x.status===invTab&&(!invJob||x.projectId===invJob)&&(!invCad||invCadOf(x)===invCad));
-  rows.sort((a,b)=>(b.updatedAt?.toMillis?.()||0)-(a.updatedAt?.toMillis?.()||0));
+  rows.sort((a,b)=>String(b.periodTo||'').localeCompare(String(a.periodTo||''))||((b.updatedAt?.toMillis?.()||0)-(a.updatedAt?.toMillis?.()||0)));
   let h=`<div class="invm-tabs">${['draft','ready','sent','void'].map(s=>`<button type="button" class="${invTab===s?'on':''}" onclick="window._invTab('${s}')">${invStatusName(s)} <span>${cnt(s)}</span></button>`).join('')}
     <select id="inv-cad" onchange="window._invCad(this.value)" style="margin-left:auto"><option value="">Weekly and monthly</option>${[['week','Weekly'],['month','Monthly'],['custom','Custom range']].map(([k,n])=>`<option value="${k}" ${invCad===k?'selected':''}>${n}</option>`).join('')}</select>
     <select id="inv-job" onchange="window._invJob(this.value)"><option value="">All jobs</option>${jobs.map(([id,n])=>`<option value="${esc(id)}" ${invJob===id?'selected':''}>${esc(n)}</option>`).join('')}</select></div>`;

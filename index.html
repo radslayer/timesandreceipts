@@ -3783,6 +3783,9 @@ window._dt=async(id)=>{
   try{
     await deleteDoc(doc(db,'timeLogs',id));
     if(r)await revokeApprovalForMs(tlTsMs(r.clockIn));
+    // The report is a one-time fetch, so take the deleted row out of it and redraw right away.
+    if(window._allTimeLogs)window._allTimeLogs=window._allTimeLogs.filter(x=>x.id!==id);
+    if(window._rptData?.some(x=>x.id===id)&&typeof renderReport==='function')renderReport(window._rptData.filter(x=>x.id!==id));
   }catch(e){alert('Delete failed: '+e.message)}
 };
 let editingTimeId=null,editingTimeUserId=null,editingTimeOrigMs=null;
@@ -3847,6 +3850,9 @@ $('et-save').onclick=async()=>{
     else{
       await updateDoc(doc(db,'timeLogs',editingTimeId),{projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs,updatedAt:serverTimestamp(),editHistory:arrayUnion(editHistoryItem(chg))});
       hide('edit-time-modal');
+      if(window._rptData?.some(x=>x.id===editingTimeId)&&typeof renderReport==='function'){
+        renderReport(window._rptData.map(x=>x.id!==editingTimeId?x:{...x,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs}));
+      }
       await revokeApprovalForMs(editingTimeOrigMs);
       await revokeApprovalForMs(ciDate.getTime());
     }

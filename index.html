@@ -5233,9 +5233,11 @@ $('rpt-inv-btn').onclick=async()=>{
 ['rpt-time-btn','rpt-rcpt-btn','rpt-tm-btn','rpt-payroll-btn','rpt-logtime-btn'].forEach(id=>$(id)?.addEventListener('click',()=>{hide('rpt-inv-panel');$('rpt-inv-btn')?.classList.remove('on')}));
 
 // ── PAYROLL REPORT ────────────────────────────────────────────────────────────
-// Pay period anchor: May 17 2026 - May 30 2026, paid June 19 2026
-// Periods run Sunday-Saturday, 14 days. Payday = period end + 20 days (Friday).
-const PAYROLL_ANCHOR_START = new Date(2026, 4, 17); // May 17 2026
+// Pay period anchor: May 24 2026 - Jun 6 2026, paid June 19 2026 (matches the paid 6/19 payroll and the
+// older reports, which all fall on 14-day steps from Aug 31 2025).
+// Periods run Sunday-Saturday, 14 days. Payday = the Friday 13 days after the period ends.
+// Spiff is paid on the final payday of a month, for the previous calendar month.
+const PAYROLL_ANCHOR_START = new Date(2026, 4, 24); // May 24 2026
 
 function getPeriodIndex(d) {
   const ms = new Date(d) - PAYROLL_ANCHOR_START;
@@ -5247,14 +5249,14 @@ function getPeriodDates(index) {
   const end = new Date(start);
   end.setDate(end.getDate() + 13);
   const payday = new Date(end);
-  payday.setDate(payday.getDate() + 20);
+  payday.setDate(payday.getDate() + 13);
   while (payday.getDay() !== 5) payday.setDate(payday.getDate() + 1);
   return { start, end, payday };
 }
 function fmtPeriod(start, end) {
   return start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + end.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
-function toYMD(d) { return d.toISOString().slice(0,10); }
+function toYMD(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function isLastPaydayOfMonth(payday) {
   // Check if next pay period's payday is in a different month
   const next = new Date(payday);
@@ -5279,7 +5281,7 @@ function buildPayrollPresets() {
   const todayIdx = getPeriodIndex(today);
   const nextPayIdx = findNextPayrollIndex(today);
   const presets = [
-    { label: 'Current Period', idx: todayIdx },
+    { label: 'In progress', idx: todayIdx },
     { label: 'Next Payroll', idx: nextPayIdx },
     { label: 'Previous Payroll', idx: nextPayIdx - 1 },
   ];
@@ -5287,7 +5289,8 @@ function buildPayrollPresets() {
   wrap.innerHTML = presets.map((p, i) => {
     const { start, end, payday } = getPeriodDates(p.idx);
     const isLast = isLastPaydayOfMonth(payday);
-    return `<button class="chip" style="background:var(--ink)" onclick="window._setPayrollPreset(${p.idx})">${p.label}: ${fmtPeriod(start,end)}${isLast?' + Spiff':''}</button>`;
+    const spiffMo = new Date(payday.getFullYear(), payday.getMonth() - 1, 1).toLocaleDateString('en-US',{month:'long'});
+    return `<button class="chip" style="background:var(--ink)" onclick="window._setPayrollPreset(${p.idx})">${p.label}: ${fmtPeriod(start,end)} · paid ${payday.toLocaleDateString('en-US',{month:'short',day:'numeric'})}${isLast?' + '+spiffMo+' spiff':''}</button>`;
   }).join('');
 }
 window._setPayrollPreset = (idx) => {
@@ -5298,7 +5301,7 @@ window._setPayrollPreset = (idx) => {
   $('pr-include-spiff').checked = isLast;
   if (isLast) {
     show('pr-spiff-range');
-    // Spiff month = month of payday (which is ~20 days after period end, so payday month - 1)
+    // Spiff is paid on the final payday of a month for the previous calendar month (payday month - 1)
     const spiffMonth = new Date(payday.getFullYear(), payday.getMonth() - 1, 1);
     const spiffEnd = new Date(spiffMonth.getFullYear(), spiffMonth.getMonth() + 1, 0);
     $('pr-spiff-from').value = toYMD(spiffMonth);

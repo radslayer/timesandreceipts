@@ -5740,7 +5740,7 @@ window._csvPayroll = () => {
   const d = window._prData; if(!d) return;
   if (findPayrollOverlaps(d.entries).length) { alert('This payroll period has overlapping time entries that must be resolved before it can be exported. Re-run the report to see them.'); return; }
   if (!(d.approvalDoc && d.approvalDoc.approved === true)) { alert("An Admin must approve this payroll period's billable/spiff tagging before it can be exported. Re-run the report once it's approved."); return; }
-  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
+  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay','Description'];
   const rows = [];
   d.entries.forEach(e => {
     const user = d.users.find(u=>(u.name||'').trim()===(e.userName||'').trim())||{};
@@ -5752,7 +5752,7 @@ window._csvPayroll = () => {
     const basePay = baseRate?(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2):0;
     const spiffHrs = d.includeSpiff?(d.spiffByEmp[e.userName||'']||0):0;
     const spiffPay = d.includeSpiff&&user.spiffEligible?spiffHrs*(parseFloat(user.spiffRate)||0):0;
-    rows.push([e.userName||'',user.employeeType==='contractor'?'Contractor':'W-2',cin.toLocaleDateString(),cin.toLocaleDateString('en-US',{weekday:'short'}),e.projectName||'',e.costCode||e.scope||'',billable?'Y':'N',cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),ot.reg.toFixed(4),ot.ot.toFixed(4),ot.dt.toFixed(4),baseRate,basePay.toFixed(2),user.spiffEligible?'Y':'N',user.spiffRate||0,spiffHrs.toFixed(4),spiffPay.toFixed(2)]);
+    rows.push([e.userName||'',user.employeeType==='contractor'?'Contractor':'W-2',cin.toLocaleDateString(),cin.toLocaleDateString('en-US',{weekday:'short'}),e.projectName||'',e.costCode||e.scope||'',billable?'Y':'N',cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),ot.reg.toFixed(4),ot.ot.toFixed(4),ot.dt.toFixed(4),baseRate,basePay.toFixed(2),user.spiffEligible?'Y':'N',user.spiffRate||0,spiffHrs.toFixed(4),spiffPay.toFixed(2),e.notes||'']);
   });
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_payroll_'+d.from+'_to_'+d.to+'.csv';a.click();
@@ -5784,7 +5784,8 @@ function buildPayrollSnapshotRows(d) {
       regHrs:+ot.reg.toFixed(4), otHrs:+ot.ot.toFixed(4), dtHrs:+ot.dt.toFixed(4),
       baseRate, basePay:+basePay.toFixed(2),
       spiffEligible:user.spiffEligible?'Y':'N', spiffRate:parseFloat(user.spiffRate)||0,
-      spiffHrsMonth:+spiffHrs.toFixed(4), spiffPay:+spiffPay.toFixed(2)
+      spiffHrsMonth:+spiffHrs.toFixed(4), spiffPay:+spiffPay.toFixed(2),
+      description:e.notes||''
     });
   });
   return rows;
@@ -5978,8 +5979,8 @@ function renderLockedPayrollView(rec) {
 }
 window._csvLockedPayroll = () => {
   const rec = window._prLockedData; if (!rec) return;
-  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay'];
-  const rows = (rec.rows||[]).map(r=>[r.employee,r.employeeType,r.date,r.day,r.project,r.costCode,r.billable,r.clockIn,r.clockOut,r.regHrs.toFixed(4),r.otHrs.toFixed(4),r.dtHrs.toFixed(4),r.baseRate,r.basePay.toFixed(2),r.spiffEligible,r.spiffRate,r.spiffHrsMonth.toFixed(4),r.spiffPay.toFixed(2)]);
+  const headers = ['Employee','Employee Type','Date','Day','Project','Cost Code','Billable','Clock In','Clock Out','Reg Hrs','OT Hrs (1.5x)','DT Hrs (2x)','Base Rate','Base Pay','Spiff Eligible','Spiff Rate','Spiff Hrs (Month)','Spiff Pay','Description'];
+  const rows = (rec.rows||[]).map(r=>[r.employee,r.employeeType,r.date,r.day,r.project,r.costCode,r.billable,r.clockIn,r.clockOut,r.regHrs.toFixed(4),r.otHrs.toFixed(4),r.dtHrs.toFixed(4),r.baseRate,r.basePay.toFixed(2),r.spiffEligible,r.spiffRate,r.spiffHrsMonth.toFixed(4),r.spiffPay.toFixed(2),r.description||'']);
   const csv=[headers,...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='MOTIF_payroll_'+rec.from+'_to_'+rec.to+'_LOCKED.csv';a.click();
 };

@@ -1,0 +1,343 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers used only by the estimating / budget blocks near the bottom of this file.
+    function roleOf() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isPriv() {
+      return request.auth != null && roleOf() in ['admin', 'bookkeeper'];
+    }
+    function isAdminRole() {
+      return request.auth != null && roleOf() == 'admin';
+    }
+
+    // USERS (changed 2026-11-18: closes the role-escalation hole).
+    // Before: any signed-in user could write their own user document, including the role field,
+    // so anyone could make themselves an admin. Now:
+    //   - read: any signed-in user (unchanged).
+    //   - create: a person may create only their OWN document, only as role 'user', and only with the
+    //     four fields the app writes at first sign-in (email, name, role, createdAt). An admin can create any.
+    //     (Invited users are created by the invite Cloud Function through the Admin SDK, which bypasses rules.)
+    //   - update: an admin can change anything. A person can change only their own language and timezone
+    //     (the only two fields the app writes for itself). Role, pay rates and every other field are admin only.
+    //   - delete: admin only.
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+        (request.auth.uid == userId &&
+         request.resource.data.role == 'user' &&
+         request.resource.data.keys().hasOnly(['email', 'name', 'role', 'createdAt'])) ||
+        isAdminRole()
+      );
+      allow update: if request.auth != null && (
+        isAdminRole() ||
+        (request.auth.uid == userId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lang', 'timezone']))
+      );
+      allow delete: if isAdminRole();
+    }
+
+    // USER PAY RATES (new 2026-11-18). Base rate, employee type and spiff settings used to sit on the users
+    // document, which every signed-in user can read. They now live here. Admin and bookkeeper can read
+    // (payroll and account summary need them); only an admin can write. Field crew cannot read or write.
+    match /userPay/{userId} {
+      allow read: if isPriv();
+      allow create, update: if isAdminRole();
+      allow delete: if isAdminRole();
+    }
+
+    match /pendingUsers/{email} {
+      allow read, write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin'];
+    }
+
+    match /projects/{projectId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+    }
+
+    match /timeLogs/{logId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      // A time entry that is on a finalized client invoice (invoiceLockId is set) is locked for everyone.
+      // The only change allowed is an admin releasing it (voiding or reopening the invoice), which clears
+      // the invoice fields and nothing else. Entries with no invoiceLockId behave exactly as before.
+      allow update: if request.auth != null && (
+        (resource.data.get('invoiceLockId', null) != null &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['invoiceLockId', 'invoiceNumber', 'invoicedAt', 'invoicedBy', 'releasedBy', 'releasedAt'])) ||
+        (resource.data.get('invoiceLockId', null) == null &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] ||
+          (resource.data.userId == request.auth.uid && resource.data.status == 'active') ||
+          (resource.data.userId == request.auth.uid &&
+           request.time.toMillis() - resource.data.clockIn.toMillis() < 2592000000)))
+      );
+      allow delete: if request.auth != null &&
+        resource.data.get('invoiceLockId', null) == null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin'];
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      // A receipt or vendor bill that is on a finalized client invoice (invoiceLockId is set) is locked.
+      // While locked, the only changes allowed are:
+      //   - an admin releasing it (voiding or reopening the invoice), which clears the invoice fields, and
+      //   - the QB entry date, DB entry date and paid date (the bookkeeper may set a paid date only if none is set yet;
+      //     changing or clearing an existing one is admin only).
+      // Records with no invoiceLockId (everything invoiced by hand before this, and everything not yet invoiced) follow
+      // the rules below: admin can always update. Anyone else can only update a record that has NOT been paid:
+      // bookkeeper on any unpaid record, field crew on their own still-submitted receipt.
+      // Exception: the bookkeeper can ALWAYS change the bookkeeping tracking fields (QB entry date,
+      // DB entry date, the invoiced-to-client number/date and who/when, and the invoice lock), paid or not.
+      // If an update touches anything else on a paid record, only an admin can make it.
+      allow update: if request.auth != null && (
+        (resource.data.get('invoiceLockId', null) != null && (
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['invoiceLockId', 'invoicedClientDate', 'invoicedClientNumber', 'invoicedClientBy', 'invoicedClientAt',
+                       'invoicedClientUnlockedBy', 'invoicedClientUnlockedAt', 'updatedAt'])) ||
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['qbEntryDate', 'dbEntryDate', 'paidDate', 'paidBy', 'paidAt', 'unlockedBy', 'unlockedAt', 'updatedAt']) &&
+           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+            resource.data.get('paidDate', null) == null))
+        )) ||
+        (resource.data.get('invoiceLockId', null) == null && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'bookkeeper' &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['qbEntryDate', 'dbEntryDate',
+                        'invoicedClientDate', 'invoicedClientNumber', 'invoicedClientBy', 'invoicedClientAt',
+                        'invoicedClientUnlockedBy', 'invoicedClientUnlockedAt', 'invoiceLockId',
+                        'updatedAt'])
+          ) ||
+          (
+            (!('paidDate' in resource.data) || resource.data.paidDate == null) &&
+            (
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'bookkeeper' ||
+              (resource.data.userId == request.auth.uid && resource.data.status == 'submitted')
+            )
+          )
+        ))
+      );
+      // Hard delete: admin only, plus field crew on their own not-yet-approved receipt. Bookkeeper never.
+      // A receipt that is on a finalized client invoice can never be deleted.
+      allow delete: if request.auth != null &&
+        resource.data.get('invoiceLockId', null) == null && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (resource.data.userId == request.auth.uid && resource.data.status == 'submitted' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'bookkeeper')
+      );
+    }
+
+    // Job site progress photos — tagged by project/room, timestamped, with a short note.
+    // Every logged-in user (any role) can create and read them, so the whole crew and
+    // admin see the same shared project photo log. Only an admin can edit or delete an
+    // entry (e.g. to fix a mistagged photo or remove one).
+    match /sitePhotos/{photoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin'];
+    }
+
+    match /settings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+    }
+
+    // Client invoices (drafts, finalized, sent, void). Admin and bookkeeper can read, create,
+    // edit and finalize drafts, and mark a finalized invoice as sent. After a draft is finalized,
+    // its lines, totals and number cannot change; only the status and the sent/void/reopen fields can.
+    // Only an admin can void an invoice or reopen one for editing. Lotus never emails clients.
+    match /invoices/{invoiceId} {
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+      allow create: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        request.resource.data.status == 'draft';
+      allow update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        (
+          // A draft can be edited and finalized.
+          (resource.data.status == 'draft' && request.resource.data.status in ['draft', 'ready']) ||
+          // A finalized invoice can only change status and the sent / void / reopen fields.
+          (resource.data.status in ['ready', 'sent'] &&
+           request.resource.data.status in ['ready', 'sent', 'void', 'draft'] &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'sentAt', 'sentBy', 'sentNote', 'sentDate',
+                       'voidedAt', 'voidedBy', 'voidReason',
+                       'reopenedAt', 'reopenedBy', 'reopenReason']) &&
+           // Voiding, or reopening to a draft, is admin only.
+           (!(request.resource.data.status in ['void', 'draft']) ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'))
+        );
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        resource.data.status == 'draft';
+    }
+
+    // The PDF of each finalized invoice, stored as base64 text (small, under 1 MB each).
+    // It can only be written while the invoice is still a draft (this happens in the same
+    // step that finalizes it), so a finalized invoice's PDF cannot be changed. Never deleted.
+    match /invoiceFiles/{invoiceId} {
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+      allow create, update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        get(/databases/$(database)/documents/invoices/$(invoiceId)).data.status == 'draft';
+      allow delete: if false;
+    }
+
+    match /inviteEmails/{docId} {
+      allow read, write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin'];
+    }
+
+    // Emailed-receipt triage queue. Docs are created only by the receiveEmailReceipt
+    // Cloud Function via the Admin SDK (which bypasses these rules) — no client ever
+    // creates one directly, so there is no `allow create` here.
+    match /emailTriage/{docId} {
+      allow read, update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Payroll locking. Split into two collections on purpose so that a locked period's
+    // edit-block can be enforced for EVERY logged-in user (so their own time entries show
+    // as locked) without exposing anyone's pay rates or computed pay to non-admin/bookkeeper
+    // users: payrollLocks holds only {from,to,locked,...} and is readable by all; the full
+    // financial snapshot (rates, hours, pay) lives only in payrollRuns.
+
+    // Minimal lock-status flag, readable by every authenticated user (drives the client-side
+    // isPayrollLocked() check against each user's own time entries). Only admin/bookkeeper may
+    // write it, and only admin may flip an already-locked doc back to unlocked.
+    match /payrollLocks/{periodId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        (
+          resource == null ||
+          resource.data.locked != true ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        );
+      allow delete: if false;
+    }
+
+    // Full payroll snapshot (rates, hours, computed pay) — admin and bookkeeper only, never
+    // the general crew. Same lock-respecting write rule as payrollLocks above: admin or
+    // bookkeeper can create a new lock record or update an unlocked one; only admin can
+    // modify (e.g. unlock) a doc that is currently locked.
+    match /payrollRuns/{periodId} {
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'];
+      allow create, update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'bookkeeper'] &&
+        (
+          resource == null ||
+          resource.data.locked != true ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        );
+      allow delete: if false;
+    }
+
+    // ───────────────────────── ESTIMATES, BUDGETS, CHANGE ORDERS (new) ─────────────────────────
+    // Numbers: estimate SYC-E-001, budget SYC-B-001 (same sequence number, and the budget's document id
+    // is the estimate's document id), change order SYC-CO-001. Numbers are never reused, so nothing
+    // here can be deleted except an unsent draft revision (admin) and a draft change order.
+    // The number counters live in settings/estimateCounters (settings already allows admin + bookkeeper).
+    // NOTE 2026-11-18: Rod chose the numbering syntax ES10001-XX (estimates) and C10001-XX (invoices);
+    // these comments still show the earlier SYC- scheme and are not enforced by the rules.
+
+    // One document per estimate. While it is not accepted (no acceptedDate) admin and bookkeeper can
+    // edit it, record the sent date, and set the accepted date. Once accepted it is locked: only an admin
+    // can change the notes, QuickBooks reference, or clear the accepted date (the app blocks clearing it
+    // once the budget has change orders, time or receipts against it).
+    match /estimates/{estId} {
+      allow read: if isPriv();
+      allow create: if isPriv() && request.resource.data.get('acceptedDate', null) == null;
+      allow update: if isPriv() && (
+        resource.data.get('acceptedDate', null) == null ||
+        (isAdminRole() &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['acceptedDate', 'acceptedRev', 'acceptedBy', 'acceptedAt',
+                     'clearedBy', 'clearedAt', 'clearReason',
+                     'qbCopiedDate', 'notes', 'updatedAt', 'updatedBy']))
+      );
+      allow delete: if false;
+
+      // Revisions (SYC-E-001, SYC-E-001-r2 ...). A revision is editable until it is sent; after that it
+      // is a frozen snapshot. A new round of client changes is a new revision.
+      match /revisions/{rev} {
+        allow read: if isPriv();
+        allow create: if isPriv() &&
+          get(/databases/$(database)/documents/estimates/$(estId)).data.get('acceptedDate', null) == null;
+        allow update: if isPriv() &&
+          resource.data.get('sentAt', null) == null &&
+          get(/databases/$(database)/documents/estimates/$(estId)).data.get('acceptedDate', null) == null;
+        allow delete: if isAdminRole() && resource.data.get('sentAt', null) == null;
+      }
+    }
+
+    // The baseline budget, created in the same step that sets the estimate's accepted date. Its
+    // document id equals the estimate's id. The baseline lines never change; only the running totals,
+    // change-order list and allowance roll-up fields can be updated (admin only).
+    match /budgets/{budgetId} {
+      allow read: if isPriv();
+      allow create: if isPriv() &&
+        getAfter(/databases/$(database)/documents/estimates/$(budgetId)).data.get('acceptedDate', null) != null;
+      allow update: if isAdminRole() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['revisedTotals', 'coIds', 'coTotal', 'allowanceSummary',
+                    'carriedSavings', 'notes', 'updatedAt', 'updatedBy']);
+      allow delete: if false;
+    }
+
+    // Change orders (SYC-CO-001). Admin and bookkeeper can draft them; only an admin approves one (which
+    // assigns its number) or voids one. An approved change order's lines cannot change.
+    match /changeOrders/{coId} {
+      allow read: if isPriv();
+      allow create: if isPriv() && request.resource.data.status == 'draft';
+      allow update: if isPriv() && (
+        (resource.data.status == 'draft' &&
+         (request.resource.data.status == 'draft' ||
+          (request.resource.data.status == 'approved' && isAdminRole()))) ||
+        (resource.data.status == 'approved' && isAdminRole() &&
+         request.resource.data.status == 'void' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'voidedAt', 'voidedBy', 'voidReason']))
+      );
+      allow delete: if isPriv() && resource.data.status == 'draft';
+    }
+
+    // Allowance lines on an accepted job: allowance amount, the selection once made, and the variance.
+    // Each allowance is its own document so they are tracked individually.
+    match /allowances/{allowanceId} {
+      allow read: if isPriv();
+      allow create, update: if isPriv();
+      allow delete: if isAdminRole();
+    }
+
+    // Cost library used by the estimator (admins maintain it).
+    match /estLibrary/{itemId} {
+      allow read: if isPriv();
+      allow write: if isAdminRole();
+    }
+
+    // Log of every per-job rule override and manual adjustment (who, when, why). Append-only.
+    match /jobRulesLog/{logId} {
+      allow read: if isPriv();
+      allow create: if isPriv();
+      allow update, delete: if false;
+    }
+
+  }
+}

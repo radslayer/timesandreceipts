@@ -1135,7 +1135,7 @@ select.role-sel{font-size:12px;padding:4px 8px;border:1px solid var(--border);bo
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp,arrayUnion,arrayRemove,runTransaction}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,query,where,orderBy,limit,getDocs,onSnapshot,serverTimestamp,Timestamp,arrayUnion,arrayRemove,runTransaction,deleteField}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import{getStorage,ref as sRef,uploadBytes,getDownloadURL,deleteObject}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 import{getFunctions,httpsCallable}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
@@ -1305,6 +1305,36 @@ function fmtTime(ts){if(!ts)return'--';const d=ts.toDate?ts.toDate():new Date(ts
 function ini(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
 function isPriv(){return['admin','bookkeeper'].includes(userProfile?.role?.toLowerCase())}
 function isAdmin(){return userProfile?.role?.toLowerCase()==='admin'}
+// ── PAY RATES live in their own collection (userPay/{uid}), readable only by admin + bookkeeper. ──
+// Fields: baseRate, employeeType, spiffEligible, spiffRate. They used to sit on the users/{uid} document,
+// which every signed-in user can read. withPay() overlays the userPay values onto a user object so the
+// payroll and account-summary code keeps working; until a user is migrated it falls back to the old fields.
+let userPayMap={};
+async function loadUserPayMap(){
+  userPayMap={};
+  if(!isPriv())return userPayMap;
+  try{const s=await getDocs(collection(db,'userPay'));s.docs.forEach(d=>{userPayMap[d.id]=d.data()})}catch(e){console.warn('userPay load failed',e)}
+  return userPayMap;
+}
+function withPay(u){const p=userPayMap[u.id];return p?{...u,baseRate:p.baseRate,employeeType:p.employeeType,spiffEligible:p.spiffEligible,spiffRate:p.spiffRate}:u}
+// One-time move of pay fields from the users docs to userPay (admin only, runs when the Users tab loads).
+// Copies first and only removes the old fields after the copy succeeded.
+let _payMigrating=false;
+async function migratePayToUserPay(userDocs){
+  if(!isAdmin()||_payMigrating)return;
+  const todo=userDocs.filter(u=>['baseRate','employeeType','spiffEligible','spiffRate'].some(k=>u[k]!==undefined));
+  if(!todo.length)return;
+  _payMigrating=true;
+  for(const u of todo){
+    try{
+      const pay={};['baseRate','employeeType','spiffEligible','spiffRate'].forEach(k=>{if(u[k]!==undefined)pay[k]=u[k]});
+      const existing=userPayMap[u.id]||{};
+      await setDoc(doc(db,'userPay',u.id),{...pay,...existing,migratedAt:serverTimestamp()},{merge:true});
+      await updateDoc(doc(db,'users',u.id),{baseRate:deleteField(),employeeType:deleteField(),spiffEligible:deleteField(),spiffRate:deleteField()});
+    }catch(e){console.warn('pay migration failed for',u.id,e)}
+  }
+  _payMigrating=false;
+}
 function isBookkeeper(){return userProfile?.role?.toLowerCase()==='bookkeeper'}
 // ── ARCHIVE / LOCK HELPERS ───────────────────────────────────────────────────
 // A paid vendor bill is locked: bookkeeper cannot edit or archive it. Admin can unlock by clearing the paid date.
@@ -4423,8 +4453,8 @@ $('tm-run-btn').onclick=async()=>{
   try{
     const lo=new Date(fr+'T00:00:00').getTime();const hiD=new Date(to+'T00:00:00');hiD.setDate(hiD.getDate()+1);const hi=hiD.getTime();
     await tmLoadRates();
-    const uSnap=await getDocs(collection(db,'users'));
-    const wageByName={};uSnap.docs.forEach(d=>{const u=d.data();wageByName[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
+    const uSnap=await getDocs(collection(db,'users'));await loadUserPayMap();
+    const wageByName={};uSnap.docs.forEach(d=>{const u=withPay({id:d.id,...d.data()});wageByName[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
     const [tSnap,rSnap]=await Promise.all([
       getDocs(query(collection(db,'timeLogs'),where('projectId','==',pid))),
       getDocs(query(collection(db,'receipts'),where('projectId','==',pid)))
@@ -5516,7 +5546,8 @@ $('pr-run-btn').onclick = async () => {
 
     // Fetch users for pay rates
     const usersSnap = await getDocs(collection(db,'users'));
-    allUsersForPayroll = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    await loadUserPayMap();
+    allUsersForPayroll = usersSnap.docs.map(d=>withPay({id:d.id,...d.data()}));
 
     // Fetch spiff entries if needed
     let spiffEntries = [];
@@ -6051,7 +6082,7 @@ window._csvLockedPayroll = () => {
 // ── PAY RATE MODAL ────────────────────────────────────────────────────────────
 let editingPayUserId = null;
 window._editPay = id => {
-  const u = allUsersForPayroll.find(x=>x.id===id) || {};
+  const u = (window._usersForPay||[]).find(x=>x.id===id) || allUsersForPayroll.find(x=>x.id===id) || {};
   editingPayUserId = id;
   $('pay-modal-name').textContent = u.name || 'Pay Rates';
   $('pay-base').value = u.baseRate || '';
@@ -6073,12 +6104,10 @@ $('pay-save').onclick = async () => {
   const spiffEligible = $('pay-spiff-eligible').checked;
   const spiffRate = spiffEligible ? parseFloat($('pay-spiff-rate').value)||0 : 0;
   try {
-    await updateDoc(doc(db,'users',editingPayUserId), {
-      baseRate: base,
-      employeeType: $('pay-type').value,
-      spiffEligible,
-      spiffRate
-    });
+    const payData={baseRate:base,employeeType:$('pay-type').value,spiffEligible,spiffRate,updatedAt:serverTimestamp()};
+    await setDoc(doc(db,'userPay',editingPayUserId), payData, {merge:true});
+    userPayMap[editingPayUserId]={...(userPayMap[editingPayUserId]||{}),...payData};
+    const ix=allUsersForPayroll.findIndex(x=>x.id===editingPayUserId);if(ix>=0)allUsersForPayroll[ix]=withPay(allUsersForPayroll[ix]);
     hide('pay-modal');
   } catch(e) { $('pay-err').textContent = 'Save failed: '+e.message; }
   $('pay-save').disabled = false; $('pay-save').textContent = 'Save Pay Rates';
@@ -6279,8 +6308,10 @@ window._adminClockOut=async(logId,userName)=>{
 
 // ── ADMIN — USERS ─────────────────────────────────────────────────────────────
 function loadUsers(){
-  onSnapshot(collection(db,'users'),snap=>{
-    const users=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  let _rawUsers=[];
+  const draw=()=>{
+    const users=_rawUsers.map(withPay).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    window._usersForPay=users;
     const el=$('users-list');
     if(!users.length){el.innerHTML='<div class="empty">No users found.</div>';return}
     el.innerHTML=users.map(u=>{
@@ -6313,7 +6344,16 @@ function loadUsers(){
       </div>
     </div>`;
     }).join('');
+  };
+  onSnapshot(collection(db,'users'),snap=>{
+    _rawUsers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    draw();
+    migratePayToUserPay(_rawUsers).then(()=>{});
   });
+  if(isPriv())onSnapshot(collection(db,'userPay'),snap=>{
+    userPayMap={};snap.docs.forEach(d=>{userPayMap[d.id]=d.data()});
+    draw();
+  },e=>console.warn('userPay listen failed',e));
 }
 window._ur=async(id,role)=>updateDoc(doc(db,'users',id),{role});
 window._changeEmail=async(uid,currentEmail)=>{
@@ -6660,8 +6700,8 @@ async function asRun(){
   out.innerHTML='<div class="card"><div class="empty">Loading all jobs, invoices, time and receipts. This can take a few seconds...</div></div>';
   try{
     await tmLoadRates();
-    const [iS,tS,rS,uS]=await Promise.all([getDocs(collection(db,'invoices')),getDocs(collection(db,'timeLogs')),getDocs(collection(db,'receipts')),getDocs(collection(db,'users'))]);
-    const wage={};uS.docs.forEach(d=>{const u=d.data();wage[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
+    const [iS,tS,rS,uS]=await Promise.all([getDocs(collection(db,'invoices')),getDocs(collection(db,'timeLogs')),getDocs(collection(db,'receipts')),getDocs(collection(db,'users')),loadUserPayMap()]);
+    const wage={};uS.docs.forEach(d=>{const u=withPay({id:d.id,...d.data()});wage[String(u.name||'').trim()]=parseFloat(u.baseRate)||0});
     const cache={};const ratesFor=id=>cache[id]||(cache[id]=tmRatesFor(id));
     const f=a=>a.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!pid||x.projectId===pid);
     const D=asBuild(f(iS),f(tS),f(rS),wage,ratesFor,id=>(allProjects.find(p=>p.id===id)||{}).name,range);

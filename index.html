@@ -3790,7 +3790,7 @@ window._dt=async(id)=>{
 };
 let editingTimeId=null,editingTimeUserId=null,editingTimeOrigMs=null;
 window._et=id=>{
-  const rows=[...(window._allTimeLogs||[]),...(window._rptData||[])];
+  const rows=[...(window._allTimeLogs||[]),...(window._rptData||[]),...(window._prData?.entries||[])];
   const r=rows.find(x=>x.id===id);if(!r)return;
   if(isInvLocked(r)){alert(invLockMsg(r,'time entry'));return}
   if(isPayrollLocked(r)){alert("This time entry's payroll period is locked. Ask an admin to unlock it before editing.");return}
@@ -3855,6 +3855,8 @@ $('et-save').onclick=async()=>{
       }
       await revokeApprovalForMs(editingTimeOrigMs);
       await revokeApprovalForMs(ciDate.getTime());
+      // Edited from the payroll screen: run the report again so hours, pay and the approval banner are current.
+      if(window._prData?.entries?.some(x=>x.id===editingTimeId)&&$('pr-run-btn')&&!$('pr-run-btn').disabled)$('pr-run-btn').click();
     }
   }catch(e){$('et-err').textContent=t('saveFailed')+e.message}
   $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
@@ -5639,13 +5641,15 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
         const cout = e.clockOut?.toDate?e.clockOut.toDate():new Date(e.clockOut||0);
         entryRows += `<tr style="font-size:12px">
           <td style="padding:6px 8px;color:var(--muted)">${cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} – ${cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
-          <td style="padding:6px 8px">${e.projectName||'--'}</td>
-          <td style="padding:6px 8px"><span class="tag" style="font-size:10px">${e.costCode||e.scope||'--'}</span></td>
+          <td style="padding:6px 8px">${esc(e.projectName||'--')}${(e.costCodeCategory||(e.room&&e.room!=='N/A'))?`<div style="font-size:10px;color:var(--muted)">${esc([e.costCodeCategory,(e.room&&e.room!=='N/A')?e.room:''].filter(Boolean).join(' · '))}</div>`:''}</td>
+          <td style="padding:6px 8px"><span class="tag" style="font-size:10px">${esc(e.costCode||e.scope||'--')}</span></td>
+          <td style="padding:6px 8px;min-width:160px;white-space:normal">${e.notes?esc(e.notes):'<span style="color:var(--muted)">--</span>'}</td>
           <td style="padding:6px 8px;text-align:center"><span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${billable?'#d4edd9':'#f5dada'};color:${billable?'var(--green)':'var(--red)'}">${billable?'Billable':'Non-Bill'}</span></td>
           <td style="padding:6px 8px;text-align:right">${ot.reg.toFixed(2)}</td>
           <td style="padding:6px 8px;text-align:right;color:var(--amber)">${ot.ot>0?ot.ot.toFixed(2):'--'}</td>
           <td style="padding:6px 8px;text-align:right;color:var(--red)">${ot.dt>0?ot.dt.toFixed(2):'--'}</td>
           <td style="padding:6px 8px;text-align:right">${baseRate?'$'+(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2).toFixed(2):'--'}</td>
+          <td style="padding:6px 8px;white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto${(isPayrollLocked(e)||isInvLocked(e))?';opacity:0.4;cursor:not-allowed':''}" onclick="window._et('${e.id}')"${(isPayrollLocked(e)||isInvLocked(e))?` disabled title="${isInvLocked(e)?'On a finalized client invoice (locked)':'Payroll for this period is locked'}"`:''}>Edit</button></td>
         </tr>`;
       });
       empReg+=dayReg; empOT+=dayOT; empDT+=dayDT;
@@ -5653,11 +5657,12 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       const dateObj = new Date(dateKey+'T12:00:00');
       dayRows += `
         <tr style="background:var(--cream)">
-          <td colspan="4" style="padding:8px;font-weight:600;font-size:13px">${dateObj.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td>
+          <td colspan="5" style="padding:8px;font-weight:600;font-size:13px">${dateObj.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td>
           <td style="padding:8px;text-align:right;font-weight:600">${dayReg.toFixed(2)}</td>
           <td style="padding:8px;text-align:right;font-weight:600;color:var(--amber)">${dayOT>0?dayOT.toFixed(2):'--'}</td>
           <td style="padding:8px;text-align:right;font-weight:600;color:var(--red)">${dayDT>0?dayDT.toFixed(2):'--'}</td>
           <td style="padding:8px;text-align:right;font-weight:600">${baseRate?'$'+dayPay.toFixed(2):'--'}</td>
+          <td></td>
         </tr>
         ${entryRows}`;
     });
@@ -5679,33 +5684,35 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
         </div>
       </div>
       <div style="overflow-x:auto">
-        <table class="tbl" style="min-width:600px">
+        <table class="tbl" style="min-width:900px">
           <thead><tr>
-            <th>Time</th><th>Project</th><th>Cost Code</th><th>Billable</th>
+            <th>Time</th><th>Project / Category / Room</th><th>Cost Code</th><th>Description</th><th>Billable</th>
             <th style="text-align:right">Reg Hrs</th>
             <th style="text-align:right">OT Hrs</th>
             <th style="text-align:right">DT Hrs</th>
             <th style="text-align:right">Pay</th>
+            <th></th>
           </tr></thead>
           <tbody>${dayRows}</tbody>
           <tfoot>
             <tr style="border-top:2px solid var(--border);font-weight:600">
-              <td colspan="4" style="padding:10px 8px">Period Totals</td>
+              <td colspan="5" style="padding:10px 8px">Period Totals</td>
               <td style="padding:10px 8px;text-align:right">${empReg.toFixed(2)}</td>
               <td style="padding:10px 8px;text-align:right;color:var(--amber)">${empOT>0?empOT.toFixed(2):'--'}</td>
               <td style="padding:10px 8px;text-align:right;color:var(--red)">${empDT>0?empDT.toFixed(2):'--'}</td>
               <td style="padding:10px 8px;text-align:right">$${empBasePay.toFixed(2)}</td>
+              <td></td>
             </tr>
             ${includeSpiff?`<tr style="background:#f0f7f2">
-              <td colspan="6" style="padding:8px;font-size:13px">
+              <td colspan="8" style="padding:8px;font-size:13px">
                 Spiff — ${empSpiffHrs.toFixed(2)} billable hrs × $${spiffRate}/hr (${spiffFrom} to ${spiffTo})
                 ${!spiffEligible?'<span style="color:var(--muted)"> — Not eligible</span>':''}
               </td>
               <td colspan="2" style="padding:8px;text-align:right;font-weight:600;color:var(--green)">$${empSpiffPay.toFixed(2)}</td>
             </tr>`:''}
             <tr style="background:var(--gold);color:#fff">
-              <td colspan="7" style="padding:10px 8px;font-weight:600">Total Check Amount</td>
-              <td style="padding:10px 8px;text-align:right;font-weight:600">$${(empBasePay+empSpiffPay).toFixed(2)}</td>
+              <td colspan="8" style="padding:10px 8px;font-weight:600">Total Check Amount</td>
+              <td colspan="2" style="padding:10px 8px;text-align:right;font-weight:600">$${(empBasePay+empSpiffPay).toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>

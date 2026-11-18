@@ -5552,6 +5552,17 @@ function describePayrollEntry(e) {
   const timeStr = cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' – ' + (cout?cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'(open)');
   return esc(cin.toLocaleDateString()+' '+timeStr+' — '+(e.projectName||'')+' ('+(e.costCode||e.scope||'--')+')');
 }
+function prStepsHtml(nowIdx){
+  const steps=[['Review','Fix anything wrong with the Edit buttons'],['Approve','You confirm the period looks right'],['Export','Download the CSV for payroll'],['Lock','Freeze the period']];
+  return '<div style="display:flex;flex-wrap:wrap;margin:0 0 14px">'+steps.map((t,i)=>{
+    const n=i+1,done=n<nowIdx,now=n===nowIdx;
+    const bd=now?'border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);':'';
+    const bg=done?'background:#e3f1e7;':'background:var(--white,#fff);';
+    const rad=i===0?'border-radius:10px 0 0 10px;':(i===3?'border-radius:0 10px 10px 0;margin-left:-1px;':'margin-left:-1px;');
+    const circ=done?'background:var(--green);color:#fff':(now?'background:var(--gold);color:#fff':'background:var(--border);color:var(--muted)');
+    return `<div style="flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--border);${bd}${bg}${rad}"><div><span style="display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:6px;${circ}">${done?'&#10003;':n}</span><span style="font-weight:600">${t[0]}</span></div><div style="font-size:11px;color:var(--muted);margin-top:3px">${t[1]}</div></div>`;
+  }).join('')+'</div>';
+}
 function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo, approvalDoc) {
   if (!entries.length) { $('pr-results').innerHTML = '<div class="empty">No completed time entries found for this period.</div>'; return; }
 
@@ -5590,15 +5601,25 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     <div style="font-size:13px">${overlaps.map(c=>`<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.08)"><strong>${esc(c.empName)}</strong><br>${describePayrollEntry(c.a)}<br>overlaps<br>${describePayrollEntry(c.b)}</div>`).join('')}</div>
   </div>` : '';
 
-  const approvalBannerHtml = isApproved ? `<div class="card" style="background:#d4edd9;border:2px solid var(--green);margin-bottom:16px">
-    <div style="font-size:13px;color:var(--ink)">&#9989; Billable/spiff tagging approved for this period by ${esc(approvalDoc.approvedBy||'')}${approvalDoc.approvedAt?.toDate?' on '+approvalDoc.approvedAt.toDate().toLocaleString():''}. Payroll can be exported and locked.</div>
-  </div>` : `<div class="card" style="background:#fdf1d6;border:2px solid var(--amber);margin-bottom:16px">
-    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--amber);margin-bottom:8px">&#9203; Awaiting Admin Approval</div>
-    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">Before this period can be exported or locked, an Admin must review the billable/non-billable and spiff tagging on these time punches and approve it for payroll.</div>
-    ${isAdmin()
-      ? `<button class="btn btn-gold" onclick="window._approvePayroll('${from}','${to}',this)"${overlaps.length?' disabled title="Resolve the overlapping time entries above first"':''}>Approve Tagging &amp; Unlock Payroll</button>`
-      : `<div style="font-size:13px;font-style:italic;color:var(--muted)">Only an Admin can approve this period.</div>`}
-  </div>`;
+  const prDisBtn = 'opacity:0.45;cursor:not-allowed';
+  const whyApprove = 'font-size:11.5px;color:var(--muted);margin-top:5px;max-width:240px';
+  const whyWarn = 'font-size:11.5px;color:var(--amber);margin-top:5px;max-width:240px';
+  const exportBtnHtml = `<div><button class="btn btn-outline" onclick="window._csvPayroll()" style="${(overlaps.length||!isApproved)?prDisBtn:''}"${(overlaps.length||!isApproved)?' disabled':''}>Export CSV</button><div style="${isApproved&&!overlaps.length?whyApprove:whyWarn}">${overlaps.length?'Fix the overlapping entries first.':(isApproved?'Download for your payroll service.':'Needs approval first.')}</div></div>`;
+  const lockBtnHtml = `<div><button class="btn btn-outline" onclick="window._lockPayroll(this)" style="${(overlaps.length||!isApproved)?prDisBtn:''}"${(overlaps.length||!isApproved)?' disabled':''}>&#128274; Lock period</button><div style="${whyWarn}">${overlaps.length?'Fix the overlapping entries first.':(isApproved?'Freezes all entries. An admin has to unlock the period to change anything afterward.':'Needs approval first.')}</div></div>`;
+  const approveBtnHtml = isAdmin()
+    ? `<div><button class="btn btn-gold" onclick="window._approvePayroll('${from}','${to}',this)"${overlaps.length?' disabled title="Resolve the overlapping time entries above first"':''}>Approve this period</button><div style="${whyApprove}">Does not freeze anything.</div></div>`
+    : `<div style="font-size:13px;font-style:italic;color:var(--muted);max-width:240px">Only an Admin can approve this period.</div>`;
+  const wasRevoked = !isApproved && !!(approvalDoc && approvalDoc.revokedAt);
+  const revokedWhen = wasRevoked && approvalDoc.revokedAt?.toDate ? approvalDoc.revokedAt.toDate().toLocaleString() : '';
+  const approvalBannerHtml = prStepsHtml(isApproved?3:2) + (isApproved ? `<div class="card" style="background:#d4edd9;border:2px solid var(--green);margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--green);margin-bottom:6px">&#9989; Approved by ${esc(approvalDoc.approvedBy||'')}${approvalDoc.approvedAt?.toDate?' on '+approvalDoc.approvedAt.toDate().toLocaleString():''}</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">You can export now. Entries can still be edited, but any edit cancels this approval. Lock the period after you export to freeze everything.</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">${exportBtnHtml}${lockBtnHtml}</div>
+  </div>` : `<div class="card" style="background:${wasRevoked?'#f5dada':'#fdf1d6'};border:2px solid ${wasRevoked?'var(--red)':'var(--amber)'};margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${wasRevoked?'var(--red)':'var(--amber)'};margin-bottom:6px">${wasRevoked?'Approval cancelled':'Step 2: Approve this period'}</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">${wasRevoked?'A time entry in this period was changed after it was approved'+(approvalDoc.revokedBy?' (by '+esc(approvalDoc.revokedBy)+(revokedWhen?' at '+esc(revokedWhen):'')+')':'')+', so it has to be approved again.':'Check the hours, projects, cost codes, billable tags and spiff. Fix anything wrong with the Edit buttons below. When it all looks right, approve it. Any edit after you approve cancels the approval, so make all your edits first.'}</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">${approveBtnHtml}${exportBtnHtml}${lockBtnHtml}</div>
+  </div>`);
 
   let html = overlapWarningHtml + approvalBannerHtml + `<div style="font-size:13px;color:var(--muted);margin-bottom:16px">
     Pay Period: <strong>${from} to ${to}</strong>
@@ -5729,7 +5750,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
     </div>
     <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before exporting"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be exported"':'')}>Export CSV</button>
-    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be locked"':'')}>&#128274; Lock Payroll Period</button>
+    <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be locked"':'')}>&#128274; Lock period</button>
   </div>`;
 
   $('pr-results').innerHTML = html;
@@ -5827,12 +5848,12 @@ window._lockPayroll = async (btnEl) => {
     renderLockedPayrollView(snap.data());
   } catch(e) {
     alert('Lock failed: '+e.message);
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '\u{1F512} Lock Payroll Period'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '\u{1F512} Lock period'; }
   }
 };
 window._approvePayroll = async (from, to, btnEl) => {
   if (!isAdmin()) return;
-  if (!confirm("Approve this payroll period? This confirms the billable/non-billable and spiff tagging on these time punches is correct, and lets the Bookkeeper run, export, and lock payroll. If any punch in this period changes after approval, this approval is automatically cleared and must be re-approved.")) return;
+  if (!confirm("Approve this period? This confirms the hours, projects, cost codes, billable/non-billable tags and spiff are correct, and lets the Bookkeeper export and lock payroll. It does not freeze anything. If any time entry in this period changes after you approve, the approval is cancelled and the period has to be approved again.")) return;
   const periodId = periodKey(from, to);
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Approving...'; }
   try {
@@ -5846,7 +5867,7 @@ window._approvePayroll = async (from, to, btnEl) => {
     $('pr-run-btn').click();
   } catch(e) {
     alert('Approve failed: ' + e.message);
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Approve Tagging & Unlock Payroll'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Approve this period'; }
   }
 };
 window._unlockPayroll = async (btnEl, from, to) => {
@@ -5860,7 +5881,7 @@ window._unlockPayroll = async (btnEl, from, to) => {
     $('pr-results').innerHTML = '<div class="empty">Payroll period unlocked. Click Run Payroll Report to recalculate.</div>';
   } catch(e) {
     alert('Unlock failed: '+e.message);
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Unlock'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Unlock period (admin)'; }
   }
 };
 // Read-only re-check of every locked payroll period against the current overtime
@@ -5951,17 +5972,17 @@ $('pr-audit-btn').onclick = async () => {
 function renderLockedPayrollView(rec) {
   window._prLockedData = rec;
   const lockedAtStr = rec.lockedAt?.toDate ? rec.lockedAt.toDate().toLocaleString() : '';
-  let html = `<div class="card" style="background:var(--ink);color:#fff;margin-bottom:16px">
-    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);margin-bottom:8px">&#128274; Payroll Locked \u2014 ${rec.from} to ${rec.to}</div>
-    <div style="font-size:13px;opacity:.85">Locked by ${esc(rec.lockedBy||'')}${lockedAtStr?' on '+lockedAtStr:''}. This period's payroll has been finalized and can't be re-run${isAdmin()?'':' \u2014 only an admin can unlock it'}.</div>
+  let html = prStepsHtml(5) + `<div class="card" style="background:var(--ink);color:#fff;margin-bottom:16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);margin-bottom:8px">&#128274; Locked by ${esc(rec.lockedBy||'')}${lockedAtStr?' on '+lockedAtStr:''} \u2014 ${rec.from} to ${rec.to}</div>
+    <div style="font-size:13px;opacity:.85">This period is frozen. Hours, projects, cost codes and tags can't be edited or deleted, and the report can't be re-run. ${isAdmin()?'An admin can unlock it if something has to change.':'Only an admin can unlock it if something has to change.'}</div>
     <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px">
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Base Pay</div><div style="font-size:22px;font-weight:600">$${(rec.grandRegPay||0).toFixed(2)}</div></div>
       ${rec.includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${(rec.grandSpiff||0).toFixed(2)}</div></div>`:''}
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(rec.grandTotal||0).toFixed(2)}</div></div>
     </div>
     <div style="margin-top:16px">
-      <button class="btn btn-outline" onclick="window._csvLockedPayroll()" style="color:#fff;border-color:rgba(255,255,255,.4)">Export CSV</button>
-      ${isAdmin()?`<button class="btn btn-outline" onclick="window._unlockPayroll(this,'${rec.from}','${rec.to}')" style="margin-left:8px;color:#fff;border-color:rgba(255,255,255,.4)">Unlock</button>`:''}
+      <button class="btn btn-outline" onclick="window._csvLockedPayroll()" style="color:#fff;border-color:rgba(255,255,255,.4)">Export locked CSV</button>
+      ${isAdmin()?`<button class="btn btn-outline" onclick="window._unlockPayroll(this,'${rec.from}','${rec.to}')" style="margin-left:8px;color:#fff;border-color:rgba(255,255,255,.4)">Unlock period (admin)</button>`:''}
     </div>
   </div>`;
   (rec.empTotals||[]).forEach(b => {

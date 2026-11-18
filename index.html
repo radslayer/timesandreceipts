@@ -5534,6 +5534,7 @@ $('pr-run-btn').onclick = async () => {
       if (apSnap.exists()) approvalDoc = apSnap.data();
     } catch(e) { /* offline or denied: treat as not-yet-approved rather than block the report */ }
 
+    try { await tmLoadRates(); } catch(e) { /* billed amounts fall back to the default rates */ }
     renderPayrollReport(entries, allUsersForPayroll, includeSpiff, spiffEntries, from, to, spiffFrom, spiffTo, approvalDoc);
   } catch(e) {
     $('pr-results').innerHTML = '<div class="err">Query failed: '+e.message+'</div>';
@@ -5646,7 +5647,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     ${includeSpiff?'&nbsp;|&nbsp;Spiff Month: <strong>'+(spiffFrom||'')+ ' to '+(spiffTo||'')+'</strong>':''}
   </div>`;
 
-  let grandRegPay = 0, grandOTPay = 0, grandDTPay = 0, grandSpiff = 0;
+  let grandRegPay = 0, grandOTPay = 0, grandDTPay = 0, grandSpiff = 0, grandBilled = 0;
 
   Object.entries(byEmp).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([empName, empEntries]) => {
     const user = users.find(u=>(u.name||'').trim()===empName.trim()) || {};
@@ -5712,6 +5713,19 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     const empSpiffHrs = spiffByEmp[empName]||0;
     const empSpiffPay = (includeSpiff&&spiffEligible&&spiffRate)?empSpiffHrs*spiffRate:0;
     grandRegPay+=empBasePay; grandSpiff+=empSpiffPay;
+    // What these hours bill to clients: the same pricing as the Time + Receipts report (billable entries only,
+    // hours to the hundredth, rate by job and type of work; At-cost jobs use this employee's wage plus the job's burden %).
+    let empBilled=0, empBillHrs=0;
+    empEntries.forEach(e=>{
+      if(!e.clockOut||!effectiveBillable(e))return;
+      const rt=tmRatesFor(e.projectId), cls=tmRateClass(e.costCode||e.scope||'');
+      const eRate=rt.laborMode==='cost'?baseRate*(1+rt.burdenPct/100):rt[cls];
+      const h=tmR2((e.durationMs||0)/3600000);
+      empBillHrs+=h; empBilled+=tmR2(h*eRate);
+    });
+    empBilled=tmR2(empBilled);
+    const empPaid=empBasePay+empSpiffPay, empDiff=empBilled-empPaid;
+    grandBilled+=empBilled;
 
     html += `<div class="card" style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -5719,10 +5733,16 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
           <div style="font-family:'DM Serif Display',serif;font-size:18px">${empName}</div>
           <div style="font-size:12px;color:var(--muted)">${isContractor?'Contractor':'W-2'} · Base $${baseRate}/hr${spiffEligible?' · Spiff $'+spiffRate+'/hr':' · No spiff'}</div>
         </div>
-        <div style="text-align:right">
+        ${isAdmin()?`<table style="font-size:13px;border-collapse:collapse;min-width:300px">
+          <tbody>
+            <tr><td style="padding:3px 14px 3px 0;color:var(--muted)">Paid to employee<div style="font-size:10px">${empReg.toFixed(2)} reg${empOT>0?' + '+empOT.toFixed(2)+' OT':''}${empDT>0?' + '+empDT.toFixed(2)+' DT':''} hrs${empSpiffPay>0?' + spiff':''}</div></td><td style="padding:3px 0;text-align:right;font-weight:600">$${empPaid.toFixed(2)}</td></tr>
+            <tr><td style="padding:3px 14px 3px 0;color:var(--muted)">Billed to clients<div style="font-size:10px">${empBillHrs.toFixed(2)} billable hrs</div></td><td style="padding:3px 0;text-align:right;font-weight:600">$${empBilled.toFixed(2)}</td></tr>
+            <tr style="border-top:2px solid var(--border)"><td style="padding:5px 14px 3px 0;font-weight:600">Difference (billed minus paid)</td><td style="padding:5px 0 3px;text-align:right;font-family:'DM Serif Display',serif;font-size:20px;color:${empDiff>=0?'var(--green)':'var(--red)'}">${empDiff<0?'-':''}$${Math.abs(empDiff).toFixed(2)}</td></tr>
+          </tbody>
+        </table>`:`<div style="text-align:right">
           <div style="font-size:12px;color:var(--muted)">Period Total</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$${(empBasePay+empSpiffPay).toFixed(2)}</div>
-        </div>
+          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$${empPaid.toFixed(2)}</div>
+        </div>`}
       </div>
       <div style="overflow-x:auto">
         <table class="tbl" style="min-width:760px;width:100%">
@@ -5768,6 +5788,8 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Base Pay</div><div style="font-size:22px;font-weight:600">$${grandRegPay.toFixed(2)}</div></div>
       ${includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${grandSpiff.toFixed(2)}</div></div>`:''}
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Total Payroll</div><div style="font-size:28px;font-weight:600">$${(grandRegPay+grandSpiff).toFixed(2)}</div></div>
+      ${isAdmin()?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Billed to clients</div><div style="font-size:22px;font-weight:600">$${tmR2(grandBilled).toFixed(2)}</div></div>
+      <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Difference</div><div style="font-size:22px;font-weight:600;color:${grandBilled-(grandRegPay+grandSpiff)>=0?'#8fd6a3':'#f0a0a0'}">${grandBilled-(grandRegPay+grandSpiff)<0?'-':''}$${Math.abs(grandBilled-(grandRegPay+grandSpiff)).toFixed(2)}</div></div>`:''}
     </div>
     <button class="btn btn-outline" onclick="window._csvPayroll()" style="margin-top:16px;color:#fff;border-color:rgba(255,255,255,.4)${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before exporting"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be exported"':'')}>Export CSV</button>
     <button class="btn btn-gold" onclick="window._lockPayroll(this)" style="margin-top:16px;margin-left:8px${(overlaps.length||!isApproved)?';opacity:0.4;cursor:not-allowed':''}"${overlaps.length?' disabled title="Resolve the overlapping time entries above before locking"':(!isApproved?' disabled title="An Admin must approve this period\'s billable/spiff tagging before it can be locked"':'')}>&#128274; Lock period</button>

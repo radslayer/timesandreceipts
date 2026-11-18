@@ -1363,7 +1363,15 @@ function findApprovedRangeForMs(ms){
   if(!ms)return null;
   return (window._payrollApprovedRanges||[]).find(p=>ms>=p.fromMs&&ms<=p.toMs)||null;
 }
-async function revokeApprovalForMs(ms){
+// Short plain-English description of a time entry for the "approval cancelled" banner,
+// e.g. "Edited: Jose Munoz, Mon Oct 26, 8:00 AM, Sycamore 03.20".
+function prEntryNote(action,e){
+  const ms=tlTsMs(e?.clockIn);
+  const d=ms?new Date(ms):null;
+  const when=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+  return action+': '+[e?.userName||'',when,[e?.projectName,e?.costCode||e?.scope].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+async function revokeApprovalForMs(ms,note){
   const r=findApprovedRangeForMs(ms);
   if(!r)return;
   try{
@@ -1371,7 +1379,8 @@ async function revokeApprovalForMs(ms){
       approved:false,
       revokedBy:userProfile?.name||currentUser?.email||'',
       revokedAt:serverTimestamp(),
-      revokedReason:'A time entry in this period changed after approval'
+      revokedReason:'A time entry in this period changed after approval',
+      revokedNote:note||null
     });
   }catch(e){/* best-effort safety net -- never block the user's actual action on this */}
 }
@@ -3782,7 +3791,7 @@ window._dt=async(id)=>{
   if(!confirm('Delete this time entry? This cannot be undone.'))return;
   try{
     await deleteDoc(doc(db,'timeLogs',id));
-    if(r)await revokeApprovalForMs(tlTsMs(r.clockIn));
+    if(r)await revokeApprovalForMs(tlTsMs(r.clockIn),prEntryNote('Deleted',r));
     // The report is a one-time fetch, so take the deleted row out of it and redraw right away.
     if(window._allTimeLogs)window._allTimeLogs=window._allTimeLogs.filter(x=>x.id!==id);
     if(window._rptData?.some(x=>x.id===id)&&typeof renderReport==='function')renderReport(window._rptData.filter(x=>x.id!==id));
@@ -3826,6 +3835,11 @@ $('et-save').onclick=async()=>{
   const proj=allProjects.find(p=>p.id===pid);
   const ciDate=new Date($('et-clockin').value),coVal=$('et-clockout').value,coDate=coVal?new Date(coVal):null;
   const durationMs=coDate?coDate-ciDate:null;
+  if(ciDate.getTime()!==editingTimeOrigMs&&isPayrollLocked({clockIn:ciDate.getTime()})){
+    $('et-err').textContent='Payroll for the new date is locked. Ask an admin to unlock that period before moving time into it.';
+    $('et-save').disabled=false;$('et-save').textContent=t('saveChanges');
+    return;
+  }
   const etOverlap=await findOverlappingTimeLog(editingTimeUserId||currentUser.uid,ciDate.getTime(),coDate?coDate.getTime():Infinity,editingTimeId);
   if(etOverlap){
     $('et-err').textContent=t('overlapError')+fmtTs(etOverlap.clockIn)+'\u2013'+(etOverlap.clockOut?fmtTs(etOverlap.clockOut):t('ongoing'));
@@ -3853,8 +3867,9 @@ $('et-save').onclick=async()=>{
       if(window._rptData?.some(x=>x.id===editingTimeId)&&typeof renderReport==='function'){
         renderReport(window._rptData.map(x=>x.id!==editingTimeId?x:{...x,projectId:pid,projectName:proj?.name||pid,costCodeCategory:cat,costCode:code,room:rm,notes:$('et-notes').value,clockIn:Timestamp.fromDate(ciDate),clockOut:coDate?Timestamp.fromDate(coDate):null,durationMs}));
       }
-      await revokeApprovalForMs(editingTimeOrigMs);
-      await revokeApprovalForMs(ciDate.getTime());
+      const editNote=prEntryNote('Edited',{...old,userName:old.userName,clockIn:ciDate.getTime(),projectName:proj?.name||pid,costCode:code});
+      await revokeApprovalForMs(editingTimeOrigMs,editNote);
+      await revokeApprovalForMs(ciDate.getTime(),editNote);
       // Edited from the payroll screen: run the report again so hours, pay and the approval banner are current.
       if(window._prData?.entries?.some(x=>x.id===editingTimeId)&&$('pr-run-btn')&&!$('pr-run-btn').disabled)$('pr-run-btn').click();
     }
@@ -3894,6 +3909,11 @@ $('at-save').onclick=async()=>{
   const proj=activeProjects.find(p=>p.id===pid);
   const targetUid=(isPriv()&&$('at-employee').value)||currentUser.uid;
   const targetName=(isPriv()&&$('at-employee').value)?$('at-employee').selectedOptions[0].textContent:(userProfile?.name||currentUser.email);
+  if(isPayrollLocked({clockIn:ciDate.getTime()})){
+    $('at-err').textContent='Payroll for that date is locked. Ask an admin to unlock the period before adding time to it.';
+    $('at-save').disabled=false;$('at-save').textContent=t('saveEntry');
+    return;
+  }
   const atOverlap=await findOverlappingTimeLog(targetUid,ciDate.getTime(),coDate.getTime(),null);
   if(atOverlap){
     $('at-err').textContent=t('overlapError')+fmtTs(atOverlap.clockIn)+'\u2013'+(atOverlap.clockOut?fmtTs(atOverlap.clockOut):t('ongoing'));
@@ -3922,7 +3942,7 @@ $('at-save').onclick=async()=>{
       loggedAt:serverTimestamp()
     });
     hide('add-time-modal');
-    await revokeApprovalForMs(ciDate.getTime());
+    await revokeApprovalForMs(ciDate.getTime(),prEntryNote('Added',{userName:targetName,clockIn:ciDate.getTime(),projectName:proj?.name||pid,costCode:code}));
   }catch(e){$('at-err').textContent=t('saveFailed')+e.message}
   $('at-save').disabled=false;$('at-save').textContent=t('saveEntry');
 };
@@ -5374,7 +5394,7 @@ window._setBillable = async (id, val) => {
       updatedAt: serverTimestamp(),
       editHistory: arrayUnion(editHistoryItem([{ field: 'billable', from: r ? effectiveBillable(r) : null, to: val }]))
     });
-    if (r) await revokeApprovalForMs(tlTsMs(r.clockIn));
+    if (r) await revokeApprovalForMs(tlTsMs(r.clockIn),prEntryNote('Billable tag changed',r));
   } catch (e) {
     alert('Failed to update billable status: ' + e.message);
   }
@@ -5617,7 +5637,7 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">${exportBtnHtml}${lockBtnHtml}</div>
   </div>` : `<div class="card" style="background:${wasRevoked?'#f5dada':'#fdf1d6'};border:2px solid ${wasRevoked?'var(--red)':'var(--amber)'};margin-bottom:16px">
     <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${wasRevoked?'var(--red)':'var(--amber)'};margin-bottom:6px">${wasRevoked?'Approval cancelled':'Step 2: Approve this period'}</div>
-    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">${wasRevoked?'A time entry in this period was changed after it was approved'+(approvalDoc.revokedBy?' (by '+esc(approvalDoc.revokedBy)+(revokedWhen?' at '+esc(revokedWhen):'')+')':'')+', so it has to be approved again.':'Check the hours, projects, cost codes, billable tags and spiff. Fix anything wrong with the Edit buttons below. When it all looks right, approve it. Any edit after you approve cancels the approval, so make all your edits first.'}</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--ink)">${wasRevoked?'A time entry in this period was changed after it was approved'+(approvalDoc.revokedBy?' (by '+esc(approvalDoc.revokedBy)+(revokedWhen?' at '+esc(revokedWhen):'')+')':'')+', so it has to be approved again.'+(approvalDoc.revokedNote?' <b>'+esc(approvalDoc.revokedNote)+'</b>':''):'Check the hours, projects, cost codes, billable tags and spiff. Fix anything wrong with the Edit buttons below. When it all looks right, approve it. Any edit after you approve cancels the approval, so make all your edits first.'}</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">${approveBtnHtml}${exportBtnHtml}${lockBtnHtml}</div>
   </div>`);
 
@@ -5974,7 +5994,7 @@ function renderLockedPayrollView(rec) {
   const lockedAtStr = rec.lockedAt?.toDate ? rec.lockedAt.toDate().toLocaleString() : '';
   let html = prStepsHtml(5) + `<div class="card" style="background:var(--ink);color:#fff;margin-bottom:16px">
     <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);margin-bottom:8px">&#128274; Locked by ${esc(rec.lockedBy||'')}${lockedAtStr?' on '+lockedAtStr:''} \u2014 ${rec.from} to ${rec.to}</div>
-    <div style="font-size:13px;opacity:.85">This period is frozen. Hours, projects, cost codes and tags can't be edited or deleted, and the report can't be re-run. ${isAdmin()?'An admin can unlock it if something has to change.':'Only an admin can unlock it if something has to change.'}</div>
+    <div style="font-size:13px;opacity:.85">This period is frozen. Hours, projects, cost codes and tags can't be edited, deleted or added to, and the report can't be re-run. ${isAdmin()?'An admin can unlock it if something has to change.':'Only an admin can unlock it if something has to change.'}</div>
     <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px">
       <div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Base Pay</div><div style="font-size:22px;font-weight:600">$${(rec.grandRegPay||0).toFixed(2)}</div></div>
       ${rec.includeSpiff?`<div><div style="font-size:11px;opacity:.7;letter-spacing:1px;text-transform:uppercase">Spiff</div><div style="font-size:22px;font-weight:600;color:var(--gold)">$${(rec.grandSpiff||0).toFixed(2)}</div></div>`:''}
@@ -6378,6 +6398,11 @@ $('lt-save').onclick=async()=>{
   $('lt-save').disabled=true;$('lt-save').textContent=t('saving');
   const user=_ltUsers.find(u=>u.id===uid);
   const proj=activeProjects.find(p=>p.id===pid);
+  if(isPayrollLocked({clockIn:ciDate.getTime()})){
+    $('lt-err').textContent='Payroll for that date is locked. Unlock the period (Reports > Payroll) before adding time to it.';
+    $('lt-save').disabled=false;$('lt-save').textContent=t('saveTimeEntry');
+    return;
+  }
   const ltOverlap=await findOverlappingTimeLog(uid,ciDate.getTime(),coDate?coDate.getTime():Infinity,null);
   if(ltOverlap){
     $('lt-err').textContent='This overlaps with an existing entry for '+(user?.name||'this employee')+': '+fmtTs(ltOverlap.clockIn)+'\u2013'+(ltOverlap.clockOut?fmtTs(ltOverlap.clockOut):'(still clocked in)');
@@ -6405,7 +6430,7 @@ $('lt-save').onclick=async()=>{
       loggedBy:userProfile?.name||currentUser?.email||'',
       loggedAt:serverTimestamp()
     });
-    await revokeApprovalForMs(ciDate.getTime());
+    await revokeApprovalForMs(ciDate.getTime(),prEntryNote('Added',{userName:user?.name||'',clockIn:ciDate.getTime(),projectName:proj?.name||pid,costCode:code}));
     $('lt-err').textContent='';
     $('lt-success').textContent=t('entrySavedFor')+user?.name;show('lt-success');
     setTimeout(()=>hide('lt-success'),4000);

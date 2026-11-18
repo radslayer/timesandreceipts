@@ -5684,13 +5684,13 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
           <td style="padding:6px 8px;color:var(--muted)">${cin.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} – ${cout.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
           <td style="padding:6px 8px">${esc(e.projectName||'--')}${(e.costCodeCategory||(e.room&&e.room!=='N/A'))?`<div style="font-size:10px;color:var(--muted)">${esc([e.costCodeCategory,(e.room&&e.room!=='N/A')?e.room:''].filter(Boolean).join(' · '))}</div>`:''}</td>
           <td style="padding:6px 8px"><span class="tag" style="font-size:10px">${esc(e.costCode||e.scope||'--')}</span></td>
-          <td style="padding:6px 8px;min-width:160px;white-space:normal">${e.notes?esc(e.notes):'<span style="color:var(--muted)">--</span>'}</td>
+          <td style="padding:6px 8px;min-width:120px;white-space:normal">${e.notes?esc(e.notes):'<span style="color:var(--muted)">--</span>'}</td>
           <td style="padding:6px 8px;text-align:center"><span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${billable?'#d4edd9':'#f5dada'};color:${billable?'var(--green)':'var(--red)'}">${billable?'Billable':'Non-Bill'}</span></td>
           <td style="padding:6px 8px;text-align:right">${ot.reg.toFixed(2)}</td>
           <td style="padding:6px 8px;text-align:right;color:var(--amber)">${ot.ot>0?ot.ot.toFixed(2):'--'}</td>
           <td style="padding:6px 8px;text-align:right;color:var(--red)">${ot.dt>0?ot.dt.toFixed(2):'--'}</td>
           <td style="padding:6px 8px;text-align:right">${baseRate?'$'+(ot.reg*baseRate+ot.ot*baseRate*1.5+ot.dt*baseRate*2).toFixed(2):'--'}</td>
-          <td style="padding:6px 8px;white-space:nowrap"><button class="btn btn-outline btn-sm" style="width:auto${(isPayrollLocked(e)||isInvLocked(e))?';opacity:0.4;cursor:not-allowed':''}" onclick="window._et('${e.id}')"${(isPayrollLocked(e)||isInvLocked(e))?` disabled title="${isInvLocked(e)?'On a finalized client invoice (locked)':'Payroll for this period is locked'}"`:''}>Edit</button></td>
+          <td style="padding:6px 14px 6px 12px;white-space:nowrap;text-align:right"><button class="btn btn-outline btn-sm" style="width:auto${(isPayrollLocked(e)||isInvLocked(e))?';opacity:0.4;cursor:not-allowed':''}" onclick="window._et('${e.id}')"${(isPayrollLocked(e)||isInvLocked(e))?` disabled title="${isInvLocked(e)?'On a finalized client invoice (locked)':'Payroll for this period is locked'}"`:''}>Edit</button></td>
         </tr>`;
       });
       empReg+=dayReg; empOT+=dayOT; empDT+=dayDT;
@@ -5725,14 +5725,14 @@ function renderPayrollReport(entries, users, includeSpiff, spiffEntries, from, t
         </div>
       </div>
       <div style="overflow-x:auto">
-        <table class="tbl" style="min-width:900px">
+        <table class="tbl" style="min-width:760px;width:100%">
           <thead><tr>
             <th>Time</th><th>Project / Category / Room</th><th>Cost Code</th><th>Description</th><th>Billable</th>
             <th style="text-align:right">Reg Hrs</th>
             <th style="text-align:right">OT Hrs</th>
             <th style="text-align:right">DT Hrs</th>
             <th style="text-align:right">Pay</th>
-            <th></th>
+            <th style="width:64px"></th>
           </tr></thead>
           <tbody>${dayRows}</tbody>
           <tfoot>
